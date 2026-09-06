@@ -41,43 +41,31 @@ function rowToPost(row: PostRow): Post {
   }
 }
 
-export async function findPostsByThreadId(db: DbAdapter, threadId: string): Promise<Post[]> {
-  const result = await db.all<PostRow>(
-    'SELECT * FROM posts WHERE thread_id = ? ORDER BY post_number ASC',
-    [threadId],
-  )
-  return result.results.map(rowToPost)
-}
-
-export type PostRange = { from: number; to: number | null }
-
-// 複数レンジを OR 結合した単一クエリで取得
-export async function findPostsByRanges(
+// limit/cursorページネーション。post_number は投稿順の連番なので、これ自体をカーソルとして使う。
+export async function findPostsByThreadIdPage(
   db: DbAdapter,
   threadId: string,
-  ranges: PostRange[],
-): Promise<Post[]> {
-  if (ranges.length === 0) return findPostsByThreadId(db, threadId)
-
-  const conditions: string[] = []
+  opts: { limit: number; afterPostNumber: number | null },
+): Promise<{ items: Post[]; nextCursorRaw: number | null }> {
   const params: unknown[] = [threadId]
-
-  for (const r of ranges) {
-    if (r.to === null) {
-      conditions.push('post_number >= ?')
-      params.push(r.from)
-    } else if (r.from === r.to) {
-      conditions.push('post_number = ?')
-      params.push(r.from)
-    } else {
-      conditions.push('(post_number >= ? AND post_number <= ?)')
-      params.push(r.from, r.to)
-    }
+  let cursorClause = ''
+  if (opts.afterPostNumber !== null) {
+    cursorClause = ' AND post_number > ?'
+    params.push(opts.afterPostNumber)
   }
+  params.push(opts.limit + 1)
 
-  const sql = `SELECT * FROM posts WHERE thread_id = ? AND (${conditions.join(' OR ')}) ORDER BY post_number ASC`
-  const result = await db.all<PostRow>(sql, params)
-  return result.results.map(rowToPost)
+  const result = await db.all<PostRow>(
+    `SELECT * FROM posts WHERE thread_id = ?${cursorClause} ORDER BY post_number ASC LIMIT ?`,
+    params,
+  )
+  const hasMore = result.results.length > opts.limit
+  const pageRows = hasMore ? result.results.slice(0, opts.limit) : result.results
+  const last = pageRows[pageRows.length - 1]
+  return {
+    items: pageRows.map(rowToPost),
+    nextCursorRaw: hasMore && last ? last.post_number : null,
+  }
 }
 
 export async function findPostByNumber(
@@ -119,17 +107,17 @@ export async function insertPost(db: DbAdapter, post: Post): Promise<void> {
   )
 }
 
-// 投稿内容の更新 (PUT: content + isEdited フラグ)
+// 投稿内容の冪等な置換 (PUT: content/posterName/posterOptionInfo + isEdited フラグ)
 export async function updatePostContent(
   db: DbAdapter,
   threadId: string,
   postNumber: number,
-  content: string,
-  editedAt: string,
+  fields: { content: string; posterName: string; posterOptionInfo: string; editedAt: string },
 ): Promise<boolean> {
   const result = await db.run(
-    'UPDATE posts SET content = ?, is_edited = 1, edited_at = ? WHERE thread_id = ? AND post_number = ?',
-    [content, editedAt, threadId, postNumber],
+    `UPDATE posts SET content = ?, poster_name = ?, poster_option_info = ?, is_edited = 1, edited_at = ?
+     WHERE thread_id = ? AND post_number = ?`,
+    [fields.content, fields.posterName, fields.posterOptionInfo, fields.editedAt, threadId, postNumber],
   )
   return result.changes > 0
 }

@@ -5,11 +5,19 @@ import * as roleRepository from '../repository/roleRepository'
 import * as userRepository from '../repository/userRepository'
 import { getSystemIds } from '../utils/constants'
 
+// Authorization: Bearer <sessionId> からセッションIDを取り出す
+function extractBearerToken(header: string | undefined): string | null {
+  if (!header) return null
+  const match = /^Bearer (.+)$/.exec(header)
+  return match ? match[1] : null
+}
+
 // 全ルートに適用: セッション・管理者フラグ・ロール一覧をコンテキストに設定する
 // 認証失敗でもブロックしない (権限チェックは各サービスで行う)
 export const authContext: MiddlewareHandler<AppEnv> = async (c, next) => {
   const sysIds = getSystemIds(c.env)
-  const sessionId = c.req.header('X-Session-Id')
+  const sessionId = extractBearerToken(c.req.header('Authorization'))
+  c.set('sessionId', sessionId)
 
   if (sessionId) {
     const session = await sessionRepository.findSessionById(c.get('kv'), sessionId)

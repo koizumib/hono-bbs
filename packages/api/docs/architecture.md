@@ -82,9 +82,9 @@ hono-bbs/
 ### `src/index.ts` — Workers エントリポイント
 
 - `export default { fetch }` で Workers に登録
-- **CORS ヘッダー付与**: `CORS_ORIGIN` 環境変数に基づき `Access-Control-Allow-Origin` を設定
+- **CORS**: `hono/cors` ミドルウェアが `CORS_ORIGIN` 環境変数に基づき動的にオリジンを許可し、
+  プリフライト・`Vary: Origin` も含めて処理する（手書きの独自CORS実装は撤去済み）
 - **ベースパス除去**: `API_BASE_PATH`（デフォルト `/api/v1`）を URL から除去して内部ルーターに転送
-- OPTIONS preflight リクエストを処理
 
 ### `src/index.node.ts` — Node.js ローカル開発用エントリポイント
 
@@ -101,7 +101,10 @@ hono-bbs/
 | `auth.ts` | `/auth` | ログイン / ログアウト / admin 初期設定 |
 | `identity.ts` | `/identity` | ユーザ管理 / ロール管理 / メンバー管理 |
 | `profile.ts` | `/profile` | 自分のプロフィール管理 |
-| `boards.ts` | `/boards` | 掲示板 / スレッド / 投稿 CRUD |
+| `boards.ts` | `/boards` | 板 CRUD。`/:boardId/threads` に `threads.ts` をネスト |
+| `threads.ts` | `/boards/:boardId/threads` | スレッド CRUD。`/:threadId/posts` に `posts.ts` をネスト |
+| `posts.ts` | `/boards/:boardId/threads/:threadId/posts` | 投稿 CRUD |
+| `images.ts` | `/upload`, `/images` | 画像アップロード (旧 imageUploader プラグイン) |
 
 ルート定義のみを記述し、ロジックはハンドラーに委譲する。
 
@@ -114,11 +117,12 @@ hono-bbs/
 | `authHandler.ts` | 認証 (login/logout/setup/Turnstile) |
 | `identityHandler.ts` | ユーザ・ロール・メンバー操作 |
 | `profileHandler.ts` | プロフィール・パスワード変更・アカウント削除 |
-| `boardHandler.ts` | 掲示板 CRUD |
-| `threadHandler.ts` | スレッド CRUD + 投稿一覧取得 / 削除済み投稿マスク |
-| `postHandler.ts` | 投稿 CRUD / 削除済み投稿マスク |
+| `boardHandler.ts` | 掲示板 CRUD (limit/cursorページネーション含む) |
+| `threadHandler.ts` | スレッド CRUD (limit/cursorページネーション含む) |
+| `postHandler.ts` | 投稿 CRUD (limit/cursorページネーション含む) |
+| `responseShaping.ts` | `adminVisible`/`stripBoard`/`stripThread`/`stripPost`/`maskDeletedPost` を集約した共通ヘルパー (旧: 3ファイルに重複実装されていた) |
 
-**削除済み投稿のマスク処理**: `maskDeletedPost()` 関数で、`isDeleted=true` の投稿は
+**削除済み投稿のマスク処理**: `maskDeletedPost()` (`responseShaping.ts`) で、`isDeleted=true` の投稿は
 `posterName` / `posterOptionInfo` / `authorId` / `content` を空文字 `""` に置き換えてレスポンスする。
 削除テキストの表示 (「あぼーん」等) はフロントエンド側で行う。
 
@@ -160,21 +164,25 @@ SQL インジェクションを防止している。文字列結合による動�
 | ファイル | 役割 |
 |---|---|
 | `adapters.ts` | DB/KV アダプターをコンテキストにセット (`c.set('db', ...)`) |
-| `auth.ts` | `X-Session-Id` ヘッダーからセッション取得・認証コンテキスト設定 |
+| `auth.ts` | `Authorization: Bearer` ヘッダーからセッション取得・認証コンテキスト設定 |
 | `domain.ts` | `BBS_ALLOW_DOMAIN` に基づく Host ヘッダーチェック |
 | `requestSize.ts` | `MAX_REQUEST_SIZE` に基づくリクエストボディサイズ制限 |
-| `turnstile.ts` | `X-Turnstile-Session` ヘッダー検証 (POST/PUT/DELETE に適用) |
+| `turnstile.ts` | `X-Turnstile-Session` ヘッダー検証 (POST/PUT/DELETE に適用)。検証したIDを `turnstileSessionId` としてコンテキストにセット |
+| `rateLimit.ts` | KVベースのSliding Window Logレート制限 (旧: imageUploaderプラグインのみが持っていた実装を共通化。スレッド/投稿作成・Turnstile発行等で再利用) |
 
 #### `auth.ts` が設定するコンテキスト変数
 
 | 変数 | 型 | 内容 |
 |---|---|---|
 | `userId` | `string \| null` | ログイン中のユーザ ID |
+| `sessionId` | `string \| null` | `Authorization: Bearer` から抽出した生のセッションID (adminMeta用。ハンドラが個別にヘッダーを読み直さないための共有) |
 | `userRoleIds` | `string[]` | ユーザが所属するロール ID 一覧 |
 | `isSysAdmin` | `boolean` | admin ユーザかどうか |
 | `isUserAdmin` | `boolean` | `USER_ADMIN_ROLE` 所属かどうか |
 | `db` | `DbAdapter` | D1/SQLite アダプター |
 | `kv` | `KvAdapter` | KV アダプター |
+
+`middleware/turnstile.ts` も同様に `turnstileSessionId: string | null` をコンテキストにセットする。
 
 ---
 
@@ -208,7 +216,7 @@ Workers 環境と Node.js ローカル環境の差異を吸収する薄いラッ
 | `hash.ts` | 匿名投稿者 ID のハッシュ生成 |
 | `password.ts` | パスワードのハッシュ化・検証 (PBKDF2) |
 | `acl.ts` | RBAC (ACL) の判定・構築 |
-| `postRange.ts` | `?posts=` レンジ指定のパース |
+| `pagination.ts` | limit/cursorページネーションの共通ユーティリティ (カーソルのエンコード/デコード、クエリスキーマ) |
 | `zodHelper.ts` | ZodError 判定・エラーメッセージ整形 |
 
 #### 権限システム (`acl.ts`)
@@ -278,22 +286,23 @@ board の `defaultThreadAcl`/`defaultPostAcl` はテンプレートで、スレ�
 
 ## リクエスト処理フロー
 
-### 認証付きリクエスト例: `POST /api/v1/boards/:boardId`
+### 認証付きリクエスト例: `POST /api/v1/boards/:boardId/threads`
 
 ```
-1. index.ts         ベースパス (/api/v1) を除去 → /boards/:boardId に転送
-2. domainRestrict   Host ヘッダーチェック (BBS_ALLOW_DOMAIN 設定時)
-3. requestSizeLimit リクエストボディサイズチェック
-4. setupAdapters    DB/KV アダプターをコンテキストにセット
-5. authContext      X-Session-Id ヘッダーからセッション取得 → userId/userRoleIds を設定
-6. routes/boards.ts ルートマッチング → createThreadHandler へ
-7. turnstile MW     X-Turnstile-Session ヘッダー検証
-8. createThreadHandler  リクエストボディをパース
-9. threadService.parseCreateThread  zod でバリデーション
-10. threadService.createThread      権限チェック + ビジネスロジック
-11. threadRepository.createThread   D1 にプレースホルダーで INSERT
-12. レスポンス生成 (201 Created)
-13. index.ts        CORS ヘッダー付与してレスポンス返却
+1. index.ts         ベースパス (/api/v1) を除去 → /boards/:boardId/threads に転送
+2. hono/cors        CORS処理・プリフライト (Vary: Origin 等)
+3. domainRestrict   Host ヘッダーチェック (BBS_ALLOW_DOMAIN 設定時)
+4. requestSizeLimit リクエストボディサイズチェック
+5. setupAdapters    DB/KV アダプターをコンテキストにセット
+6. authContext      Authorization: Bearer ヘッダーからセッション取得 → userId/userRoleIds を設定
+7. routes/boards.ts → routes/threads.ts へネスト、ルートマッチング → createThreadHandler へ
+8. turnstile MW     X-Turnstile-Session ヘッダー検証 (turnstileSessionId をコンテキストにセット)
+9. rateLimit MW     THREAD_CREATE_RATE_LIMIT に基づくレート制限
+10. createThreadHandler リクエストボディをパース
+11. threadService.parseCreateThread  zod でバリデーション
+12. threadService.createThread       権限チェック + ビジネスロジック
+13. threadRepository.insertThread    D1 にプレースホルダーで INSERT
+14. レスポンス生成 (201 Created、CORSヘッダーは2.のhono/corsが付与)
 ```
 
 ---
@@ -313,7 +322,7 @@ board の `defaultThreadAcl`/`defaultPostAcl` はテンプレートで、スレ�
 
 ### 認証・認可
 
-- ログインセッション: KV に保存した UUID セッション (`X-Session-Id` ヘッダー)
+- ログインセッション: KV に保存した UUID セッション (`Authorization: Bearer` ヘッダー)
 - Turnstile: 書き込み操作に `X-Turnstile-Session` ヘッダーを必須化（`ENABLE_TURNSTILE=true` 時）
 - 権限チェック: `src/utils/permission.ts` でビットマスク評価
 

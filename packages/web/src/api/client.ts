@@ -24,7 +24,7 @@ export class TurnstileRequiredError extends Error {
 }
 
 interface FetchOptions {
-  method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
+  method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   body?: unknown
   requiresTurnstile?: boolean
   requiresSession?: boolean
@@ -42,7 +42,7 @@ export async function apiFetch<T>(
 
   const sessionId = useAuthStore.getState().sessionId
   if (sessionId) {
-    headers['X-Session-Id'] = sessionId
+    headers['Authorization'] = `Bearer ${sessionId}`
   } else if (requiresSession) {
     throw new ApiError('UNAUTHORIZED', '未ログインです', 401)
   }
@@ -66,7 +66,7 @@ export async function apiFetch<T>(
     return undefined as T
   }
 
-  const json = await res.json()
+  const json = await res.json() as { error?: string; message?: string; errorCodes?: string[] }
 
   if (!res.ok) {
     throw new ApiError(

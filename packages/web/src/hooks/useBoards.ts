@@ -4,6 +4,6 @@ import { getBoards } from '../api/boards'
 export function useBoards() {
   return useQuery({
     queryKey: ['boards'],
-    queryFn: getBoards,
+    queryFn: () => getBoards(),
   })
 }

@@ -51,14 +51,36 @@ function rowToBoard(row: BoardRow): Board {
   }
 }
 
-export async function findBoards(db: DbAdapter): Promise<Board[]> {
-  const result = await db.all<BoardRow>('SELECT * FROM boards ORDER BY created_at DESC')
-  return result.results.map(rowToBoard)
-}
-
 export async function findBoardById(db: DbAdapter, id: string): Promise<Board | null> {
   const row = await db.first<BoardRow>('SELECT * FROM boards WHERE id = ?', [id])
   return row ? rowToBoard(row) : null
+}
+
+export type BoardCursor = { createdAt: string; id: string }
+
+// limit/cursorページネーション。created_at DESC, id DESC の複合キーでキーセットページングする。
+// limit+1件取得して次ページの有無を判定する (COUNTクエリ不要)。
+export async function findBoardsPage(
+  db: DbAdapter,
+  opts: { limit: number; cursor: BoardCursor | null },
+): Promise<{ items: Board[]; nextCursorRaw: BoardCursor | null }> {
+  const params: unknown[] = []
+  let sql = 'SELECT * FROM boards'
+  if (opts.cursor) {
+    sql += ' WHERE (created_at < ? OR (created_at = ? AND id < ?))'
+    params.push(opts.cursor.createdAt, opts.cursor.createdAt, opts.cursor.id)
+  }
+  sql += ' ORDER BY created_at DESC, id DESC LIMIT ?'
+  params.push(opts.limit + 1)
+
+  const result = await db.all<BoardRow>(sql, params)
+  const hasMore = result.results.length > opts.limit
+  const pageRows = hasMore ? result.results.slice(0, opts.limit) : result.results
+  const last = pageRows[pageRows.length - 1]
+  return {
+    items: pageRows.map(rowToBoard),
+    nextCursorRaw: hasMore && last ? { createdAt: last.created_at, id: last.id } : null,
+  }
 }
 
 export type BoardWriteFields = {

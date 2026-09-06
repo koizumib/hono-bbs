@@ -9,7 +9,7 @@
 
 ### 役割・実装の説明
 
-`X-Session-Id` から現在のユーザを特定し、そのユーザのみ操作できる。
+`Authorization: Bearer <sessionId>` から現在のユーザを特定し、そのユーザのみ操作できる。
 `id` (ログインID) および `isActive` フラグは変更不可。
 アカウント削除後も投稿は残り、`userId` が `null` になる。
 管理者ユーザ (`admin`) は削除不可。
@@ -22,7 +22,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 
 ### レスポンス
 
@@ -59,7 +59,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `X-Turnstile-Session` 必須
 
 ### リクエスト
@@ -101,7 +101,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `X-Turnstile-Session` 必須
 
 ### リクエスト

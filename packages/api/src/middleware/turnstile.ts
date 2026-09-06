@@ -5,12 +5,14 @@ import * as sessionRepository from '../repository/sessionRepository'
 // X-Turnstile-Session ヘッダーで Turnstile セッションを検証するミドルウェア
 // ENABLE_TURNSTILE=true のときのみ KV 検証を行う。未設定または false のときはスキップ。
 export const requireTurnstile: MiddlewareHandler<AppEnv> = async (c, next) => {
+  const sessionId = c.req.header('X-Turnstile-Session') ?? null
+  c.set('turnstileSessionId', sessionId)
+
   if (c.env.ENABLE_TURNSTILE !== 'true') {
     await next()
     return
   }
 
-  const sessionId = c.req.header('X-Turnstile-Session')
   if (!sessionId) {
     return c.json({ error: 'TURNSTILE_REQUIRED', message: 'X-Turnstile-Session header required' }, 400)
   }

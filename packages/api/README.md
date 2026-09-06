@@ -237,7 +237,7 @@ curl -X POST <API_BASE>/auth/login \
 # 3. 板を作成 (acl は owner/grants/authenticatedActions/anonymousActions で構成する RBAC)
 curl -X POST <API_BASE>/boards \
   -H "Content-Type: application/json" \
-  -H "X-Session-Id: <SESSION_ID>" \
+  -H "Authorization: Bearer <SESSION_ID>" \
   -H "X-Turnstile-Session: <TURNSTILE_SESSION_ID>" \
   -d '{
     "id":"general","name":"雑談","defaultIdFormat":"daily_hash","defaultPosterName":"名無しさん",

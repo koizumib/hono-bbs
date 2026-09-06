@@ -159,6 +159,13 @@ export type AppEnv = {
     ALLOWED_CONTENT_TYPES?: string      // 許可 MIME タイプ (カンマ区切り)
     IMAGE_TTL_DAYS?: string             // 画像保持日数 (0=無期限)
     ADMIN_API_KEY?: string              // 画像管理エンドポイント用
+    // ── レート制限 (スレッド/投稿作成) ────────────────────────────
+    THREAD_CREATE_RATE_LIMIT?: string   // ウィンドウ内の最大スレッド作成数 (0=無制限)
+    THREAD_CREATE_RATE_WINDOW?: string  // ウィンドウ幅 (分, デフォルト: 60)
+    POST_CREATE_RATE_LIMIT?: string     // ウィンドウ内の最大投稿数 (0=無制限)
+    POST_CREATE_RATE_WINDOW?: string    // ウィンドウ幅 (分, デフォルト: 60)
+    TURNSTILE_VERIFY_RATE_LIMIT?: string   // ウィンドウ内の最大Turnstile検証試行数 (0=無制限)
+    TURNSTILE_VERIFY_RATE_WINDOW?: string  // ウィンドウ幅 (分, デフォルト: 60)
     // ── API 設定 ─────────────────────────────────────────────────
     MAX_REQUEST_SIZE?: string
     API_BASE_PATH: string
@@ -176,5 +183,7 @@ export type AppEnv = {
     isUserAdmin: boolean         // user-admin-role メンバー (ユーザ管理 + adminMeta 参照)
     userRoleIds: string[]        // ユーザが持つロールID一覧
     primaryRoleId: string | null
+    sessionId: string | null        // Authorization: Bearer から抽出したログインセッションID (adminMeta用)
+    turnstileSessionId: string | null // X-Turnstile-Session から抽出した値 (adminMeta用)
   }
 }

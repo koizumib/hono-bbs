@@ -80,7 +80,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `user-admin-role` メンバーのみ
 
 ### クエリパラメータ
@@ -118,7 +118,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `user-admin-role` メンバーのみ
 
 ### レスポンス
@@ -142,7 +142,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `X-Turnstile-Session` 必須
 - `user-admin-role` メンバーのみ
 
@@ -182,7 +182,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `X-Turnstile-Session` 必須
 - `user-admin-role` メンバーのみ
 

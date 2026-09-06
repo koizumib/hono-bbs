@@ -10,13 +10,27 @@
 
 | ヘッダー | 用途 |
 |---|---|
-| `X-Session-Id` | ログインセッションID (`POST /auth/login` で取得) |
-| `X-Turnstile-Session` | Turnstile セッションID (`GET/POST /auth/turnstile` で取得)。`ENABLE_TURNSTILE=true` 時の全 POST/PUT/PATCH/DELETE で必要 |
+| `Authorization: Bearer <sessionId>` | ログインセッションID (`POST /auth/login` で取得) |
+| `X-Turnstile-Session` | Turnstile セッションID (`GET/POST /auth/turnstile` で取得)。`ENABLE_TURNSTILE=true` 時の全 POST/PUT/PATCH/DELETE で必要。「誰であるか」の資格情報ではなくBot対策チャレンジ通過の証跡なので `Authorization` ではなく専用ヘッダーのまま |
 
 ### レスポンス形式
 
-成功時: `{ "data": <payload> }`
+成功時 (単一リソース): `{ "data": <payload> }`
+成功時 (一覧、limit/cursorページネーション): `{ "data": [<payload>, ...], "nextCursor": string | null }`
 エラー時: `{ "error": "ERROR_CODE", "message": "説明" }`
+
+### ページネーション (`limit`/`cursor`)
+
+一覧系エンドポイント (`GET /boards`、`GET /boards/:boardId/threads`、`GET /boards/:boardId/threads/:threadId/posts`) は
+`?limit=20&cursor=<opaque>` で制御する。
+
+| パラメータ | 説明 | デフォルト |
+|---|---|---|
+| `limit` | 1ページの件数 (1〜100) | `20` |
+| `cursor` | 前ページのレスポンスの `nextCursor` をそのまま渡す。中身の形式は不透明 (opaque) として扱うこと | — (先頭から) |
+
+`nextCursor` が `null` の場合、次ページは無い。ACLで閲覧不可なアイテムは一覧から除外されるため、
+`data` の件数が `limit` より少なくても次ページが存在することがある。
 
 ---
 
@@ -84,8 +98,8 @@ interface ResourceAcl {
 
 ## 権限フィルタリング
 
-一覧取得 (`GET /boards`、`GET /boards/:boardId`、`GET /boards/:boardId/:threadId`) では、
-クライアントが GET 権限を持たないオブジェクトはレスポンスから自動的に除外される。
+一覧取得 (`GET /boards`、`GET /boards/:boardId/threads`、`GET /boards/:boardId/threads/:threadId/posts`) では、
+クライアントが `read` 権限を持たないオブジェクトはレスポンスから自動的に除外される。
 
 ---
 
@@ -118,9 +132,12 @@ interface ResourceAcl {
 
 | ファイル | エンドポイント | 説明 |
 |---|---|---|
-| [boards.md](./boards.md) | `GET/POST /boards`, `PUT/PATCH/DELETE /boards/:boardId` | 板の一覧・作成・更新・削除 |
-| [threads.md](./threads.md) | `GET/POST /boards/:boardId`, `GET/PUT/PATCH/DELETE /boards/:boardId/:threadId` | スレッドの一覧・作成・更新・削除 |
-| [posts.md](./posts.md) | `POST/GET/PUT/PATCH/DELETE /boards/:boardId/:threadId/*` | 投稿の作成・取得・更新・ソフトデリート |
+| [boards.md](./boards.md) | `GET /boards`, `POST /boards`, `GET/PUT/PATCH/DELETE /boards/:boardId` | 板の一覧・作成・更新・削除 |
+| [threads.md](./threads.md) | `GET/POST /boards/:boardId/threads`, `GET/PUT/PATCH/DELETE /boards/:boardId/threads/:threadId` | スレッドの一覧・作成・更新・削除 |
+| [posts.md](./posts.md) | `GET/POST /boards/:boardId/threads/:threadId/posts`, `GET/PUT/PATCH/DELETE .../posts/:postNumber` | 投稿の作成・取得・更新・ソフトデリート |
+
+`PUT`はupsert（存在しなければ作成、存在すれば全フィールドを冪等に置換）、`PATCH`は既存リソースの
+指定フィールドのみ部分更新（upsertしない）という意味で統一している。
 
 ---
 

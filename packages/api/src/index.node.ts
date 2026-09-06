@@ -14,6 +14,8 @@
 
 import { serve } from '@hono/node-server'
 import { Hono } from 'hono'
+import type { Context } from 'hono'
+import { cors } from 'hono/cors'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import type { AppEnv } from './types'
 import { authContext } from './middleware/auth'
@@ -39,6 +41,16 @@ async function main() {
   const api = new Hono<AppEnv>()
 
   api.use(trimTrailingSlash())
+  api.use('*', cors({
+    origin: (origin, c: Context<AppEnv>) => {
+      const allowed = (c.env.CORS_ORIGIN ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+      if (allowed.length === 0) return '*'
+      return allowed.includes(origin) ? origin : undefined
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Turnstile-Session'],
+    maxAge: 86400,
+  }))
   api.use('*', domainRestrict)
   api.use('*', requestSizeLimit)
 
@@ -62,20 +74,6 @@ async function main() {
     return c.json({ error: 'INTERNAL_SERVER_ERROR', message: 'An error occurred' }, 500)
   })
 
-  // CORS ヘッダー処理
-  function buildCorsHeaders(request: Request, corsOrigin: string | undefined): HeadersInit {
-    const allowed = (corsOrigin ?? '').split(',').map(s => s.trim()).filter(Boolean)
-    const requestOrigin = request.headers.get('Origin') ?? ''
-    const allowOrigin = allowed.length === 0 ? '*' : (allowed.includes(requestOrigin) ? requestOrigin : '')
-    if (!allowOrigin) return {}
-    return {
-      'Access-Control-Allow-Origin': allowOrigin,
-      'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, X-Session-Id, X-Turnstile-Session',
-      'Access-Control-Max-Age': '86400',
-    }
-  }
-
   const port = Number(process.env.PORT ?? 3000)
   const basePath = process.env.API_BASE_PATH ?? '/api/v1'
   const corsOrigin = process.env.CORS_ORIGIN
@@ -83,17 +81,9 @@ async function main() {
   serve({
     fetch: async (request: Request) => {
       const url = new URL(request.url)
-      const corsHeaders = buildCorsHeaders(request, corsOrigin)
-
-      if (request.method === 'OPTIONS') {
-        return new Response(null, { status: 204, headers: corsHeaders })
-      }
 
       if (!url.pathname.startsWith(basePath)) {
-        return Response.json(
-          { error: 'NOT_FOUND', message: `API base path is ${basePath}` },
-          { status: 404, headers: corsHeaders },
-        )
+        return Response.json({ error: 'NOT_FOUND', message: `API base path is ${basePath}` }, { status: 404 })
       }
 
       const newPath = url.pathname.slice(basePath.length) || '/'
@@ -121,13 +111,7 @@ async function main() {
         // 画像アップロード機能 (/upload, /images) は D1/R2 依存のため Node.js ローカル環境では未マウント
       }
 
-      const response = await api.fetch(new Request(url.toString(), request), env)
-
-      const newHeaders = new Headers(response.headers)
-      for (const [key, value] of Object.entries(corsHeaders)) {
-        newHeaders.set(key, value)
-      }
-      return new Response(response.body, { status: response.status, headers: newHeaders })
+      return api.fetch(new Request(url.toString(), request), env)
     },
     port,
   })

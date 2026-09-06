@@ -37,7 +37,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須 (`user-admin-role` メンバー)
+- `Authorization: Bearer <sessionId>` 必須 (`user-admin-role` メンバー)
 
 ### クエリパラメータ
 
@@ -67,7 +67,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須 (`user-admin-role` メンバー)
+- `Authorization: Bearer <sessionId>` 必須 (`user-admin-role` メンバー)
 
 ### レスポンス
 
@@ -87,7 +87,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須 (`user-admin-role` メンバー)
+- `Authorization: Bearer <sessionId>` 必須 (`user-admin-role` メンバー)
 - `X-Turnstile-Session` 必須
 
 ### リクエストボディ
@@ -119,7 +119,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須 (`user-admin-role` メンバー)
+- `Authorization: Bearer <sessionId>` 必須 (`user-admin-role` メンバー)
 - `X-Turnstile-Session` 必須
 
 ### リクエストボディ
@@ -150,7 +150,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須 (`user-admin-role` メンバー)
+- `Authorization: Bearer <sessionId>` 必須 (`user-admin-role` メンバー)
 - `X-Turnstile-Session` 必須
 
 ### レスポンス
@@ -172,7 +172,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須 (`user-admin-role` メンバー)
+- `Authorization: Bearer <sessionId>` 必須 (`user-admin-role` メンバー)
 - `X-Turnstile-Session` 必須
 
 ### リクエストボディ
@@ -203,7 +203,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須 (`user-admin-role` メンバー)
+- `Authorization: Bearer <sessionId>` 必須 (`user-admin-role` メンバー)
 - `X-Turnstile-Session` 必須
 
 ### レスポンス

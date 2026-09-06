@@ -118,6 +118,54 @@ export async function findThreadsByBoardId(db: DbAdapter, boardId: string): Prom
   return result.results.map(row => ({ ...rowToThread(row), firstPost: rowToFirstPost(row) }))
 }
 
+export type ThreadCursor = { updatedAt: string; id: string }
+
+// limit/cursorページネーション。updated_at DESC, id DESC の複合キーでキーセットページングする。
+export async function findThreadsByBoardIdPage(
+  db: DbAdapter,
+  boardId: string,
+  opts: { limit: number; cursor: ThreadCursor | null },
+): Promise<{ items: Thread[]; nextCursorRaw: ThreadCursor | null }> {
+  const params: unknown[] = [boardId]
+  let cursorClause = ''
+  if (opts.cursor) {
+    cursorClause = ' AND (t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))'
+    params.push(opts.cursor.updatedAt, opts.cursor.updatedAt, opts.cursor.id)
+  }
+  params.push(opts.limit + 1)
+
+  const result = await db.all<ThreadWithFirstPostRow>(
+    `SELECT
+      t.*,
+      p.id AS p_id,
+      p.post_number AS p_post_number,
+      p.acl AS p_acl,
+      p.author_id AS p_author_id,
+      p.poster_name AS p_poster_name,
+      p.poster_option_info AS p_poster_option_info,
+      p.content AS p_content,
+      p.is_deleted AS p_is_deleted,
+      p.is_edited AS p_is_edited,
+      p.edited_at AS p_edited_at,
+      p.created_at AS p_created_at,
+      p.creator_user_id AS p_creator_user_id,
+      p.creator_session_id AS p_creator_session_id,
+      p.creator_turnstile_session_id AS p_creator_turnstile_session_id
+    FROM threads t
+    LEFT JOIN posts p ON p.thread_id = t.id AND p.post_number = 1
+    WHERE t.board_id = ?${cursorClause}
+    ORDER BY t.updated_at DESC, t.id DESC LIMIT ?`,
+    params,
+  )
+  const hasMore = result.results.length > opts.limit
+  const pageRows = hasMore ? result.results.slice(0, opts.limit) : result.results
+  const last = pageRows[pageRows.length - 1]
+  return {
+    items: pageRows.map(row => ({ ...rowToThread(row), firstPost: rowToFirstPost(row) })),
+    nextCursorRaw: hasMore && last ? { updatedAt: last.updated_at, id: last.id } : null,
+  }
+}
+
 export async function findThreadById(db: DbAdapter, id: string): Promise<Thread | null> {
   const row = await db.first<ThreadRow>('SELECT * FROM threads WHERE id = ?', [id])
   return row ? rowToThread(row) : null

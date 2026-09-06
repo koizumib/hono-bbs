@@ -1,14 +1,14 @@
 # エンドポイント: 投稿 (Posts)
 
-ベースパス: `{API_BASE_PATH}/boards/:boardId/:threadId`
+ベースパス: `{API_BASE_PATH}/boards/:boardId/threads/:threadId/posts`
 
 ## 概要
 
 投稿 (Post) の作成・取得・更新・削除を行う。
 
-- **PUT**: 投稿内容 (本文・名前等) の更新。`isEdited` フラグが立つ。
-- **PATCH**: 投稿の権限設定 (`acl`) の変更。
-- **DELETE**: ソフトデリート。物理削除はなし。`isDeleted` フラグが `true` になり、表示系フィールドが空文字に置き換えられる。削除テキストの表示はフロントエンド側で行う。
+- **PUT**: 投稿内容 (本文・名前等) を冪等に置換する。`isEdited` フラグが立つ。
+- **PATCH**: 投稿の権限設定 (`acl`) の部分更新。
+- **DELETE**: ソフトデリート。物理削除はなし。`isDeleted` フラグが `true` になり、表示系フィールドが空文字に置き換えられる。レスポンスは常に `204 No Content` (ボディ無し)。削除後の表示が必要なら改めて `GET` する。削除テキストの表示 (「あぼーん」等) はフロントエンド側で行う。
 
 ### Post スキーマ
 
@@ -44,7 +44,6 @@
 
 `isDeleted: true` の投稿は `posterName`・`posterOptionInfo`・`authorId`・`content` が空文字 `""` に置き換えられる。
 投稿番号・`createdAt` 等その他フィールドはそのまま保持される。
-削除テキストの表示 (「あぼーん」等) はフロントエンド側で行う。
 
 ```json
 {
@@ -62,7 +61,39 @@
 
 ---
 
-## `POST /boards/:boardId/:threadId`
+## `GET /boards/:boardId/threads/:threadId/posts`
+
+投稿一覧を取得する (limit/cursorページネーション、詳細は[README.md](./README.md#ページネーションlimitcursor))。
+`postNumber` の昇順で返る。スレッドの read 権限が必要。
+
+### クエリパラメータ
+
+`?limit=20&cursor=<opaque>` (両方省略可)。カーソルは前ページ最後の `postNumber` を指す。
+
+### 認証
+
+不要
+
+### レスポンス
+
+- `200 OK`
+
+```json
+{
+  "data": [ "...Post オブジェクトの配列..." ],
+  "nextCursor": "eyJwb3N0TnVtYmVyIjoyMH0" // 次ページが無ければ null
+}
+```
+
+### エラー
+
+| コード | HTTP | 説明 |
+|---|---|---|
+| `THREAD_NOT_FOUND` | 404 | スレッドが存在しない、または read 権限なし |
+
+---
+
+## `POST /boards/:boardId/threads/:threadId/posts`
 
 投稿を作成する。スレッドの **create 権限**が必要。
 
@@ -94,14 +125,15 @@
 | `POST_LIMIT_REACHED` | 422 | 投稿数が上限に達した |
 | `CONTENT_TOO_LONG` | 422 | 本文が文字数制限を超過 |
 | `CONTENT_TOO_MANY_LINES` | 422 | 本文が行数制限を超過 |
+| `RATE_LIMIT_EXCEEDED` | 429 | `POST_CREATE_RATE_LIMIT` の上限に達した |
 
 ---
 
-## `GET /boards/:boardId/:threadId/:responseNumber`
+## `GET /boards/:boardId/threads/:threadId/posts/:postNumber`
 
 指定した投稿番号の投稿を取得する。スレッドの read 権限が必要。
 
-`:responseNumber` はスレッド内の投稿番号 (1始まりの整数)。
+`:postNumber` はスレッド内の投稿番号 (1始まりの整数)。
 
 ### 認証
 
@@ -115,16 +147,15 @@
 
 | コード | HTTP | 説明 |
 |---|---|---|
-| `VALIDATION_ERROR` | 400 | responseNumber が正の整数でない |
+| `VALIDATION_ERROR` | 400 | postNumber が正の整数でない |
 | `POST_NOT_FOUND` | 404 | 投稿が存在しない、または read 権限なし |
 
 ---
 
-## `PUT /boards/:boardId/:threadId/:responseNumber`
+## `PUT /boards/:boardId/threads/:threadId/posts/:postNumber`
 
-投稿の **内容** (本文・投稿者名・posterOptionInfo) を更新し、`isEdited` フラグを立てる。
-投稿の **update 権限**が必要。
-権限設定を変更したい場合は `PATCH` を使用する。
+投稿の **内容** (本文・投稿者名・posterOptionInfo) を冪等に置換し、`isEdited` フラグを立てる。
+投稿の **update 権限**が必要。権限設定を変更したい場合は `PATCH` を使用する。
 
 ### 認証
 
@@ -134,11 +165,13 @@
 
 ```jsonc
 {
-  "content": "新しい本文",         // 最大 10000 文字
-  "posterName": "新しい投稿者名",  // 最大 50 文字
-  "posterOptionInfo": "新しいオプション" // 最大 100 文字
+  "content": "新しい本文",                // 必須、最大 10000 文字
+  "posterName": "新しい投稿者名",          // 省略時 ''、最大 50 文字
+  "posterOptionInfo": "新しいオプション"   // 省略時 ''、最大 100 文字
 }
 ```
+
+`posterName`・`posterOptionInfo` は省略すると空文字になる (以前の値は維持されない、全体置換のため)。
 
 ### レスポンス
 
@@ -154,16 +187,16 @@
 
 ---
 
-## `PATCH /boards/:boardId/:threadId/:responseNumber`
+## `PATCH /boards/:boardId/threads/:threadId/posts/:postNumber`
 
-投稿の **権限設定** (`acl`) を更新する。
+投稿の **権限設定** (`acl`) を部分更新する（upsertしない）。
 投稿の **update 権限**が必要。ログインが必要。
 
-`isEdited` フラグは変更されない (PATCH は権限設定変更のため)。
+`isEdited` フラグは変更されない。
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `X-Turnstile-Session` 必須
 
 ### リクエストボディ
@@ -179,8 +212,6 @@
 }
 ```
 
-すべてのフィールドは省略可能。
-
 ### レスポンス
 
 - `200 OK` — 更新後の `Post` オブジェクト
@@ -195,10 +226,11 @@
 
 ---
 
-## `DELETE /boards/:boardId/:threadId/:responseNumber`
+## `DELETE /boards/:boardId/threads/:threadId/posts/:postNumber`
 
 投稿をソフトデリートする。投稿の **delete 権限**が必要。
-物理削除はなく、`isDeleted` フラグが立てられる。
+物理削除はなく、`isDeleted` フラグが立てられる。板・スレッドの `DELETE` と挙動を揃えるため、
+成功時は常に `204 No Content` (ボディ無し) を返す。削除後の表示が必要な場合は改めて `GET` する。
 
 ### 認証
 
@@ -206,7 +238,7 @@
 
 ### レスポンス
 
-- `200 OK` — ソフトデリート後の `Post` オブジェクト (本文・名前はマスクされた状態)
+- `204 No Content`
 
 ### エラー
 

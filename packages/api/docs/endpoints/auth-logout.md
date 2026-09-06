@@ -8,7 +8,7 @@
 
 ### 役割・実装の説明
 
-`X-Session-Id` ヘッダーで指定されたセッションを KV から削除する。
+`Authorization: Bearer <sessionId>` ヘッダーで指定されたセッションを KV から削除する。
 削除後はそのセッション ID を使った操作はすべて `401 UNAUTHORIZED` になる。
 
 ---
@@ -19,7 +19,7 @@
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 
 ### リクエスト
 

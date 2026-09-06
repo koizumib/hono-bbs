@@ -2,12 +2,14 @@ import { z } from 'zod'
 import type { Board } from '../types'
 import type { DbAdapter } from '../adapters/db'
 import * as boardRepository from '../repository/boardRepository'
+import type { BoardCursor } from '../repository/boardRepository'
 import { can, buildAcl, resourceAclInputSchema } from '../utils/acl'
+import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
 
-// POST /boards および PATCH /boards/:boardId (upsert) で使用
-const boardBodySchema = z.object({
+// POST /boards および PUT /boards/:boardId (upsert) で使用: 全フィールド必須
+export const boardBodySchema = z.object({
   id: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_\-\.]+$/, 'IDは英数字・_・-・. のみ使用できます').optional(),
   name: z.string().min(1).max(100),
   description: z.string().max(1000),
@@ -27,22 +29,18 @@ const boardBodySchema = z.object({
   category: z.string().max(128).optional(),
 })
 
-// PUT /boards/:boardId (name/description/category のみ更新可)
-const updateBoardSchema = z.object({
-  name: z.string().min(1).max(100).optional(),
-  description: z.string().max(1000).optional(),
-  category: z.string().max(128).optional(),
-})
+// PATCH /boards/:boardId: 既存の板のみ対象、指定したフィールドだけ更新する (upsertしない)
+export const patchBoardSchema = boardBodySchema.omit({ id: true }).partial()
 
 export type BoardBodyInput = z.infer<typeof boardBodySchema>
-export type UpdateBoardInput = z.infer<typeof updateBoardSchema>
+export type PatchBoardInput = z.infer<typeof patchBoardSchema>
 
 export function parseBoardBody(data: unknown): BoardBodyInput {
   return boardBodySchema.parse(data)
 }
 
-export function parseUpdateBoard(data: unknown): UpdateBoardInput {
-  return updateBoardSchema.parse(data)
+export function parsePatchBoard(data: unknown): PatchBoardInput {
+  return patchBoardSchema.parse(data)
 }
 
 function buildBoardFromInput(
@@ -76,15 +74,34 @@ function buildBoardFromInput(
   }
 }
 
+// GET /boards/:boardId (板情報のみ)
+export async function getBoard(
+  db: DbAdapter,
+  boardId: string,
+  userId: string | null,
+  userRoleIds: string[],
+  isSysAdmin: boolean,
+): Promise<Board | null> {
+  const board = await boardRepository.findBoardById(db, boardId)
+  if (!board) return null
+  if (!can(board.acl, { userId, userRoleIds, isSysAdmin }, 'read')) return null
+  return board
+}
+
 export async function getBoards(
   db: DbAdapter,
   userId: string | null,
   userRoleIds: string[],
   isSysAdmin: boolean,
-): Promise<Board[]> {
-  const boards = await boardRepository.findBoards(db)
-  if (isSysAdmin) return boards
-  return boards.filter(b => can(b.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
+  pagination: PaginationQuery,
+): Promise<Page<Board>> {
+  const cursor = pagination.cursor ? decodeCursor<BoardCursor>(pagination.cursor) : null
+  const { items, nextCursorRaw } = await boardRepository.findBoardsPage(db, { limit: pagination.limit, cursor })
+  const filtered = isSysAdmin ? items : items.filter(b => can(b.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
+  return {
+    items: filtered,
+    nextCursor: nextCursorRaw ? encodeCursor(nextCursorRaw) : null,
+  }
 }
 
 // POST /boards: sys admin のみ作成可
@@ -106,30 +123,8 @@ export async function createBoard(
   return board
 }
 
-// PUT /boards/:boardId: name/description/category のみ更新
+// PUT /boards/:boardId: upsert (存在しない場合は sys admin のみ作成可、存在する場合は全フィールドを置換する)
 export async function putBoard(
-  db: DbAdapter,
-  boardId: string,
-  input: UpdateBoardInput,
-  userId: string | null,
-  userRoleIds: string[],
-  isSysAdmin: boolean,
-): Promise<Board | null> {
-  const board = await boardRepository.findBoardById(db, boardId)
-  if (!board) return null
-
-  if (!can(board.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
-
-  await boardRepository.updateBoard(db, boardId, {
-    name: input.name,
-    description: input.description,
-    category: input.category,
-  })
-  return boardRepository.findBoardById(db, boardId)
-}
-
-// PATCH /boards/:boardId: upsert (存在しない場合は sys admin のみ作成可)
-export async function patchBoard(
   db: DbAdapter,
   boardId: string,
   input: BoardBodyInput,
@@ -169,6 +164,40 @@ export async function patchBoard(
     defaultThreadAcl: buildAcl(input.defaultThreadAcl, null),
     defaultPostAcl: buildAcl(input.defaultPostAcl, null),
     category: input.category ?? '',
+  })
+  return (await boardRepository.findBoardById(db, boardId))!
+}
+
+// PATCH /boards/:boardId: 既存の板の指定フィールドのみ更新 (upsertしない)
+export async function patchBoard(
+  db: DbAdapter,
+  boardId: string,
+  input: PatchBoardInput,
+  userId: string | null,
+  userRoleIds: string[],
+  isSysAdmin: boolean,
+): Promise<Board | null> {
+  const existing = await boardRepository.findBoardById(db, boardId)
+  if (!existing) return null
+
+  if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+
+  await boardRepository.updateBoard(db, boardId, {
+    acl: input.acl !== undefined ? buildAcl(input.acl, existing.acl.ownerUserId ?? userId) : undefined,
+    name: input.name,
+    description: input.description,
+    maxThreads: input.maxThreads,
+    maxThreadTitleLength: input.maxThreadTitleLength,
+    defaultMaxPosts: input.defaultMaxPosts,
+    defaultMaxPostLength: input.defaultMaxPostLength,
+    defaultMaxPostLines: input.defaultMaxPostLines,
+    defaultMaxPosterNameLength: input.defaultMaxPosterNameLength,
+    defaultMaxPosterOptionLength: input.defaultMaxPosterOptionLength,
+    defaultPosterName: input.defaultPosterName,
+    defaultIdFormat: input.defaultIdFormat,
+    defaultThreadAcl: input.defaultThreadAcl !== undefined ? buildAcl(input.defaultThreadAcl, null) : undefined,
+    defaultPostAcl: input.defaultPostAcl !== undefined ? buildAcl(input.defaultPostAcl, null) : undefined,
+    category: input.category,
   })
   return (await boardRepository.findBoardById(db, boardId))!
 }

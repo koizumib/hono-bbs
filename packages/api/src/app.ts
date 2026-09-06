@@ -1,0 +1,55 @@
+import { Hono } from 'hono'
+import type { Context } from 'hono'
+import { cors } from 'hono/cors'
+import { trimTrailingSlash } from 'hono/trailing-slash'
+import type { AppEnv } from './types'
+import { authContext } from './middleware/auth'
+import { setupAdapters } from './middleware/adapters'
+import { domainRestrict } from './middleware/domain'
+import { requestSizeLimit } from './middleware/requestSize'
+import auth from './routes/auth'
+import identity from './routes/identity'
+import profile from './routes/profile'
+import boards from './routes/boards'
+import images from './routes/images'
+
+// 内部ルーター (ベースパスなし)。
+// boards 以下はチェーンでマウントし、hc<AppType>() のRPC型推論にスキーマが伝播するようにする
+// (AppType自体は rpcType.ts で別途エクスポートする。このファイルをそのままpackages/webにimportさせると
+// auth/identity/profile/imagesの実装まで型チェック対象に引き込まれてしまうため、あえて分離している)。
+export const api = new Hono<AppEnv>()
+  .use(trimTrailingSlash())
+  // CORS (プリフライト・Vary: Origin 等は hono/cors に任せる)
+  // CORS_ORIGIN 未設定時は * (全許可) にフォールバック
+  .use('*', cors({
+    origin: (origin, c: Context<AppEnv>) => {
+      const allowed = (c.env.CORS_ORIGIN ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+      if (allowed.length === 0) return '*'
+      return allowed.includes(origin) ? origin : undefined
+    },
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ['Content-Type', 'Authorization', 'X-Turnstile-Session'],
+    maxAge: 86400,
+  }))
+  // ドメイン制限 (BBS_ALLOW_DOMAIN が設定されている場合のみ有効)
+  .use('*', domainRestrict)
+  // リクエストサイズ制限 (MAX_REQUEST_SIZE が設定されている場合のみ有効)
+  .use('*', requestSizeLimit)
+  // アダプターセットアップ (DB / KV をコンテキストにセット)
+  .use('*', setupAdapters)
+  // 全ルートに認証コンテキストを適用
+  .use('*', authContext)
+  .route('/boards', boards)
+
+// hc() 経由で呼ばないルートはチェーンの外でマウントする
+api.route('/auth', auth)
+api.route('/identity', identity)
+api.route('/profile', profile)
+// 旧 imageUploader プラグイン: /upload/* と /images/* を直下にマウント
+api.route('/', images)
+
+// グローバルエラーハンドラー
+api.onError((err, c) => {
+  console.error(err)
+  return c.json({ error: 'INTERNAL_SERVER_ERROR', message: 'An error occurred' }, 500)
+})

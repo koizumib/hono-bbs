@@ -11,7 +11,7 @@
 ログイン成功時はセッション ID を KV (`SESSION_KV`) に保存し、クライアントへ返す。
 セッションは 24 時間有効。
 
-返されたセッション ID は以後のリクエストで `X-Session-Id` ヘッダーとして使用する。
+返されたセッション ID は以後のリクエストで `Authorization: Bearer <sessionId>` ヘッダーとして使用する。
 `isActive: false` のアカウントはログイン不可。
 
 Turnstile セッション (`X-Turnstile-Session`) が必要なため、
@@ -53,7 +53,7 @@ Turnstile セッション (`X-Turnstile-Session`) が必要なため、
 ```json
 {
   "data": {
-    "sessionId":   "string  // X-Session-Id に使用。24時間有効",
+    "sessionId":   "string  // Authorization: Bearer に使用。24時間有効",
     "userId":      "string",
     "displayName": "string",
     "expiresAt":   "string  // ISO 8601 形式"

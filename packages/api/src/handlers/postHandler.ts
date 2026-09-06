@@ -2,26 +2,44 @@ import type { Context } from 'hono'
 import type { AppEnv } from '../types'
 import * as postService from '../services/postService'
 import { isZodError, zodMessage } from '../utils/zodHelper'
+import { parsePaginationQuery } from '../utils/pagination'
 import { adminVisible, stripPost } from './responseShaping'
 
-// GET /boards/:boardId/:threadId/:responseNumber - 特定の投稿を取得
-export async function getPostHandler(c: Context<AppEnv>): Promise<Response> {
+// c.req.param(...) を string (非optional) として型付けするため、Contextにpathを明示する
+type WithThreadId = Context<AppEnv, '/:boardId/:threadId', any>
+type WithPostNumber = Context<AppEnv, '/:boardId/:threadId/:postNumber', any>
+
+// GET /boards/:boardId/threads/:threadId/posts (limit/cursorページネーション)
+export async function getPostsHandler(c: WithThreadId) {
   const boardId = c.req.param('boardId')
   const threadId = c.req.param('threadId')
-  const responseNumber = parseInt(c.req.param('responseNumber'), 10)
-  if (isNaN(responseNumber) || responseNumber < 1) {
-    return c.json({ error: 'VALIDATION_ERROR', message: 'responseNumber must be a positive integer' }, 400)
+  const pagination = parsePaginationQuery(c.req.query())
+  const page = await postService.getPosts(
+    c.get('db'), boardId, threadId, c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'), pagination,
+  )
+  if (!page) return c.json({ error: 'THREAD_NOT_FOUND', message: 'Thread not found' }, 404)
+  const visible = adminVisible(c)
+  return c.json({ data: page.items.map(p => stripPost(p, visible)), nextCursor: page.nextCursor })
+}
+
+// GET /boards/:boardId/threads/:threadId/posts/:postNumber - 特定の投稿を取得
+export async function getPostHandler(c: WithPostNumber) {
+  const boardId = c.req.param('boardId')
+  const threadId = c.req.param('threadId')
+  const postNumber = parseInt(c.req.param('postNumber'), 10)
+  if (isNaN(postNumber) || postNumber < 1) {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'postNumber must be a positive integer' }, 400)
   }
   const post = await postService.getPostByNumber(
-    c.get('db'), boardId, threadId, responseNumber,
+    c.get('db'), boardId, threadId, postNumber,
     c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'),
   )
   if (!post) return c.json({ error: 'POST_NOT_FOUND', message: 'Post not found' }, 404)
   return c.json({ data: stripPost(post, adminVisible(c)) })
 }
 
-// POST /boards/:boardId/:threadId - 投稿作成
-export async function createPostHandler(c: Context<AppEnv>): Promise<Response> {
+// POST /boards/:boardId/threads/:threadId/posts - 投稿作成
+export async function createPostHandler(c: WithThreadId) {
   const boardId = c.req.param('boardId')
   const threadId = c.req.param('threadId')
   try {
@@ -30,8 +48,7 @@ export async function createPostHandler(c: Context<AppEnv>): Promise<Response> {
     const post = await postService.createPost(
       c.get('db'), boardId, threadId, input,
       c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'),
-      c.req.header('X-Session-Id') ?? null,
-      c.req.header('X-Turnstile-Session') ?? null,
+      c.get('sessionId'), c.get('turnstileSessionId'),
     )
     return c.json({ data: stripPost(post, adminVisible(c)) }, 201)
   } catch (e) {
@@ -47,19 +64,19 @@ export async function createPostHandler(c: Context<AppEnv>): Promise<Response> {
   }
 }
 
-// PUT /boards/:boardId/:threadId/:responseNumber - 投稿内容更新 + isEdited フラグ
-export async function putPostHandler(c: Context<AppEnv>): Promise<Response> {
+// PUT /boards/:boardId/threads/:threadId/posts/:postNumber - 投稿内容の冪等な置換 + isEdited フラグ
+export async function putPostHandler(c: WithPostNumber) {
   const boardId = c.req.param('boardId')
   const threadId = c.req.param('threadId')
-  const responseNumber = parseInt(c.req.param('responseNumber'), 10)
-  if (isNaN(responseNumber) || responseNumber < 1) {
-    return c.json({ error: 'VALIDATION_ERROR', message: 'responseNumber must be a positive integer' }, 400)
+  const postNumber = parseInt(c.req.param('postNumber'), 10)
+  if (isNaN(postNumber) || postNumber < 1) {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'postNumber must be a positive integer' }, 400)
   }
   try {
     const body = await c.req.json()
     const input = postService.parseUpdatePost(body)
     const post = await postService.updatePost(
-      c.get('db'), boardId, threadId, responseNumber, input,
+      c.get('db'), boardId, threadId, postNumber, input,
       c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'),
     )
     if (!post) return c.json({ error: 'POST_NOT_FOUND', message: 'Post not found' }, 404)
@@ -73,19 +90,19 @@ export async function putPostHandler(c: Context<AppEnv>): Promise<Response> {
   }
 }
 
-// PATCH /boards/:boardId/:threadId/:responseNumber - 投稿メタデータ更新
-export async function patchPostHandler(c: Context<AppEnv>): Promise<Response> {
+// PATCH /boards/:boardId/threads/:threadId/posts/:postNumber - 投稿メタデータ(acl)更新
+export async function patchPostHandler(c: WithPostNumber) {
   const boardId = c.req.param('boardId')
   const threadId = c.req.param('threadId')
-  const responseNumber = parseInt(c.req.param('responseNumber'), 10)
-  if (isNaN(responseNumber) || responseNumber < 1) {
-    return c.json({ error: 'VALIDATION_ERROR', message: 'responseNumber must be a positive integer' }, 400)
+  const postNumber = parseInt(c.req.param('postNumber'), 10)
+  if (isNaN(postNumber) || postNumber < 1) {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'postNumber must be a positive integer' }, 400)
   }
   try {
     const body = await c.req.json()
     const input = postService.parsePatchPost(body)
     const post = await postService.patchPost(
-      c.get('db'), boardId, threadId, responseNumber, input,
+      c.get('db'), boardId, threadId, postNumber, input,
       c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'),
     )
     if (!post) return c.json({ error: 'POST_NOT_FOUND', message: 'Post not found' }, 404)
@@ -99,21 +116,21 @@ export async function patchPostHandler(c: Context<AppEnv>): Promise<Response> {
   }
 }
 
-// DELETE /boards/:boardId/:threadId/:responseNumber - 投稿ソフト削除
-export async function deletePostHandler(c: Context<AppEnv>): Promise<Response> {
+// DELETE /boards/:boardId/threads/:threadId/posts/:postNumber - 投稿ソフト削除。常に204 (ボディ無し)
+export async function deletePostHandler(c: WithPostNumber) {
   const boardId = c.req.param('boardId')
   const threadId = c.req.param('threadId')
-  const responseNumber = parseInt(c.req.param('responseNumber'), 10)
-  if (isNaN(responseNumber) || responseNumber < 1) {
-    return c.json({ error: 'VALIDATION_ERROR', message: 'responseNumber must be a positive integer' }, 400)
+  const postNumber = parseInt(c.req.param('postNumber'), 10)
+  if (isNaN(postNumber) || postNumber < 1) {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'postNumber must be a positive integer' }, 400)
   }
   try {
-    const post = await postService.deletePost(
-      c.get('db'), boardId, threadId, responseNumber,
+    const deleted = await postService.deletePost(
+      c.get('db'), boardId, threadId, postNumber,
       c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'),
     )
-    if (!post) return c.json({ error: 'POST_NOT_FOUND', message: 'Post not found' }, 404)
-    return c.json({ data: stripPost(post, adminVisible(c)) })
+    if (!deleted) return c.json({ error: 'POST_NOT_FOUND', message: 'Post not found' }, 404)
+    return new Response(null, { status: 204 })
   } catch (e) {
     if (e instanceof Error && e.message === 'FORBIDDEN') {
       return c.json({ error: 'FORBIDDEN', message: 'Insufficient permissions' }, 403)

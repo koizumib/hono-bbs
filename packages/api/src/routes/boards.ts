@@ -1,58 +1,32 @@
 import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
 import type { AppEnv } from '../types'
 import {
   getBoardsHandler,
+  getBoardHandler,
   createBoardHandler,
   putBoardHandler,
   patchBoardHandler,
   deleteBoardHandler,
 } from '../handlers/boardHandler'
-import {
-  getThreadsHandler,
-  getThreadWithPostsHandler,
-  createThreadHandler,
-  putThreadHandler,
-  patchThreadHandler,
-  deleteThreadHandler,
-} from '../handlers/threadHandler'
-import {
-  getPostHandler,
-  createPostHandler,
-  putPostHandler,
-  patchPostHandler,
-  deletePostHandler,
-} from '../handlers/postHandler'
+import { boardBodySchema, patchBoardSchema } from '../services/boardService'
 import { requireLogin } from '../middleware/auth'
 import { requireTurnstile } from '../middleware/turnstile'
+import { zValidatorHook } from '../utils/zodHelper'
+import { paginationQuerySchema } from '../utils/pagination'
+import threads from './threads'
 
+// チェーンで書くことで hc() のRPC型推論にルートスキーマが正しく伝播する。
+// zValidator はリクエストボディの型を hc() のRPCスキーマに乗せるために付与している
+// (ハンドラ自身も引き続き service 層で同じスキーマを検証するため、二重チェックになるが安全側)。
 const boards = new Hono<AppEnv>()
-
-// ── 板 (boards) ─────────────────────────────────────────
-boards.get('/', getBoardsHandler)
-boards.post('/', requireLogin, requireTurnstile, createBoardHandler)
-
-// ── 板詳細 + スレッド一覧 ────────────────────────────────
-boards.get('/:boardId', getThreadsHandler)
-boards.put('/:boardId', requireLogin, requireTurnstile, putBoardHandler)
-boards.patch('/:boardId', requireLogin, requireTurnstile, patchBoardHandler)
-boards.delete('/:boardId', requireLogin, requireTurnstile, deleteBoardHandler)
-
-// ── スレッド作成 (POST /boards/:boardId) ─────────────────
-boards.post('/:boardId', requireTurnstile, createThreadHandler)
-
-// ── スレッド詳細 + 投稿一覧 ──────────────────────────────
-boards.get('/:boardId/:threadId', getThreadWithPostsHandler)
-boards.put('/:boardId/:threadId', requireLogin, requireTurnstile, putThreadHandler)
-boards.patch('/:boardId/:threadId', requireLogin, requireTurnstile, patchThreadHandler)
-boards.delete('/:boardId/:threadId', requireLogin, requireTurnstile, deleteThreadHandler)
-
-// ── 投稿 ─────────────────────────────────────────────────
-boards.post('/:boardId/:threadId', requireTurnstile, createPostHandler)
-
-// ── 特定投稿 (responseNumber = postNumber) ───────────────
-boards.get('/:boardId/:threadId/:responseNumber', getPostHandler)
-boards.put('/:boardId/:threadId/:responseNumber', requireTurnstile, putPostHandler)
-boards.patch('/:boardId/:threadId/:responseNumber', requireLogin, requireTurnstile, patchPostHandler)
-boards.delete('/:boardId/:threadId/:responseNumber', requireTurnstile, deletePostHandler)
+  .get('/', zValidator('query', paginationQuerySchema, zValidatorHook), getBoardsHandler)
+  .post('/', requireLogin, requireTurnstile, zValidator('json', boardBodySchema, zValidatorHook), createBoardHandler)
+  .get('/:boardId', getBoardHandler)
+  .put('/:boardId', requireLogin, requireTurnstile, zValidator('json', boardBodySchema, zValidatorHook), putBoardHandler)
+  .patch('/:boardId', requireLogin, requireTurnstile, zValidator('json', patchBoardSchema, zValidatorHook), patchBoardHandler)
+  .delete('/:boardId', requireLogin, requireTurnstile, deleteBoardHandler)
+  // ── スレッド・投稿 (ネスト) ───────────────────────────────
+  .route('/:boardId/threads', threads)
 
 export default boards

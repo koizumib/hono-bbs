@@ -1,32 +1,38 @@
 import { z } from 'zod'
-import type { Thread, Board, Post } from '../types'
+import type { Thread, Post } from '../types'
 import type { DbAdapter } from '../adapters/db'
 import * as threadRepository from '../repository/threadRepository'
+import type { ThreadCursor } from '../repository/threadRepository'
 import * as boardRepository from '../repository/boardRepository'
 import * as postRepository from '../repository/postRepository'
-import type { PostRange } from '../repository/postRepository'
-
-export type { PostRange }
 import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
+import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
 
-const createThreadSchema = z.object({
+export const createThreadSchema = z.object({
   title: z.string().min(1).max(500),
   content: z.string().min(1).max(10000),
   posterName: z.string().max(50).optional(),
   posterOptionInfo: z.string().max(100).optional(),
 })
 
-// PUT: title と posterName のみ更新 (is_edited フラグを立てる)
-const putThreadSchema = z.object({
-  title: z.string().min(1).max(500).optional(),
-  posterName: z.string().max(50).optional(),
+// PUT: upsert。全フィールドが確定値になるスキーマ (冪等な全体置換のため)
+export const putThreadSchema = z.object({
+  title: z.string().min(1).max(500),
+  posterName: z.string().max(50).default(''),
+  acl: resourceAclInputSchema,
+  maxPosts: z.number().int().min(0).default(0),
+  maxPostLength: z.number().int().min(0).default(0),
+  maxPostLines: z.number().int().min(0).default(0),
+  maxPosterNameLength: z.number().int().min(0).default(0),
+  maxPosterOptionLength: z.number().int().min(0).default(0),
+  idFormat: z.enum([...ID_FORMATS, '']).default(''),
 })
 
-// PATCH: acl/制限値 などを更新
-const patchThreadSchema = z.object({
+// PATCH: 既存スレッドの指定フィールドのみ更新 (upsertしない)
+export const patchThreadSchema = z.object({
   acl: resourceAclInputSchema.optional(),
   title: z.string().min(1).max(500).optional(),
   posterName: z.string().max(50).optional(),
@@ -54,44 +60,44 @@ export function parsePatchThread(data: unknown): PatchThreadInput {
   return patchThreadSchema.parse(data)
 }
 
-// 板情報とスレッド一覧を一緒に返す (GET /boards/:boardId)
-export async function getThreadsWithBoard(
+// GET /boards/:boardId/threads (スレッド一覧、limit/cursorページネーション)
+export async function getThreads(
   db: DbAdapter,
   boardId: string,
   userId: string | null,
   userRoleIds: string[],
   isSysAdmin: boolean,
-): Promise<{ board: Board; threads: Thread[] } | null> {
+  pagination: PaginationQuery,
+): Promise<Page<Thread> | null> {
   const board = await boardRepository.findBoardById(db, boardId)
   if (!board) return null
   if (!can(board.acl, { userId, userRoleIds, isSysAdmin }, 'read')) return null
 
-  const threads = await threadRepository.findThreadsByBoardId(db, boardId)
-  if (isSysAdmin) return { board, threads }
-  const filtered = threads.filter(t => can(t.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
-  return { board, threads: filtered }
+  const cursor = pagination.cursor ? decodeCursor<ThreadCursor>(pagination.cursor) : null
+  const { items, nextCursorRaw } = await threadRepository.findThreadsByBoardIdPage(db, boardId, {
+    limit: pagination.limit,
+    cursor,
+  })
+  const filtered = isSysAdmin ? items : items.filter(t => can(t.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
+  return {
+    items: filtered,
+    nextCursor: nextCursorRaw ? encodeCursor(nextCursorRaw) : null,
+  }
 }
 
-// スレッド情報と投稿一覧を一緒に返す (GET /boards/:boardId/:threadId)
-export async function getThreadWithPosts(
+// GET /boards/:boardId/threads/:threadId (スレッド情報のみ)
+export async function getThread(
   db: DbAdapter,
   boardId: string,
   threadId: string,
   userId: string | null,
   userRoleIds: string[],
   isSysAdmin: boolean,
-  ranges?: PostRange[],
-): Promise<{ thread: Thread; posts: Post[] } | null> {
+): Promise<Thread | null> {
   const thread = await threadRepository.findThreadById(db, threadId)
   if (!thread || thread.boardId !== boardId) return null
   if (!can(thread.acl, { userId, userRoleIds, isSysAdmin }, 'read')) return null
-
-  const posts = ranges
-    ? await postRepository.findPostsByRanges(db, threadId, ranges)
-    : await postRepository.findPostsByThreadId(db, threadId)
-  if (isSysAdmin) return { thread, posts }
-  const filtered = posts.filter(p => can(p.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
-  return { thread, posts: filtered }
+  return thread
 }
 
 export async function createThread(
@@ -182,37 +188,12 @@ export async function createThread(
   return { thread, firstPost }
 }
 
-// PUT: title/posterName を更新し isEdited フラグを立てる
+// PUT: upsert (存在しなければ sys admin のみ作成可、存在すれば全フィールドを置換する)
 export async function putThread(
   db: DbAdapter,
   boardId: string,
   threadId: string,
   input: PutThreadInput,
-  userId: string | null,
-  userRoleIds: string[],
-  isSysAdmin: boolean,
-): Promise<Thread | null> {
-  const thread = await threadRepository.findThreadById(db, threadId)
-  if (!thread || thread.boardId !== boardId) return null
-
-  if (!can(thread.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
-
-  const now = new Date().toISOString()
-  await threadRepository.updateThread(db, threadId, {
-    title: input.title,
-    posterName: input.posterName,
-    isEdited: true,
-    editedAt: now,
-  })
-  return threadRepository.findThreadById(db, threadId)
-}
-
-// PATCH: メタデータ全般を更新
-export async function patchThread(
-  db: DbAdapter,
-  boardId: string,
-  threadId: string,
-  input: PatchThreadInput,
   userId: string | null,
   userRoleIds: string[],
   isSysAdmin: boolean,
@@ -222,24 +203,22 @@ export async function patchThread(
   const existing = await threadRepository.findThreadById(db, threadId)
 
   if (!existing) {
-    // スレッドが存在しない場合: sys admin のみ作成可
     if (!isSysAdmin) throw new Error('FORBIDDEN')
     const board = await boardRepository.findBoardById(db, boardId)
     if (!board) throw new Error('BOARD_NOT_FOUND')
     const now = new Date().toISOString()
-    const acl = input.acl ? buildAcl(input.acl, userId) : instantiateAcl(board.defaultThreadAcl, userId)
     const thread: Thread = {
       id: threadId,
       boardId,
-      acl,
-      title: input.title ?? '',
-      maxPosts: input.maxPosts ?? 0,
-      maxPostLength: input.maxPostLength ?? 0,
-      maxPostLines: input.maxPostLines ?? 0,
-      maxPosterNameLength: input.maxPosterNameLength ?? 0,
-      maxPosterOptionLength: input.maxPosterOptionLength ?? 0,
-      posterName: input.posterName ?? '',
-      idFormat: input.idFormat ?? '',
+      acl: buildAcl(input.acl, userId),
+      title: input.title,
+      maxPosts: input.maxPosts,
+      maxPostLength: input.maxPostLength,
+      maxPostLines: input.maxPostLines,
+      maxPosterNameLength: input.maxPosterNameLength,
+      maxPosterOptionLength: input.maxPosterOptionLength,
+      posterName: input.posterName,
+      idFormat: input.idFormat,
       postCount: 0,
       isEdited: false,
       editedAt: null,
@@ -250,6 +229,35 @@ export async function patchThread(
     await threadRepository.insertThread(db, thread)
     return thread
   }
+
+  if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+
+  await threadRepository.updateThread(db, threadId, {
+    acl: buildAcl(input.acl, existing.acl.ownerUserId ?? userId),
+    title: input.title,
+    posterName: input.posterName,
+    maxPosts: input.maxPosts,
+    maxPostLength: input.maxPostLength,
+    maxPostLines: input.maxPostLines,
+    maxPosterNameLength: input.maxPosterNameLength,
+    maxPosterOptionLength: input.maxPosterOptionLength,
+    idFormat: input.idFormat,
+  })
+  return (await threadRepository.findThreadById(db, threadId))!
+}
+
+// PATCH: 既存スレッドの指定フィールドのみ更新 (upsertしない)
+export async function patchThread(
+  db: DbAdapter,
+  boardId: string,
+  threadId: string,
+  input: PatchThreadInput,
+  userId: string | null,
+  userRoleIds: string[],
+  isSysAdmin: boolean,
+): Promise<Thread | null> {
+  const existing = await threadRepository.findThreadById(db, threadId)
+  if (!existing || existing.boardId !== boardId) return null
 
   if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
 

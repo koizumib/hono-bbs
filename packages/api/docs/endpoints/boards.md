@@ -79,7 +79,11 @@ sys admin (`admin-role` メンバー) は権限チェックをバイパスして
 
 ## `GET /boards`
 
-板の一覧を取得する。読み取り権限のない板は除外される。
+板の一覧を取得する (limit/cursorページネーション、詳細は[README.md](./README.md#ページネーションlimitcursor))。読み取り権限のない板は除外される。
+
+### クエリパラメータ
+
+`?limit=20&cursor=<opaque>` (両方省略可、デフォルト `limit=20`)
 
 ### 認証
 
@@ -91,9 +95,30 @@ sys admin (`admin-role` メンバー) は権限チェックをバイパスして
 
 ```json
 {
-  "data": [ /* Board オブジェクトの配列 */ ]
+  "data": [ /* Board オブジェクトの配列 */ ],
+  "nextCursor": "eyJjcmVhdGVkQXQiOi4uLn0" // 次ページが無ければ null
 }
 ```
+
+---
+
+## `GET /boards/:boardId`
+
+板情報を取得する（スレッド一覧は含まない。スレッド一覧は [threads.md](./threads.md) の `GET /boards/:boardId/threads` で取得する）。
+
+### 認証
+
+不要 (ただし認証によって見えるかが変わる)
+
+### レスポンス
+
+- `200 OK` — `Board` オブジェクト
+
+### エラー
+
+| コード | HTTP | 説明 |
+|---|---|---|
+| `BOARD_NOT_FOUND` | 404 | 板が存在しない、または read 権限なし |
 
 ---
 
@@ -103,7 +128,7 @@ sys admin (`admin-role` メンバー) は権限チェックをバイパスして
 
 ### 認証
 
-- `X-Session-Id` 必須 (sys admin でログイン)
+- `Authorization: Bearer <sessionId>` 必須 (sys admin でログイン)
 - `X-Turnstile-Session` 必須
 
 ### リクエストボディ
@@ -163,50 +188,14 @@ sys admin (`admin-role` メンバー) は権限チェックをバイパスして
 
 ## `PUT /boards/:boardId`
 
-板の表示情報 (`name`、`description`、`category`) のみを更新する。
-板の **update 権限**が必要。権限設定や制限値を変更したい場合は `PATCH` を使用する。
+板をupsertする（存在しなければ作成、存在すれば全フィールドを冪等に置換する）。
 
-### 認証
-
-- `X-Session-Id` 必須
-- `X-Turnstile-Session` 必須
-
-### リクエストボディ
-
-```jsonc
-{
-  "name": "新しい板名",       // 最大 100 文字
-  "description": "説明文",    // 最大 1000 文字
-  "category": "カテゴリ名"    // 最大 128 文字
-}
-```
-
-すべてのフィールドは省略可能。指定したフィールドのみ更新される。
-
-### レスポンス
-
-- `200 OK` — 更新後の `Board` オブジェクト
-
-### エラー
-
-| コード | HTTP | 説明 |
-|---|---|---|
-| `VALIDATION_ERROR` | 400 | バリデーション失敗 |
-| `FORBIDDEN` | 403 | 権限不足 |
-| `BOARD_NOT_FOUND` | 404 | 板が存在しない |
-
----
-
-## `PATCH /boards/:boardId`
-
-板の全フィールドを更新する (upsert)。
-
-- **板が存在する場合**: 板の **update 権限**が必要。全フィールドを上書き更新する。
 - **板が存在しない場合**: **sys admin のみ** 新規作成できる (指定した `:boardId` で作成)。
+- **板が存在する場合**: 板の **update 権限**が必要。全フィールドを丸ごと置換する（省略したフィールドはスキーマのデフォルト値になる。以前の値を維持したいフィールドも含めて毎回全て送ること）。
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `X-Turnstile-Session` 必須
 
 ### リクエストボディ
@@ -223,7 +212,42 @@ sys admin (`admin-role` メンバー) は権限チェックをバイパスして
 |---|---|---|
 | `VALIDATION_ERROR` | 400 | バリデーション失敗 |
 | `FORBIDDEN` | 403 | 権限不足 (板が存在しない場合は sys admin でない) |
-| `BOARD_NOT_FOUND` | 404 | 板が存在しない (PATCH 時の内部エラー) |
+| `BOARD_NOT_FOUND` | 404 | 板が存在しない (内部エラー) |
+
+---
+
+## `PATCH /boards/:boardId`
+
+既存の板の指定フィールドのみ部分更新する（**upsertしない**。板が無ければ404）。
+
+板の **update 権限**が必要。
+
+### 認証
+
+- `Authorization: Bearer <sessionId>` 必須
+- `X-Turnstile-Session` 必須
+
+### リクエストボディ
+
+`POST /boards` と同じスキーマの `id` を除いた任意のサブセット。指定しなかったフィールドは変更されない。
+
+```jsonc
+{
+  "category": "新カテゴリ"    // このフィールドだけ更新される
+}
+```
+
+### レスポンス
+
+- `200 OK` — 更新後の `Board` オブジェクト
+
+### エラー
+
+| コード | HTTP | 説明 |
+|---|---|---|
+| `VALIDATION_ERROR` | 400 | バリデーション失敗 |
+| `FORBIDDEN` | 403 | 権限不足 |
+| `BOARD_NOT_FOUND` | 404 | 板が存在しない |
 
 ---
 
@@ -233,7 +257,7 @@ sys admin (`admin-role` メンバー) は権限チェックをバイパスして
 
 ### 認証
 
-- `X-Session-Id` 必須
+- `Authorization: Bearer <sessionId>` 必須
 - `X-Turnstile-Session` 必須
 
 ### レスポンス

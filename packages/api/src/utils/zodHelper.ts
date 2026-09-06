@@ -1,4 +1,5 @@
 import { ZodError } from 'zod'
+import type { Context } from 'hono'
 
 // esbuild bundling 環境では ZodError の class field 初期化順の問題で
 // .errors getter (= this.issues) が undefined になる場合がある。
@@ -13,4 +14,15 @@ export function zodMessage(e: unknown): string {
   return issues?.[0]?.message
     ?? (e instanceof Error ? e.message : null)
     ?? 'Validation failed'
+}
+
+// @hono/zod-validator の共通エラーハンドラ。バリデーション失敗時に本APIのエラー封筒
+// ({error, message}) 形式で 400 を返す (zValidator のデフォルトの失敗レスポンス形式を上書きする)。
+export function zValidatorHook(
+  result: { success: true } | { success: false; error: unknown },
+  c: Context,
+) {
+  if (!result.success) {
+    return c.json({ error: 'VALIDATION_ERROR', message: zodMessage(result.error) }, 400)
+  }
 }

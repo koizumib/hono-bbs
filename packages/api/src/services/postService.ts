@@ -6,20 +6,22 @@ import * as threadRepository from '../repository/threadRepository'
 import * as boardRepository from '../repository/boardRepository'
 import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
+import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
-const createPostSchema = z.object({
+export const createPostSchema = z.object({
   content: z.string().min(1).max(10000),
   posterName: z.string().max(50).optional(),
   posterOptionInfo: z.string().max(100).optional(),
 })
 
-const updatePostSchema = z.object({
+// PUT: content/posterName/posterOptionInfo を冪等に置換する (isEdited フラグを立てる)
+export const updatePostSchema = z.object({
   content: z.string().min(1).max(10000),
-  posterName: z.string().max(50).optional(),
-  posterOptionInfo: z.string().max(100).optional(),
+  posterName: z.string().max(50).default(''),
+  posterOptionInfo: z.string().max(100).default(''),
 })
 
-const patchPostSchema = z.object({
+export const patchPostSchema = z.object({
   acl: resourceAclInputSchema.optional(),
 })
 
@@ -37,6 +39,34 @@ export function parseUpdatePost(data: unknown): UpdatePostInput {
 
 export function parsePatchPost(data: unknown): PatchPostInput {
   return patchPostSchema.parse(data)
+}
+
+type PostCursor = { postNumber: number }
+
+// GET /boards/:boardId/threads/:threadId/posts (投稿一覧、limit/cursorページネーション)
+export async function getPosts(
+  db: DbAdapter,
+  boardId: string,
+  threadId: string,
+  userId: string | null,
+  userRoleIds: string[],
+  isSysAdmin: boolean,
+  pagination: PaginationQuery,
+): Promise<Page<Post> | null> {
+  const thread = await threadRepository.findThreadById(db, threadId)
+  if (!thread || thread.boardId !== boardId) return null
+  if (!can(thread.acl, { userId, userRoleIds, isSysAdmin }, 'read')) return null
+
+  const cursor = pagination.cursor ? decodeCursor<PostCursor>(pagination.cursor) : null
+  const { items, nextCursorRaw } = await postRepository.findPostsByThreadIdPage(db, threadId, {
+    limit: pagination.limit,
+    afterPostNumber: cursor?.postNumber ?? null,
+  })
+  const filtered = isSysAdmin ? items : items.filter(p => can(p.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
+  return {
+    items: filtered,
+    nextCursor: nextCursorRaw !== null ? encodeCursor({ postNumber: nextCursorRaw }) : null,
+  }
 }
 
 export async function getPostByNumber(
@@ -123,7 +153,7 @@ export async function createPost(
   return post
 }
 
-// PUT: content/posterName/posterOptionInfo を更新し isEdited フラグを立てる
+// PUT: content/posterName/posterOptionInfo を冪等に置換し isEdited フラグを立てる
 export async function updatePost(
   db: DbAdapter,
   boardId: string,
@@ -143,7 +173,12 @@ export async function updatePost(
   if (!can(post.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
 
   const now = new Date().toISOString()
-  await postRepository.updatePostContent(db, threadId, postNumber, input.content, now)
+  await postRepository.updatePostContent(db, threadId, postNumber, {
+    content: input.content,
+    posterName: input.posterName,
+    posterOptionInfo: input.posterOptionInfo,
+    editedAt: now,
+  })
   return postRepository.findPostByNumber(db, threadId, postNumber)
 }
 
@@ -172,7 +207,7 @@ export async function patchPost(
   return postRepository.findPostByNumber(db, threadId, postNumber)
 }
 
-// DELETE: ソフトデリート
+// DELETE: ソフトデリート。常に成否のみ返す (204 No Content、ボディ無し)
 export async function deletePost(
   db: DbAdapter,
   boardId: string,
@@ -181,15 +216,14 @@ export async function deletePost(
   userId: string | null,
   userRoleIds: string[],
   isSysAdmin: boolean,
-): Promise<Post | null> {
+): Promise<boolean> {
   const thread = await threadRepository.findThreadById(db, threadId)
-  if (!thread || thread.boardId !== boardId) return null
+  if (!thread || thread.boardId !== boardId) return false
 
   const post = await postRepository.findPostByNumber(db, threadId, postNumber)
-  if (!post) return null
+  if (!post) return false
 
   if (!can(post.acl, { userId, userRoleIds, isSysAdmin }, 'delete')) throw new Error('FORBIDDEN')
 
-  await postRepository.softDeletePost(db, threadId, postNumber)
-  return postRepository.findPostByNumber(db, threadId, postNumber)
+  return postRepository.softDeletePost(db, threadId, postNumber)
 }
