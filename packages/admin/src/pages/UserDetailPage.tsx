@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { getUser, updateUser, deleteUser, type UpdateUserInput } from '../api/users'
 import ErrorBanner from '../components/ErrorBanner'
+import Button from '../components/ui/Button'
 
 export default function UserDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [form, setForm] = useState<UpdateUserInput>({})
+  const [newPassword, setNewPassword] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -32,7 +34,7 @@ export default function UserDetailPage() {
     setSaving(true)
     setError(null)
     try {
-      await updateUser(id, form)
+      await updateUser(id, newPassword ? { ...form, newPassword } : form)
       navigate('/users')
     } catch (e) {
       setError(e)
@@ -102,21 +104,22 @@ export default function UserDetailPage() {
         アカウント有効
       </label>
 
+      <label className="text-sm">
+        新しいパスワード（管理者によるリセット。空欄なら変更しない・8文字以上）
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="変更しない場合は空欄のまま"
+          className="mt-1 w-full rounded border border-border-dark bg-surface-dark-2 px-2 py-1.5"
+        />
+      </label>
+
       <div className="flex gap-2">
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-        >
+        <Button type="submit" variant="filled" disabled={saving} className="px-4 py-2">
           {saving ? '保存中...' : '更新'}
-        </button>
-        <button
-          type="button"
-          onClick={handleDelete}
-          className="rounded border border-red-500/50 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
-        >
-          削除
-        </button>
+        </Button>
+        <Button variant="danger" onClick={handleDelete}>削除</Button>
       </div>
     </form>
   )

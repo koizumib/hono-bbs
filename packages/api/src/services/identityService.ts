@@ -44,6 +44,8 @@ export const updateUserAdminSchema = z.object({
   bio: z.string().max(500).optional().nullable(),
   email: z.string().email('メールアドレスの形式が正しくありません').max(256).optional().nullable(),
   isActive: z.boolean().optional(),
+  // user-admin-role によるパスワード強制リセット (currentPasswordの確認は不要)
+  newPassword: z.string().min(8).max(128).optional(),
 })
 
 export const roleSchema = z.object({
@@ -140,11 +142,13 @@ export async function updateUser(
   if (!isUserAdmin && requestUserId !== targetUserId) throw new Error('FORBIDDEN')
 
   const now = new Date().toISOString()
+  const passwordHash = input.newPassword ? await hashPassword(input.newPassword) : undefined
   await userRepository.updateUser(db, targetUserId, {
     displayName: input.displayName,
     bio: input.bio,
     email: input.email,
     isActive: input.isActive,
+    passwordHash,
     updatedAt: now,
   })
   return userRepository.findUserById(db, targetUserId)
@@ -215,6 +219,12 @@ export async function deleteRole(
   if (systemRoles.includes(roleId)) throw new Error('CANNOT_DELETE_SYSTEM_ROLE')
   const deleted = await roleRepository.deleteRole(db, roleId)
   if (!deleted) throw new Error('ROLE_NOT_FOUND')
+}
+
+export async function listRoleMembers(db: DbAdapter, roleId: string, page: number, limit: number): Promise<User[]> {
+  const role = await roleRepository.findRoleById(db, roleId)
+  if (!role) throw new Error('ROLE_NOT_FOUND')
+  return userRepository.listRoleMembers(db, roleId, page, limit)
 }
 
 export async function addRoleMember(

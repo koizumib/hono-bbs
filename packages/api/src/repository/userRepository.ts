@@ -40,6 +40,18 @@ export async function listUsers(db: DbAdapter, page = 1, limit = 0): Promise<Use
   return result.results.map(rowToUser)
 }
 
+// 指定ロールに所属するユーザー一覧 (page: 1始まり、limit: 0なら全件)
+export async function listRoleMembers(db: DbAdapter, roleId: string, page = 1, limit = 0): Promise<User[]> {
+  const base = 'SELECT u.* FROM users u JOIN user_roles ur ON ur.user_id = u.id WHERE ur.role_id = ? ORDER BY u.created_at ASC'
+  if (limit > 0) {
+    const offset = (page - 1) * limit
+    const result = await db.all<UserRow>(`${base} LIMIT ? OFFSET ?`, [roleId, limit, offset])
+    return result.results.map(rowToUser)
+  }
+  const result = await db.all<UserRow>(base, [roleId])
+  return result.results.map(rowToUser)
+}
+
 export async function findUserById(db: DbAdapter, id: string): Promise<User | null> {
   const row = await db.first<UserRow>('SELECT * FROM users WHERE id = ?', [id])
   return row ? rowToUser(row) : null

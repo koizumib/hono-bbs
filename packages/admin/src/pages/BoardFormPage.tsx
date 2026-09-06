@@ -4,6 +4,7 @@ import { getBoard, createBoard, patchBoard, type CreateBoardInput } from '../api
 import type { Board } from '../api/types'
 import AclEditor, { type AclInput } from '../components/AclEditor'
 import ErrorBanner from '../components/ErrorBanner'
+import Button from '../components/ui/Button'
 
 const DEFAULT_ACL: AclInput = {
   grants: [],
@@ -105,6 +106,8 @@ export default function BoardFormPage() {
 
       <ErrorBanner error={error} />
 
+      <h2 className="text-sm font-semibold text-gray-400">基本情報</h2>
+
       {!isEdit && (
         <label className="text-sm">
           ID (省略時はUUID自動生成)
@@ -172,6 +175,8 @@ export default function BoardFormPage() {
         />
       </label>
 
+      <h2 className="mt-2 text-sm font-semibold text-gray-400">表示設定・上限</h2>
+
       <div className="grid grid-cols-2 gap-3">
         <label className="text-sm">
           最大スレッド数 (0=無制限)
@@ -238,6 +243,8 @@ export default function BoardFormPage() {
         </label>
       </div>
 
+      <h2 className="mt-2 text-sm font-semibold text-gray-400">ACL</h2>
+
       <AclEditor
         label="板のACL"
         value={form.acl}
@@ -254,13 +261,9 @@ export default function BoardFormPage() {
         onChange={(defaultPostAcl) => setField('defaultPostAcl', defaultPostAcl)}
       />
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="self-start rounded bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
+      <Button type="submit" variant="filled" disabled={saving} className="self-start px-4 py-2">
         {saving ? '保存中...' : isEdit ? '更新' : '作成'}
-      </button>
+      </Button>
     </form>
   )
 }

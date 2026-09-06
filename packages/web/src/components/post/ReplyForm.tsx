@@ -278,7 +278,7 @@ export default function ReplyForm({
     return (
       <div
         style={{ width: rightWidth }}
-        className="flex-shrink-0 flex h-full bg-c-surface border-l border-c-border relative"
+        className="flex-shrink-0 flex h-full bg-c-surface border-l border-c-border shadow-sm relative"
       >
         {/* 左端ドラッグハンドル */}
         <div
@@ -418,7 +418,7 @@ export default function ReplyForm({
   return (
     <footer
       style={{ height: bottomHeight }}
-      className="bg-c-surface border-t border-c-border flex flex-col flex-shrink-0"
+      className="bg-c-surface border-t border-c-border shadow-sm flex flex-col flex-shrink-0"
     >
       {/* 上端ドラッグハンドル */}
       <div

@@ -5,6 +5,8 @@ import { tokenizeContent, parseAnchorsFromContent } from '../../utils/anchorPars
 import { extractMedia, getYouTubeVideoId } from '../../utils/urlExtract'
 import { heatClass } from '../../utils/heatColor'
 import { env } from '../../config/env'
+import { canDo } from '../../utils/permissions'
+import { useAuthStore } from '../../stores/authStore'
 
 export interface PostHandlers {
   onAnchorClick: (numbers: number[], triggerY: number) => void
@@ -13,6 +15,8 @@ export interface PostHandlers {
   onNameClick: (name: string, triggerY: number) => void
   onBodyClick: (postNumber: number, triggerY: number) => void
   onReply: (postNumber: number) => void
+  // モバイル版 (hooks/useThreadView.ts) では未実装。未提供の場合は削除ボタン自体を出さない。
+  onDelete?: (postNumber: number) => void
 }
 
 interface PostArticleProps {
@@ -53,6 +57,7 @@ export default function PostArticle({
   compact = false,
   showTopDivider = false,
 }: PostArticleProps) {
+  const userId = useAuthStore((s) => s.userId)
   const [lightboxImages, setLightboxImages] = useState<string[]>([])
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const lbTouchStartXRef = useRef<number | null>(null)
@@ -111,6 +116,7 @@ export default function PostArticle({
   }, [isAAContent, post.content, compact])
 
   const isDeleted = post.isDeleted || post.content.startsWith('\x00') || post.content === '[削除済み]'
+  const canDelete = !isDeleted && Boolean(handlers.onDelete) && canDo(post.acl, { userId, userRoleIds: [] }, 'delete')
   const displayName = isDeleted && env.deletedPostName ? env.deletedPostName : post.posterName
   const displayAuthorId = isDeleted && env.deletedPostId ? env.deletedPostId : post.authorId
   const displayContent = isDeleted && env.deletedPostBody ? env.deletedPostBody : post.content
@@ -237,11 +243,22 @@ export default function PostArticle({
         {/* 返信ボタン */}
         <button
           type="button"
-          className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors ml-auto`}
+          className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors ${canDelete ? '' : 'ml-auto'}`}
           onClick={() => handlers.onReply(post.postNumber)}
         >
           返信
         </button>
+
+        {/* 削除ボタン (権限がある場合のみ。モバイル版など handlers.onDelete 未提供の画面では出さない) */}
+        {canDelete && (
+          <button
+            type="button"
+            className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors ml-auto`}
+            onClick={() => handlers.onDelete?.(post.postNumber)}
+          >
+            削除
+          </button>
+        )}
       </div>
 
       {/* 本文 */}

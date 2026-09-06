@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
-import { getRole, updateRole, deleteRole, addRoleMember, removeRoleMember } from '../api/roles'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { getRole, updateRole, deleteRole, getRoleMembers, addRoleMember, removeRoleMember } from '../api/roles'
 import ErrorBanner from '../components/ErrorBanner'
+import Button from '../components/ui/Button'
+import Card from '../components/ui/Card'
 
 export default function RoleDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
   const [memberUserId, setMemberUserId] = useState('')
-  const [memberMessage, setMemberMessage] = useState<string | null>(null)
+  const [addingMember, setAddingMember] = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -20,6 +24,12 @@ export default function RoleDetailPage() {
       .catch(setError)
       .finally(() => setLoading(false))
   }, [id])
+
+  const { data: members } = useQuery({
+    queryKey: ['roleMembers', id],
+    queryFn: () => getRoleMembers(id!),
+    enabled: Boolean(id),
+  })
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -49,25 +59,25 @@ export default function RoleDetailPage() {
 
   async function handleAddMember() {
     if (!id || !memberUserId) return
-    setMemberMessage(null)
+    setAddingMember(true)
     setError(null)
     try {
       await addRoleMember(id, memberUserId)
-      setMemberMessage(`${memberUserId} を追加しました`)
       setMemberUserId('')
+      await queryClient.invalidateQueries({ queryKey: ['roleMembers', id] })
     } catch (e) {
       setError(e)
+    } finally {
+      setAddingMember(false)
     }
   }
 
-  async function handleRemoveMember() {
-    if (!id || !memberUserId) return
-    setMemberMessage(null)
+  async function handleRemoveMember(userId: string) {
+    if (!id) return
     setError(null)
     try {
-      await removeRoleMember(id, memberUserId)
-      setMemberMessage(`${memberUserId} を削除しました`)
-      setMemberUserId('')
+      await removeRoleMember(id, userId)
+      await queryClient.invalidateQueries({ queryKey: ['roleMembers', id] })
     } catch (e) {
       setError(e)
     }
@@ -95,31 +105,30 @@ export default function RoleDetailPage() {
           />
         </label>
         <div className="flex gap-2">
-          <button
-            type="submit"
-            disabled={saving}
-            className="rounded bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-          >
+          <Button type="submit" variant="filled" disabled={saving} className="px-4 py-2">
             {saving ? '保存中...' : '更新'}
-          </button>
-          <button
-            type="button"
-            onClick={handleDelete}
-            className="rounded border border-red-500/50 px-4 py-2 text-sm text-red-400 hover:bg-red-500/10"
-          >
-            削除
-          </button>
+          </Button>
+          <Button variant="danger" onClick={handleDelete}>削除</Button>
         </div>
       </form>
 
-      <div className="flex flex-col gap-2 rounded-lg border border-border-dark bg-surface-dark p-4">
-        <h2 className="font-medium">メンバー管理</h2>
-        <p className="text-xs text-gray-500">
-          APIに「ロールのメンバー一覧取得」が無いため、現在の所属者は表示できません。
-          userIdを指定して追加・削除のみ行えます。
-        </p>
+      <Card className="flex flex-col gap-2 p-4">
+        <h2 className="font-medium">メンバー</h2>
+
+        <ul className="flex flex-col divide-y divide-border-dark">
+          {members?.data.map((member) => (
+            <li key={member.id} className="flex items-center justify-between py-1.5 text-sm">
+              <span>{member.id} ({member.displayName})</span>
+              <Button variant="danger" onClick={() => handleRemoveMember(member.id)}>削除</Button>
+            </li>
+          ))}
+          {members?.data.length === 0 && (
+            <li className="py-1.5 text-sm text-gray-500">メンバーはいません</li>
+          )}
+        </ul>
+
         <label className="text-sm">
-          userId
+          userIdを指定して追加
           <input
             type="text"
             value={memberUserId}
@@ -127,24 +136,10 @@ export default function RoleDetailPage() {
             className="mt-1 w-full rounded border border-border-dark bg-surface-dark-2 px-2 py-1.5"
           />
         </label>
-        {memberMessage && <p className="text-sm text-green-400">{memberMessage}</p>}
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={handleAddMember}
-            className="rounded bg-primary px-3 py-1.5 text-sm text-white"
-          >
-            追加
-          </button>
-          <button
-            type="button"
-            onClick={handleRemoveMember}
-            className="rounded border border-border-dark px-3 py-1.5 text-sm hover:bg-surface-dark-2"
-          >
-            削除
-          </button>
-        </div>
-      </div>
+        <Button variant="filled" onClick={handleAddMember} disabled={addingMember || !memberUserId} className="self-start">
+          {addingMember ? '追加中...' : '追加'}
+        </Button>
+      </Card>
     </div>
   )
 }

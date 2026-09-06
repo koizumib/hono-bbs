@@ -1,9 +1,11 @@
 import { useMemo, useRef, useState, useEffect, useCallback, Fragment } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useNavigate } from 'react-router-dom'
 import BoardSidebar from '../components/layout/BoardSidebar'
 import ThreadListPanel from '../components/layout/ThreadListPanel'
 import { usePosts } from '../hooks/usePosts'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useAuthStore } from '../stores/authStore'
+import { canDo } from '../utils/permissions'
 import { filterPosts } from '../utils/filter'
 import PostArticle, { type PostHandlers } from '../components/post/PostArticle'
 import PostPopup, { type PopupEntry } from '../components/post/PostPopup'
@@ -14,6 +16,8 @@ import { recordThreadView, getHistory, saveThreadScrollPosition } from '../utils
 import { extractMedia } from '../utils/urlExtract'
 import { fuzzyMatch } from '../utils/fuzzySearch'
 import { getPostHistory } from '../utils/postHistory'
+import { softDeletePost } from '../api/posts'
+import { deleteThread } from '../api/threads'
 
 interface ThreadViewProps {
   replyLayout: 'bottom' | 'right'
@@ -21,7 +25,9 @@ interface ThreadViewProps {
 
 function ThreadView({ replyLayout }: ThreadViewProps) {
   const { boardId, threadId } = useParams()
+  const navigate = useNavigate()
   const { data, isLoading, refetch } = usePosts(boardId, threadId)
+  const userId = useAuthStore((s) => s.userId)
   const ngWords = useSettingsStore((s) => s.ngWords)
   const historyMaxGenerations = useSettingsStore((s) => s.historyMaxGenerations)
   const setReplyLayout = useSettingsStore((s) => s.setReplyLayout)
@@ -345,6 +351,27 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
       insertSeqRef.current += 1
       setInsertAnchor({ text: String(postNumber), seq: insertSeqRef.current })
     },
+    onDelete: async (postNumber) => {
+      if (!boardId || !threadId) return
+      if (!window.confirm(`No.${postNumber} を削除しますか？`)) return
+      try {
+        await softDeletePost(boardId, threadId, postNumber)
+        refetch()
+      } catch {
+        window.alert('削除に失敗しました')
+      }
+    },
+  }
+
+  async function handleDeleteThread() {
+    if (!boardId || !threadId) return
+    if (!window.confirm('このスレッドを削除しますか？ 投稿も全て削除されます。')) return
+    try {
+      await deleteThread(boardId, threadId)
+      navigate(`/${boardId}`)
+    } catch {
+      window.alert('削除に失敗しました')
+    }
   }
 
   if (!boardId || !threadId) {
@@ -365,7 +392,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
       ref={scrollAreaRef}
       onScroll={handleScroll}
       onWheel={handleWheelRefresh}
-      className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6"
+      className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3"
     >
       {/* 上部更新インジケーター */}
       <div
@@ -418,7 +445,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
   )
 
   const header = (
-    <header className="h-16 flex-shrink-0 border-b border-c-border bg-c-base/80 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-10">
+    <header className="h-16 flex-shrink-0 border-b border-c-border bg-c-base/80 backdrop-blur-md shadow-sm flex items-center justify-between px-6 sticky top-0 z-10">
       <div className="min-w-0 flex-1">
         <h2
           className="font-bold text-slate-900 dark:text-white truncate text-base cursor-pointer hover:text-c-accent transition-colors"
@@ -445,6 +472,15 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
             {replyLayout === 'right' ? 'view_sidebar' : 'view_agenda'}
           </span>
         </button>
+        {thread && canDo(thread.acl, { userId, userRoleIds: [] }, 'delete') && (
+          <button
+            className="p-2 text-slate-400 hover:text-red-400 transition-colors"
+            title="スレッドを削除"
+            onClick={handleDeleteThread}
+          >
+            <span className="material-symbols-outlined text-xl">delete</span>
+          </button>
+        )}
         <button
           className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
           title="更新"

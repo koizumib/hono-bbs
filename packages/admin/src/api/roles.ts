@@ -1,6 +1,6 @@
 import type { InferRequestType } from 'hono/client'
 import { client, unwrap, requireSession, requireTurnstileSession } from './rpcClient'
-import type { Role, RolesResponse, ApiResponse } from './types'
+import type { Role, RolesResponse, ApiResponse, UsersResponse } from './types'
 
 export async function getRoles(page = 1) {
   requireSession()
@@ -30,6 +30,11 @@ export async function deleteRole(id: string) {
   requireSession()
   requireTurnstileSession()
   return unwrap<void>(client.identity.roles[':id'].$delete({ param: { id } }))
+}
+
+export async function getRoleMembers(roleId: string, page = 1) {
+  requireSession()
+  return unwrap<UsersResponse>(client.identity.roles[':id'].members.$get({ param: { id: roleId }, query: { page: String(page) } }))
 }
 
 export async function addRoleMember(roleId: string, userId: string) {

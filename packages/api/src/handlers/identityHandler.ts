@@ -167,6 +167,22 @@ export async function deleteRoleHandler(c: RoleIdContext) {
 }
 
 // POST /identity/roles/:id/members
+// GET /identity/roles/:id/members?page=<n>
+export async function listRoleMembersHandler(c: RoleMembersContext) {
+  const roleId = c.req.param('id')
+  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
+  const limit = getLimit(c.env.USER_DISPLAY_LIMIT)
+  try {
+    const members = await identityService.listRoleMembers(c.get('db'), roleId, page, limit)
+    return c.json({ data: members, page, limit })
+  } catch (e) {
+    if (e instanceof Error && e.message === 'ROLE_NOT_FOUND') {
+      return c.json({ error: 'ROLE_NOT_FOUND', message: 'Role not found' }, 404)
+    }
+    throw e
+  }
+}
+
 export async function addRoleMemberHandler(c: RoleMembersContext) {
   const roleId = c.req.param('id')
   const body = await c.req.json<{ userId?: string }>()

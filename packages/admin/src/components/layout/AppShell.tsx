@@ -1,6 +1,7 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../stores/authStore'
 import { logout } from '../../api/auth'
+import Button from '../ui/Button'
 
 function navLinkClass({ isActive }: { isActive: boolean }) {
   return `block rounded px-3 py-2 text-sm ${isActive ? 'bg-primary text-white' : 'hover:bg-surface-dark-2'}`
@@ -30,9 +31,9 @@ export default function AppShell() {
           <li><NavLink to="/users" className={navLinkClass}>ユーザー</NavLink></li>
           <li><NavLink to="/roles" className={navLinkClass}>ロール</NavLink></li>
         </ul>
-        <button type="button" onClick={handleLogout} className="mt-auto text-left text-sm text-red-400 hover:underline">
+        <Button variant="text" onClick={handleLogout} className="mt-auto self-start">
           ログアウト
-        </button>
+        </Button>
       </nav>
       <main className="flex-1 overflow-y-auto p-6">
         <Outlet />

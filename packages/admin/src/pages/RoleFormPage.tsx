@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { createRole } from '../api/roles'
 import ErrorBanner from '../components/ErrorBanner'
+import Button from '../components/ui/Button'
 
 export default function RoleFormPage() {
   const navigate = useNavigate()
@@ -40,13 +41,9 @@ export default function RoleFormPage() {
         />
       </label>
 
-      <button
-        type="submit"
-        disabled={saving}
-        className="self-start rounded bg-primary px-4 py-2 text-sm font-medium text-white disabled:opacity-50"
-      >
+      <Button type="submit" variant="filled" disabled={saving} className="self-start px-4 py-2">
         {saving ? '作成中...' : '作成'}
-      </button>
+      </Button>
     </form>
   )
 }

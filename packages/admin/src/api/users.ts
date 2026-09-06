@@ -13,6 +13,14 @@ export async function getUser(id: string) {
   return unwrap<ApiResponse<User>>(client.identity.users[':id'].$get({ param: { id } }))
 }
 
+export type CreateUserInput = InferRequestType<typeof client.identity.users.$post>['json']
+
+export async function createUser(input: CreateUserInput) {
+  requireSession()
+  requireTurnstileSession()
+  return unwrap<ApiResponse<User>>(client.identity.users.$post({ json: input }))
+}
+
 export type UpdateUserInput = InferRequestType<(typeof client.identity.users)[':id']['$put']>['json']
 
 export async function updateUser(id: string, input: UpdateUserInput) {

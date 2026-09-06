@@ -47,7 +47,7 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
   return (
     <div
       onClick={onClick}
-      className={`${compact ? 'p-2' : 'p-4'} border-b border-c-border cursor-pointer transition-colors relative ${
+      className={`${compact ? 'p-2' : 'p-3'} border-b border-c-border cursor-pointer transition-colors relative ${
         isSelected
           ? 'bg-c-accent/15'
           : isActive

@@ -39,7 +39,7 @@ export default function BoardSidebar() {
   return (
     <>
       <aside
-        className={`flex-shrink-0 border-r border-c-border bg-c-surface flex flex-col relative transition-all duration-300 ${
+        className={`flex-shrink-0 border-r border-c-border bg-c-surface shadow-sm flex flex-col relative transition-all duration-300 ${
           collapsed ? 'w-16' : 'w-64'
         }`}
       >

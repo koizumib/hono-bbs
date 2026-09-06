@@ -12,6 +12,7 @@ import {
   createRoleHandler,
   updateRoleHandler,
   deleteRoleHandler,
+  listRoleMembersHandler,
   addRoleMemberHandler,
   removeRoleMemberHandler,
 } from '../handlers/identityHandler'
@@ -42,6 +43,7 @@ const identity = new Hono<AppEnv>()
   .post('/roles', requireLogin, requireUserAdminRole, requireTurnstile, zValidator('json', roleSchema, zValidatorHook), createRoleHandler)
   .put('/roles/:id', requireLogin, requireUserAdminRole, requireTurnstile, zValidator('json', roleSchema, zValidatorHook), updateRoleHandler)
   .delete('/roles/:id', requireLogin, requireUserAdminRole, requireTurnstile, deleteRoleHandler)
+  .get('/roles/:id/members', requireLogin, requireUserAdminRole, zValidator('query', pageQuerySchema, zValidatorHook), listRoleMembersHandler)
   .post('/roles/:id/members', requireLogin, requireUserAdminRole, requireTurnstile, zValidator('json', addRoleMemberSchema, zValidatorHook), addRoleMemberHandler)
   .delete('/roles/:id/members/:userId', requireLogin, requireUserAdminRole, requireTurnstile, removeRoleMemberHandler)
 
