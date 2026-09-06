@@ -279,4 +279,4 @@ npm run cf-typegen  # Cloudflare bindings 型生成
 
 ## ライセンス
 
-MIT
+Apache-2.0

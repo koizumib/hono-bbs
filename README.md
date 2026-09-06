@@ -21,4 +21,4 @@ cd packages/web && npm run dev    # フロントエンド (http://localhost:5173
 
 ## ライセンス
 
-MIT
+Apache-2.0
