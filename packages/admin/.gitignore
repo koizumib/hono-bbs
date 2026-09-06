@@ -1,0 +1,14 @@
+# build output
+dist
+dist-ssr
+*.local
+
+# editor
+.vscode/*
+!.vscode/extensions.json
+.idea
+
+# local env (use .env.example instead)
+.env
+.env.local
+.env.production

@@ -4,8 +4,12 @@ import type { AppEnv } from '../types'
 import * as authService from '../services/authService'
 import { getSystemIds } from '../utils/constants'
 
+type SetupContext = Context<AppEnv, '/setup', any>
+type LoginContext = Context<AppEnv, '/login', any>
+type LogoutContext = Context<AppEnv, '/logout', any>
+
 // POST /auth/setup - admin 初期パスワード設定 (一回限り)
-export async function setupHandler(c: Context<AppEnv>): Promise<Response> {
+export async function setupHandler(c: SetupContext) {
   const adminInitialPassword = c.env.ADMIN_INITIAL_PASSWORD
   if (!adminInitialPassword) {
     return c.json({ error: 'SETUP_NOT_CONFIGURED', message: 'ADMIN_INITIAL_PASSWORD is not configured' }, 500)
@@ -28,7 +32,7 @@ export async function setupHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // POST /auth/login
-export async function loginHandler(c: Context<AppEnv>): Promise<Response> {
+export async function loginHandler(c: LoginContext) {
   try {
     const body = await c.req.json()
     const input = authService.parseLogin(body)
@@ -47,10 +51,11 @@ export async function loginHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // POST /auth/logout
-export async function logoutHandler(c: Context<AppEnv>): Promise<Response> {
-  const sessionId = c.req.header('X-Session-Id')
+export async function logoutHandler(c: LogoutContext) {
+  // requireLogin ミドルウェアが Authorization: Bearer から解決済みの sessionId をセットしている
+  const sessionId = c.get('sessionId')
   if (!sessionId) {
-    return c.json({ error: 'UNAUTHORIZED', message: 'X-Session-Id header required' }, 401)
+    return c.json({ error: 'UNAUTHORIZED', message: 'Not logged in' }, 401)
   }
   await authService.logout(c.get('kv'), sessionId)
   return new Response(null, { status: 204 })

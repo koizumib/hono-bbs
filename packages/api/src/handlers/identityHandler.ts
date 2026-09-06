@@ -4,6 +4,15 @@ import { isZodError, zodMessage } from '../utils/zodHelper'
 import * as identityService from '../services/identityService'
 import { getSystemIds } from '../utils/constants'
 
+// Input を any にしているのは、zValidator が付与する入力スキーマ (query/json) を
+// ハンドラ側の型注釈で上書き・消失させないため (boardHandler.ts等と同じ理由)。
+type UsersRootContext = Context<AppEnv, '/users', any>
+type UserIdContext = Context<AppEnv, '/users/:id', any>
+type RolesRootContext = Context<AppEnv, '/roles', any>
+type RoleIdContext = Context<AppEnv, '/roles/:id', any>
+type RoleMembersContext = Context<AppEnv, '/roles/:id/members', any>
+type RoleMemberIdContext = Context<AppEnv, '/roles/:id/members/:userId', any>
+
 // 環境変数から表示件数上限を取得 (0=無制限)
 function getLimit(envVal: string | undefined): number {
   const n = parseInt(envVal ?? '0', 10)
@@ -13,7 +22,7 @@ function getLimit(envVal: string | undefined): number {
 // ── ユーザ操作 ────────────────────────────────────────────
 
 // GET /identity/users?page=<n>
-export async function listUsersHandler(c: Context<AppEnv>): Promise<Response> {
+export async function listUsersHandler(c: UsersRootContext) {
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
   const limit = getLimit(c.env.USER_DISPLAY_LIMIT)
   const users = await identityService.listUsers(c.get('db'), page, limit)
@@ -21,7 +30,7 @@ export async function listUsersHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // POST /identity/users (ユーザ作成 - Turnstile 必須)
-export async function createUserHandler(c: Context<AppEnv>): Promise<Response> {
+export async function createUserHandler(c: UsersRootContext) {
   const sysIds = getSystemIds(c.env)
   try {
     const body = await c.req.json()
@@ -38,7 +47,7 @@ export async function createUserHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // GET /identity/users/:id
-export async function getUserHandler(c: Context<AppEnv>): Promise<Response> {
+export async function getUserHandler(c: UserIdContext) {
   const targetId = c.req.param('id')
   try {
     const user = await identityService.getUser(c.get('db'), targetId, c.get('userId'), c.get('isUserAdmin'))
@@ -53,7 +62,7 @@ export async function getUserHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // PUT /identity/users/:id (管理者による任意ユーザ更新: isActive 含む)
-export async function updateUserHandler(c: Context<AppEnv>): Promise<Response> {
+export async function updateUserHandler(c: UserIdContext) {
   const targetId = c.req.param('id')
   try {
     const body = await c.req.json()
@@ -72,7 +81,7 @@ export async function updateUserHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // DELETE /identity/users/:id (userAdminRole 専用)
-export async function deleteUserHandler(c: Context<AppEnv>): Promise<Response> {
+export async function deleteUserHandler(c: UserIdContext) {
   const targetId = c.req.param('id')
   const sysIds = getSystemIds(c.env)
   try {
@@ -90,7 +99,7 @@ export async function deleteUserHandler(c: Context<AppEnv>): Promise<Response> {
 // ── ロール操作 ──────────────────────────────────────────
 
 // GET /identity/roles?page=<n>
-export async function listRolesHandler(c: Context<AppEnv>): Promise<Response> {
+export async function listRolesHandler(c: RolesRootContext) {
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10))
   const limit = getLimit(c.env.ROLE_DISPLAY_LIMIT)
   const roles = await identityService.listRoles(c.get('db'), page, limit)
@@ -98,7 +107,7 @@ export async function listRolesHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // GET /identity/roles/:id
-export async function getRoleHandler(c: Context<AppEnv>): Promise<Response> {
+export async function getRoleHandler(c: RoleIdContext) {
   const roleId = c.req.param('id')
   const role = await identityService.getRole(c.get('db'), roleId)
   if (!role) return c.json({ error: 'ROLE_NOT_FOUND', message: 'Role not found' }, 404)
@@ -106,7 +115,7 @@ export async function getRoleHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // POST /identity/roles
-export async function createRoleHandler(c: Context<AppEnv>): Promise<Response> {
+export async function createRoleHandler(c: RolesRootContext) {
   try {
     const body = await c.req.json()
     const input = identityService.parseRole(body)
@@ -122,7 +131,7 @@ export async function createRoleHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // PUT /identity/roles/:id
-export async function updateRoleHandler(c: Context<AppEnv>): Promise<Response> {
+export async function updateRoleHandler(c: RoleIdContext) {
   const roleId = c.req.param('id')
   const sysIds = getSystemIds(c.env)
   try {
@@ -142,7 +151,7 @@ export async function updateRoleHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // DELETE /identity/roles/:id
-export async function deleteRoleHandler(c: Context<AppEnv>): Promise<Response> {
+export async function deleteRoleHandler(c: RoleIdContext) {
   const roleId = c.req.param('id')
   const sysIds = getSystemIds(c.env)
   try {
@@ -158,7 +167,7 @@ export async function deleteRoleHandler(c: Context<AppEnv>): Promise<Response> {
 }
 
 // POST /identity/roles/:id/members
-export async function addRoleMemberHandler(c: Context<AppEnv>): Promise<Response> {
+export async function addRoleMemberHandler(c: RoleMembersContext) {
   const roleId = c.req.param('id')
   const body = await c.req.json<{ userId?: string }>()
   if (!body.userId) {
@@ -177,7 +186,7 @@ export async function addRoleMemberHandler(c: Context<AppEnv>): Promise<Response
 }
 
 // DELETE /identity/roles/:id/members/:userId
-export async function removeRoleMemberHandler(c: Context<AppEnv>): Promise<Response> {
+export async function removeRoleMemberHandler(c: RoleMemberIdContext) {
   const roleId = c.req.param('id')
   const userId = c.req.param('userId')
   try {

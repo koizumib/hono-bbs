@@ -7,10 +7,21 @@ import * as roleRepository from '../repository/roleRepository'
 import { hashPassword, verifyPassword } from '../utils/password'
 
 // ユーザ作成スキーマ (POST /identity/users)
-const createUserSchema = z.object({
+export const createUserSchema = z.object({
   id: z.string().min(7).max(128).regex(/^[a-zA-Z0-9_-]+$/, 'id は英数字・_・- のみ使用できます'),
   displayName: z.string().max(128).optional(),
   password: z.string().min(8).max(128),
+})
+
+// GET /identity/users, GET /identity/roles の ?page= クエリ (pageベースページネーション。
+// board/thread/postの limit/cursor 方式とは別方式)
+export const pageQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+})
+
+// POST /identity/roles/:id/members
+export const addRoleMemberSchema = z.object({
+  userId: z.string().min(1),
 })
 
 const updateProfileSchema = z.object({
@@ -28,14 +39,14 @@ const updateProfileSchema = z.object({
   { message: 'currentPassword と newPassword は両方指定してください' },
 )
 
-const updateUserAdminSchema = z.object({
+export const updateUserAdminSchema = z.object({
   displayName: z.string().max(128).optional(),
   bio: z.string().max(500).optional().nullable(),
   email: z.string().email('メールアドレスの形式が正しくありません').max(256).optional().nullable(),
   isActive: z.boolean().optional(),
 })
 
-const roleSchema = z.object({
+export const roleSchema = z.object({
   name: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, 'ロール名は英数字・_・- のみ使用できます'),
 })
 

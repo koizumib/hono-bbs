@@ -4,6 +4,7 @@
   "type": "module",
   "workspaces": [
     "packages/api",
-    "packages/web"
+    "packages/web",
+    "packages/admin"
   ]
 }

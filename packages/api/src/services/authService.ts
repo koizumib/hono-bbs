@@ -6,7 +6,7 @@ import * as userRepository from '../repository/userRepository'
 import * as sessionRepository from '../repository/sessionRepository'
 import { hashPassword, verifyPassword } from '../utils/password'
 
-const loginSchema = z.object({
+export const loginSchema = z.object({
   id: z.string().min(1),
   password: z.string().min(1),
 })

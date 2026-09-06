@@ -1,7 +1,14 @@
 {
   "name": "@hono-bbs/api",
   "type": "module",
-  "types": "src/rpcType.ts",
+  "exports": {
+    ".": {
+      "types": "./src/rpcType.ts"
+    },
+    "./admin": {
+      "types": "./src/rpcTypeAdmin.ts"
+    }
+  },
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy --minify",
