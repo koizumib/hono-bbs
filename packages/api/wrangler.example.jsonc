@@ -1,0 +1,54 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "hono-bbs",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-07",
+	"vars": {
+		// API ベースパス
+		"API_BASE_PATH": "/api/v1",
+		// ユーザ一覧の 1 ページあたり件数 (0 = 無制限)
+		"USER_DISPLAY_LIMIT": "0",
+		// ロール一覧の 1 ページあたり件数 (0 = 無制限)
+		"ROLE_DISPLAY_LIMIT": "0"
+		// ── 以下は必要に応じて設定 ─────────────────────────────────────────────
+		// CORS_ORIGIN:         許可する CORS オリジン (カンマ区切り、省略時は *)
+		//                      例: "https://your-frontend.example.com"
+		// BBS_ALLOW_DOMAIN:    アクセスを許可するドメイン (カンマ区切り、省略時は制限なし)
+		//                      例: "api.example.com"
+		// MAX_REQUEST_SIZE:    リクエストボディサイズ上限 (例: "1mb", "500kb")
+		// ENABLE_TURNSTILE:    'true' で X-Turnstile-Session ヘッダーの検証を有効化 (書き込み系エンドポイント)
+		// ALLOW_BBS_UI_DOMAINS: Turnstile認証後のリダイレクト許可UIドメイン (カンマ区切り)
+		// UPLOAD_RATE_LIMIT / UPLOAD_RATE_WINDOW: 画像アップロードのレート制限 (0=無制限, 単位:分)
+		// ALLOWED_CONTENT_TYPES / MAX_IMAGE_SIZE / IMAGE_TTL_DAYS: 画像アップロードの制限設定
+		// IMAGE_PUBLIC_BASE_URL: 画像の公開URLベース (CDN または R2 パブリックURL)
+		// ── 以下は wrangler secret put <KEY> で設定することを推奨 ─────────────
+		// ADMIN_INITIAL_PASSWORD: admin 初期パスワード (POST /auth/setup で使用、設定後削除推奨)
+		// ADMIN_USERNAME:         管理者ユーザ ID (デフォルト: admin)
+		// USER_ADMIN_ROLE:        ユーザ管理ロール ID (デフォルト: user-admin-role)
+		// KV_PREFIX:              KV グローバルプレフィックス (複数インスタンス共存時のキー衝突防止)
+		// TURNSTILE_SITE_KEY / TURNSTILE_SECRET_KEY: Cloudflare Turnstile の鍵ペア
+		// TURNSTILE_SESSION_PEPPER: Turnstileセッション ID 生成用ペッパー
+		// S3_ENDPOINT / S3_BUCKET / S3_REGION / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY: 画像保存先(R2/S3互換)
+		// ADMIN_API_KEY: 画像削除の管理者エンドポイント用 Bearer トークン
+	},
+	"kv_namespaces": [
+		{
+			"binding": "SESSION_KV",
+			// `wrangler kv namespace create SESSION_KV` で作成し、id を設定してください
+			"id": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+		}
+		// IMAGE_KV: 画像アップロードのレート制限用 (任意、未設定時はレート制限無効)
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "hono-bbs-db",
+			// `wrangler d1 create hono-bbs-db` で作成し、database_id を設定してください
+			"database_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+		}
+	],
+	"triggers": {
+		// 画像アップロードの期限切れ・放棄レコードを定期削除する (任意)
+		"crons": ["0 * * * *"]
+	}
+}

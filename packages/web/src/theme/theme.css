@@ -1,0 +1,138 @@
+/* =============================================================
+ * テーマカラー設定ファイル
+ *
+ * 各テーマのCSS変数を定義します。
+ * ここを編集することでテーマの色をカスタマイズできます。
+ *
+ * CSS変数一覧:
+ *   --c-base                  : ページ背景色
+ *   --c-surface               : カード・パネル背景色（1段目）
+ *   --c-surface2              : カード・パネル背景色（2段目）
+ *   --c-border                : ボーダー色
+ *   --c-scrollbar-thumb       : スクロールバーのつまみ色
+ *   --c-scrollbar-thumb-hover : スクロールバーのつまみホバー色
+ *   --c-own-tint              : 自分の投稿の背景ティント
+ *   --c-reply-tint            : 返信先投稿の背景ティント
+ *   --c-reply-line            : 返信線の色
+ *
+ * ※ アクセントカラー（--c-accent）は src/theme/accentColors.ts で定義します。
+ * ============================================================= */
+
+/* ------------------------------------------------------------
+ * ライトテーマ（デフォルト）
+ * ------------------------------------------------------------ */
+:root {
+  --c-base: #f1f5f9;
+  --c-surface: #ffffff;
+  --c-surface2: #f8fafc;
+  --c-border: #e2e8f0;
+
+  /* アクセントカラー（src/theme/accentColors.ts の ACCENT_MAP で上書きされます） */
+  --c-accent: #2563eb;
+  --c-accent-hover: #1d4ed8;
+  --c-accent-text: #ffffff;
+
+  /* スクロールバー */
+  --c-scrollbar-thumb: rgba(100, 116, 139, 0.25);
+  --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 55%, transparent);
+  --c-scrollbar-track: transparent;
+
+  /* 投稿背景ティント */
+  --c-own-tint: color-mix(in srgb, var(--c-accent) 12%, var(--c-base));
+  --c-reply-tint: color-mix(in srgb, #000000 8%, var(--c-base));
+  --c-reply-line: #334155;
+
+  /* ---- 本文リンク色 ------------------------------------------ */
+  --c-link-image: #fb923c;          /* 画像URL（orange-400） */
+  --c-link-image-hover: #fdba74;    /* 画像URLホバー（orange-300） */
+  --c-link-twitter: #38bdf8;        /* X/TwitterのURL（sky-400） */
+  --c-link-twitter-hover: #7dd3fc;  /* X/Twitterホバー（sky-300） */
+  --c-link-youtube: #f87171;        /* YouTubeのURL（red-400） */
+  --c-link-youtube-hover: #fca5a5;  /* YouTubeホバー（red-300） */
+  --c-link-url: #60a5fa;            /* 通常URL（blue-400） */
+  --c-link-url-hover: #93c5fd;      /* 通常URLホバー（blue-300） */
+
+  /* ---- アンカー (>>1 等) ------------------------------------- */
+  --c-anchor: #60a5fa;              /* アンカーリンク（blue-400） */
+  --c-anchor-hover: #93c5fd;        /* アンカーホバー（blue-300） */
+
+  /* ---- 投稿者名 ---------------------------------------------- */
+  --c-poster-name: #16a34a;         /* 投稿者名（green-600） */
+  --c-poster-name-hover: #4ade80;   /* 投稿者名ホバー（green-400） */
+
+  /* ---- ID 色（発言数による変化） -------------------------------- */
+  --c-id-default: #94a3b8;          /* 通常ID（slate-400） */
+  --c-id-first: #475569;            /* 初回発言のID（slate-600） */
+  --c-id-warm: #f59e0b;             /* 3回以上（amber-500） */
+  --c-id-hot: #f97316;              /* 5回以上（orange-500） */
+  --c-id-very-hot: #ef4444;         /* 7回以上（red-500） */
+
+  /* ---- 人気レス色（被アンカー数による変化） ---------------------- */
+  --c-heat-warm: #f59e0b;           /* 3件以上（amber-500） */
+  --c-heat-hot: #f97316;            /* 5件以上（orange-500） */
+  --c-heat-very-hot: #ef4444;       /* 7件以上（red-500） */
+}
+
+/* ------------------------------------------------------------
+ * ダークテーマ
+ * ------------------------------------------------------------ */
+html.dark {
+  --c-base: #0f1115;
+  --c-surface: #161920;
+  --c-surface2: #1a1d24;
+  --c-border: #1e293b;
+
+  --c-scrollbar-thumb: rgba(71, 85, 105, 0.5);
+  --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 60%, transparent);
+
+  --c-reply-tint: color-mix(in srgb, #ffffff 8%, var(--c-base));
+  --c-reply-line: #cbd5e1;
+
+  /* 投稿者名（ダーク時は暗い緑） */
+  --c-poster-name: #166534;         /* green-800 */
+}
+
+/* ------------------------------------------------------------
+ * ライトグレーテーマ
+ * ------------------------------------------------------------ */
+html.light-gray {
+  --c-base: #dde3ec;
+  --c-surface: #e8eef5;
+  --c-surface2: #f0f4f9;
+  --c-border: #c8d2df;
+
+  --c-scrollbar-thumb: rgba(100, 116, 139, 0.35);
+
+  --c-reply-tint: color-mix(in srgb, #000000 8%, var(--c-base));
+  --c-reply-line: #334155;
+}
+
+/* ------------------------------------------------------------
+ * グレーテーマ
+ * ------------------------------------------------------------ */
+html.gray {
+  --c-base: #b0bac4;
+  --c-surface: #c5cfd9;
+  --c-surface2: #d3dce6;
+  --c-border: #9aa4af;
+
+  --c-scrollbar-thumb: rgba(80, 96, 112, 0.45);
+
+  --c-reply-tint: color-mix(in srgb, #000000 9%, var(--c-base));
+  --c-reply-line: #1e293b;
+}
+
+/* ------------------------------------------------------------
+ * ダークグレーテーマ
+ * ------------------------------------------------------------ */
+html.dark-gray {
+  --c-base: #22293a;
+  --c-surface: #2c3549;
+  --c-surface2: #344058;
+  --c-border: #3e4f6b;
+
+  --c-scrollbar-thumb: rgba(62, 79, 107, 0.7);
+
+  --c-reply-tint: color-mix(in srgb, #ffffff 8%, var(--c-base));
+  --c-reply-line: #e2e8f0;
+}

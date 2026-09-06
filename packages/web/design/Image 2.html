@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+
+<html class="dark h-full" lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AnonBoard | ユーザー設定</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Noto Sans JP -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols for Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#3b82f6",
+                        "background-dark": "#0f1115",
+                        "surface-dark": "#161920",
+                        "border-dark": "#1e293b",
+                    },
+                    fontFamily: {
+                        "display": ["Noto Sans JP", "sans-serif"]
+                    },
+                    borderRadius: {"DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px"},
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Noto Sans JP', sans-serif;
+            overflow: hidden;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #4b5563;
+            border-radius: 10px;
+        }
+        .active-nav {
+            background-color: rgba(59, 130, 246, 0.1);
+            border-left: 4px solid #3b82f6;
+            color: white !important;
+        }
+    </style>
+</head>
+<body class="bg-[#0f1115] text-slate-200 h-full">
+<div class="flex h-full w-full overflow-hidden">
+<!-- Sidebar Navigation (Consistent with SCREEN_4) -->
+<aside class="w-64 flex-shrink-0 border-r border-slate-800 bg-[#161920] flex flex-col" id="sidebar">
+<div class="p-6 border-b border-slate-800 flex items-center gap-3">
+<div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold text-white">AB</div>
+<span class="text-lg font-bold tracking-tight text-white">AnonBoard</span>
+</div>
+<nav class="flex-1 overflow-y-auto custom-scrollbar py-4">
+<div class="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">メイン</div>
+<ul class="space-y-1">
+<li>
+<a class="flex items-center px-5 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">house</span>
+<span class="ml-3 text-sm font-medium">ホーム</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-5 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">list</span>
+<span class="ml-3 text-sm font-medium">板一覧</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-5 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">bookmark</span>
+<span class="ml-3 text-sm font-medium">ブックマーク</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-5 py-3 active-nav" href="#">
+<span class="material-symbols-outlined text-xl">settings</span>
+<span class="ml-3 text-sm font-medium">設定</span>
+</a>
+</li>
+</ul>
+</nav>
+<!-- User Profile in Sidebar (Consistent with SCREEN_2) -->
+<div class="p-4 border-t border-slate-800">
+<div class="flex items-center gap-3 mb-4 px-2">
+<div class="w-10 h-10 rounded-full bg-blue-600/10 border border-blue-600/20 overflow-hidden shrink-0">
+<img alt="User Profile" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB9HZ1LsR8nhtWPCFvv-yDGAKhLLQ4KmypiJICZHRf_9V9f2Q7sqbGkcfY2ylffw5CZIKR2qwVF1CxXrnjxHiXfibah0NsZcZbS-wtPWTptfpDV9AQHUdffNAXQdPY5h8OQ9bSiWvqDiqdndhSXHlaVicO1t4ekbKpKQIcIeHEl_hmK1ZpfCMjrrOCwfI47QQw3PMbAe5brDQtpB0pcTFziF8B8Dh1HQ-VOSwq9FzHSDp9QbTAaB2BHqmEdRiChYHxSU8bmi_TblR4"/>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="text-sm font-semibold text-white truncate">Anonymous Pioneer</span>
+<span class="text-[10px] text-slate-500 font-medium">一般会員</span>
+</div>
+</div>
+<button class="w-full py-2 px-3 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">logout</span>
+                ログアウト
+            </button>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 flex flex-col min-w-0 bg-[#0f1115] overflow-y-auto custom-scrollbar">
+<!-- Top Header & Tabs (Consistent with SCREEN_2) -->
+<header class="bg-[#0f1115]/80 backdrop-blur-md border-b border-slate-800 sticky top-0 z-10 px-8">
+<div class="flex items-center justify-between py-5 md:hidden">
+<span class="text-lg font-bold tracking-tight text-white">AnonBoard</span>
+<button class="p-2 text-slate-400"><span class="material-symbols-outlined">menu</span></button>
+</div>
+<div class="flex gap-8">
+<button class="py-4 border-b-2 border-blue-500 text-blue-500 font-bold text-sm">プロフィール・設定</button>
+<button class="py-4 border-b-2 border-transparent text-slate-500 font-medium text-sm hover:text-slate-300 transition-colors">閲覧履歴</button>
+<button class="py-4 border-b-2 border-transparent text-slate-500 font-medium text-sm hover:text-slate-300 transition-colors">投稿履歴</button>
+</div>
+</header>
+<div class="max-w-4xl w-full mx-auto p-8 space-y-10">
+<!-- Profile Section (Enhanced Visuals) -->
+<section class="bg-[#161920] p-8 rounded-2xl border border-slate-800/50 flex flex-col md:flex-row items-center gap-8 shadow-xl shadow-black/20">
+<div class="relative">
+<div class="w-28 h-28 rounded-full bg-blue-600/10 flex items-center justify-center overflow-hidden border-2 border-blue-600/30">
+<img alt="Profile Picture" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA59-wk6Jydy2K1spGLtQTJ4VoASp_hRbjRhYoLkYPRIK-cVGsFyWJEhlA7XHPxEhYaQNdpL84drht6lrawszN8ScOIk-xd9quCO7fID1_W-rY_58h6B-7PDrzc0ALe-wSCPetGpd1RhK3ERoxD3JbMugISEUGlNaVgIpIb7kRwHG9iT__63KEeAgRKzFjBgST_B0IZw40tVN5UKmsg0II5Nkg7ox9gk_XGiFPm9vDgLZ-jENfVdCnwhZqf9dLX3MHSvtMJy5BGhgQ"/>
+</div>
+<button class="absolute bottom-1 right-1 w-9 h-9 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center text-white shadow-lg shadow-blue-900/40 transition-all">
+<span class="material-symbols-outlined text-base">edit</span>
+</button>
+</div>
+<div class="text-center md:text-left space-y-2">
+<h2 class="text-2xl font-bold text-white">Anonymous Pioneer</h2>
+<div class="flex items-center justify-center md:justify-start gap-3">
+<span class="px-2.5 py-0.5 bg-blue-600/20 text-blue-400 text-xs font-bold rounded uppercase tracking-wider">一般会員</span>
+<span class="text-sm text-slate-500 font-mono">ID: anon_pioneer_2024</span>
+</div>
+<p class="text-xs text-slate-500 mt-2 flex items-center justify-center md:justify-start gap-1">
+<span class="material-symbols-outlined text-[14px]">calendar_today</span>
+                        登録日: 2024年01月15日
+                    </p>
+</div>
+</section>
+<!-- Filtering Settings (Consistent with Writing UI in SCREEN_4) -->
+<section class="space-y-6">
+<h3 class="text-lg font-bold text-white flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-500">filter_list</span>
+                    NGワード・フィルタリング設定
+                </h3>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<!-- Thread Title -->
+<div class="bg-[#1a1d24] rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col">
+<div class="px-5 py-3 bg-slate-800/30 border-b border-slate-800 flex justify-between items-center">
+<label class="text-xs font-bold text-slate-400 uppercase tracking-wider">スレッドタイトル</label>
+<label class="flex items-center gap-2 cursor-pointer group">
+<input class="rounded border-slate-700 bg-slate-800/50 text-blue-600 focus:ring-blue-500/50 h-3.5 w-3.5" type="checkbox"/>
+<span class="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">正規表現</span>
+</label>
+</div>
+<div class="p-4 bg-transparent">
+<textarea class="w-full h-32 bg-transparent border-none text-slate-200 placeholder-slate-600 text-sm p-0 focus:ring-0 resize-none custom-scrollbar" placeholder="1行に1つずつ入力..."></textarea>
+</div>
+</div>
+<!-- Poster ID -->
+<div class="bg-[#1a1d24] rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col">
+<div class="px-5 py-3 bg-slate-800/30 border-b border-slate-800">
+<label class="text-xs font-bold text-slate-400 uppercase tracking-wider">投稿者ID</label>
+</div>
+<div class="p-4 bg-transparent">
+<textarea class="w-full h-32 bg-transparent border-none text-slate-200 placeholder-slate-600 text-sm p-0 focus:ring-0 resize-none custom-scrollbar" placeholder="1行に1つずつ入力..."></textarea>
+</div>
+</div>
+<!-- Trip/Name -->
+<div class="bg-[#1a1d24] rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col">
+<div class="px-5 py-3 bg-slate-800/30 border-b border-slate-800">
+<label class="text-xs font-bold text-slate-400 uppercase tracking-wider">名前（コテハン）</label>
+</div>
+<div class="p-4 bg-transparent">
+<textarea class="w-full h-32 bg-transparent border-none text-slate-200 placeholder-slate-600 text-sm p-0 focus:ring-0 resize-none custom-scrollbar" placeholder="1行に1つずつ入力..."></textarea>
+</div>
+</div>
+<!-- Message Body -->
+<div class="bg-[#1a1d24] rounded-2xl border border-slate-800 shadow-lg overflow-hidden flex flex-col">
+<div class="px-5 py-3 bg-slate-800/30 border-b border-slate-800 flex justify-between items-center">
+<label class="text-xs font-bold text-slate-400 uppercase tracking-wider">レス（本文）</label>
+<label class="flex items-center gap-2 cursor-pointer group">
+<input class="rounded border-slate-700 bg-slate-800/50 text-blue-600 focus:ring-blue-500/50 h-3.5 w-3.5" type="checkbox"/>
+<span class="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">正規表現</span>
+</label>
+</div>
+<div class="p-4 bg-transparent">
+<textarea class="w-full h-32 bg-transparent border-none text-slate-200 placeholder-slate-600 text-sm p-0 focus:ring-0 resize-none custom-scrollbar" placeholder="1行に1つずつ入力..."></textarea>
+</div>
+</div>
+</div>
+</section>
+<!-- Appearance & Notifications -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-10">
+<!-- Appearance -->
+<div class="space-y-6">
+<h3 class="text-lg font-bold text-white flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-500">palette</span>
+                        外観
+                    </h3>
+<div class="bg-[#161920] p-6 rounded-2xl border border-slate-800/50 space-y-6 shadow-lg shadow-black/10">
+<div>
+<p class="text-sm font-bold text-slate-300 mb-4">テーマ</p>
+<div class="flex p-1 bg-slate-900 rounded-xl border border-slate-800">
+<button class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-300 transition-colors">ライト</button>
+<button class="flex-1 py-2 text-xs font-bold rounded-lg bg-blue-600 text-white shadow-lg shadow-blue-900/20">ダーク</button>
+<button class="flex-1 py-2 text-xs font-bold rounded-lg text-slate-500 hover:text-slate-300 transition-colors">自動</button>
+</div>
+</div>
+<div class="flex items-center justify-between">
+<div>
+<p class="text-sm font-bold text-slate-300">セーフサーチ</p>
+<p class="text-[10px] text-slate-500">不適切なコンテンツを非表示にする</p>
+</div>
+<button class="w-11 h-6 bg-blue-600 rounded-full relative transition-all shadow-inner">
+<div class="absolute right-1 top-1 w-4 h-4 bg-white rounded-full shadow-sm transition-transform"></div>
+</button>
+</div>
+</div>
+</div>
+<!-- Notifications -->
+<div class="space-y-6">
+<h3 class="text-lg font-bold text-white flex items-center gap-3">
+<span class="material-symbols-outlined text-blue-500">notifications</span>
+                        通知設定
+                    </h3>
+<div class="bg-[#161920] p-6 rounded-2xl border border-slate-800/50 space-y-4 shadow-lg shadow-black/10">
+<div class="flex items-center justify-between group">
+<span class="text-sm text-slate-300 group-hover:text-white transition-colors">自分の投稿へのレス</span>
+<input checked="" class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/50" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between group">
+<span class="text-sm text-slate-300 group-hover:text-white transition-colors">ダイレクトメッセージ</span>
+<input checked="" class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/50" type="checkbox"/>
+</div>
+<div class="flex items-center justify-between group">
+<span class="text-sm text-slate-300 group-hover:text-white transition-colors">運営からのお知らせ</span>
+<input class="w-5 h-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-blue-500/50" type="checkbox"/>
+</div>
+</div>
+</div>
+</section>
+<!-- Danger Zone -->
+<section class="space-y-6">
+<h3 class="text-lg font-bold text-red-500 flex items-center gap-3">
+<span class="material-symbols-outlined">warning</span>
+                    危険な操作（Danger Zone）
+                </h3>
+<div class="bg-red-500/5 border border-red-500/20 p-8 rounded-2xl space-y-4 shadow-lg shadow-red-950/5">
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-6">
+<div>
+<p class="text-sm font-bold text-red-400">アカウントの削除</p>
+<p class="text-xs text-slate-500 mt-1">一度削除したアカウントとデータは復旧できません。</p>
+</div>
+<button class="px-6 py-2.5 bg-red-600/10 border border-red-600/30 hover:bg-red-600/20 text-red-500 text-sm font-bold rounded-xl transition-all">
+                            アカウントを削除
+                        </button>
+</div>
+</div>
+</section>
+<!-- Actions -->
+<div class="flex justify-end gap-4 pb-16">
+<button class="px-8 py-2.5 border border-slate-800 bg-slate-800/50 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl text-sm font-bold transition-all">キャンセル</button>
+<button class="px-10 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-sm font-bold shadow-lg shadow-blue-900/30 transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">save</span>
+                    設定を保存
+                </button>
+</div>
+</div>
+</main>
+</div>
+</body></html>

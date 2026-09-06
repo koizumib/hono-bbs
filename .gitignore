@@ -1,0 +1,16 @@
+# npm workspaces installs node_modules at the root
+node_modules/
+
+# hono-bbs-admin is its own separate git repository, kept out of scope for this monorepo.
+# It is only sitting in this directory for convenience; consider moving it elsewhere.
+hono-bbs-admin/
+
+# logs
+*.log
+npm-debug.log*
+
+# misc
+.DS_Store
+
+# claude (project-specific instructions, not for OSS repo)
+CLAUDE.md

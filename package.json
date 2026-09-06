@@ -1,0 +1,9 @@
+{
+  "name": "hono-bbs-merge",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/api",
+    "packages/web"
+  ]
+}

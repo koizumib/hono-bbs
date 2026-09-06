@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="ja"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AnonBoard | 匿名掲示板</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Google Fonts: Noto Sans JP -->
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols for Icons -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style data-purpose="custom-base-styles">
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      overflow: hidden;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 4px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #4b5563;
+      border-radius: 10px;
+    }
+    .active-board {
+      background-color: rgba(59, 130, 246, 0.1);
+      border-left: 4px solid #3b82f6;
+    }
+    .post-card:hover {
+      background-color: rgba(255, 255, 255, 0.02);
+    }
+    /* Collapsible Sidebar Logic */
+    #sidebar-boards {
+      transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .sidebar-collapsed {
+      width: 64px !important;
+    }
+    .sidebar-collapsed .sidebar-text {
+      display: none;
+    }
+    .sidebar-collapsed .sidebar-header-text {
+      display: none;
+    }
+    .sidebar-collapsed .sidebar-footer {
+      display: none;
+    }
+
+    /* Minimap Styles */
+    .minimap-container {
+      width: 32px;
+      background: rgba(15, 17, 21, 0.5);
+      border-left: 1px solid rgba(51, 65, 85, 0.3);
+      position: relative;
+    }
+    .minimap-thumb {
+      position: absolute;
+      left: 2px;
+      right: 2px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 4px;
+      pointer-events: none;
+      z-index: 5;
+    }
+    .minimap-marker {
+      position: absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: transform 0.1s;
+    }
+    .minimap-marker:hover {
+      transform: translateX(-50%) scale(1.5);
+      filter: brightness(1.2);
+    }
+  </style>
+</head>
+<body class="h-full bg-[#0f1115] text-slate-200">
+<!-- BEGIN: MainLayoutContainer -->
+<div class="flex h-full w-full overflow-hidden" data-purpose="app-root">
+<!-- BEGIN: Column1Boards (Collapsible) -->
+<aside class="w-64 flex-shrink-0 border-r border-slate-800 bg-[#161920] flex flex-col relative" data-purpose="sidebar-boards" id="sidebar-boards">
+<div class="p-6 border-b border-slate-800 flex items-center justify-between">
+<div class="flex items-center gap-3 overflow-hidden">
+<div class="w-8 h-8 bg-blue-600 rounded-lg flex-shrink-0 flex items-center justify-center font-bold text-white">AB</div>
+<h1 class="sidebar-header-text font-bold text-lg tracking-tight truncate whitespace-nowrap">AnonBoard</h1>
+</div>
+<button class="p-1 hover:bg-slate-800 rounded text-slate-400" onclick="toggleSidebar()" title="サイドバーを切り替え">
+<span class="material-symbols-outlined text-xl">menu_open</span>
+</button>
+</div>
+<nav class="flex-1 overflow-y-auto custom-scrollbar py-4">
+<div class="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider sidebar-text">
+        板一覧
+      </div>
+<ul class="space-y-1">
+<li>
+<a class="flex items-center px-5 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors active-board" href="#">
+<span class="material-symbols-outlined text-xl">terminal</span>
+<span class="ml-3 sidebar-text whitespace-nowrap">テクノロジー</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-5 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">palette</span>
+<span class="ml-3 sidebar-text whitespace-nowrap">アート・デザイン</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-5 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">sports_esports</span>
+<span class="ml-3 sidebar-text whitespace-nowrap">ゲーム製作</span>
+</a>
+</li>
+<li>
+<a class="flex items-center px-5 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors" href="#">
+<span class="material-symbols-outlined text-xl">public</span>
+<span class="ml-3 sidebar-text whitespace-nowrap">全般・雑談</span>
+</a>
+</li>
+</ul>
+</nav>
+<div class="border-t border-slate-800 p-2">
+<button class="w-full flex items-center px-3 py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors rounded-lg group">
+<span class="material-symbols-outlined text-xl group-hover:text-blue-400">account_circle</span>
+<span class="ml-3 sidebar-text whitespace-nowrap">アカウント設定</span>
+</button>
+</div>
+<div class="sidebar-footer p-4 border-t border-slate-800 text-[10px] text-slate-500 text-center">
+      © 2024 AnonBoard
+    </div>
+</aside>
+<!-- END: Column1Boards -->
+<!-- BEGIN: Column2ThreadList -->
+<section class="w-80 md:w-96 flex-shrink-0 border-r border-slate-800 bg-[#0f1115] flex flex-col" data-purpose="thread-sidebar">
+<div class="p-4 border-b border-slate-800 space-y-4">
+<div class="flex justify-between items-center">
+<h2 class="font-bold text-white text-lg">テクノロジー</h2>
+<span class="text-xs bg-slate-800 px-2 py-1 rounded text-slate-400">1.2k 在住</span>
+</div>
+<button class="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2 px-4 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2">
+<span class="material-symbols-outlined text-sm">add_comment</span>
+        新規スレッド作成
+      </button>
+</div>
+<div class="flex-1 overflow-y-auto custom-scrollbar">
+<!-- Active Thread Item -->
+<div class="p-4 border-b border-slate-800 bg-slate-800/30 cursor-pointer relative" data-purpose="thread-card-active">
+<div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
+<div class="flex justify-between items-start mb-1">
+<span class="text-[10px] font-bold text-orange-400 uppercase tracking-tighter">🔥 トレンド</span>
+<span class="text-[10px] text-slate-500">2分前</span>
+</div>
+<div class="flex gap-3">
+<!-- Small square preview from content link -->
+<div class="w-16 h-16 rounded bg-slate-800 flex-shrink-0 overflow-hidden border border-slate-700">
+<img alt="Thread Preview" class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8jaoyzBbN4_D5n2ciq3-dTnTO8zCUchPdlYzwy5zng905R6PIFr-24gnnODIAEI4r7yCcuARQwpN8-Z2ZZM3r8mostWahF-NaZjR7XvAfjY3qHN6K8Zh7sk7Ngs_eTt6Ww6JqisbrRsIWX-jIzAcCgRHclbLQbfTRLFIsjgivQ_leb6XVxLfBBtFooJJDVPss2UZ3KYEfMKhzqyn0OSGGPD_cyR-j52ZgFwHhAoxM4nbWSgmrGoDZw23BWzUoAvNQaH8kpXYzkt8"/>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="text-sm font-bold text-white leading-tight mb-1 line-clamp-2">次世代のWebフレームワークについて語るスレ Part.42</h3>
+<p class="text-xs text-slate-400 line-clamp-1 mb-2">React 19の新機能とServer Componentsの...</p>
+<div class="flex items-center text-[10px] gap-3">
+<div class="flex items-center gap-1 text-blue-400">
+<span class="font-bold">レス:</span>
+<span class="bg-blue-400/10 px-1 rounded">482</span>
+</div>
+<div class="flex items-center gap-1 text-orange-400">
+<span class="font-bold">勢い:</span>
+<span class="bg-orange-400/10 px-1 rounded">1.2k</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Regular Thread Item -->
+<div class="p-4 border-b border-slate-800 hover:bg-slate-800/20 cursor-pointer transition-colors" data-purpose="thread-card">
+<div class="flex justify-between items-start mb-1">
+<span class="text-[10px] text-slate-500">15分前</span>
+</div>
+<div class="flex gap-3">
+<!-- Small square preview placeholder if no image -->
+<div class="w-16 h-16 rounded bg-slate-800 flex-shrink-0 overflow-hidden border border-slate-700 flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-600">article</span>
+</div>
+<div class="flex-1 min-w-0">
+<h3 class="text-sm font-medium text-slate-200 leading-tight mb-1 line-clamp-2">Rust vs Go: 2024年のバックエンド開発</h3>
+<p class="text-xs text-slate-500 line-clamp-1 mb-2">最近のプロジェクトでどちらを採用するか迷っています...</p>
+<div class="flex items-center text-[10px] gap-3">
+<div class="flex items-center gap-1 text-slate-400">
+<span class="font-bold">レス:</span>
+<span class="bg-slate-800 px-1 rounded">125</span>
+</div>
+<div class="flex items-center gap-1 text-slate-400">
+<span class="font-bold">勢い:</span>
+<span class="bg-slate-800 px-1 rounded">450</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- END: Column2ThreadList -->
+<!-- BEGIN: Column3ThreadView -->
+<main class="flex-1 flex flex-col bg-[#0f1115] relative" data-purpose="main-content">
+<!-- Thread Header -->
+<header class="h-16 flex-shrink-0 border-b border-slate-800 bg-[#0f1115]/80 backdrop-blur-md flex items-center justify-between px-6 sticky top-0 z-10">
+<div class="min-w-0">
+<h2 class="font-bold text-white truncate text-base">次世代のWebフレームワークについて語るスレ Part.42</h2>
+</div>
+<div class="flex items-center gap-4 ml-4">
+<button class="p-2 text-slate-400 hover:text-white transition-colors" title="更新">
+<span class="material-symbols-outlined text-xl">refresh</span>
+</button>
+<button class="p-2 text-slate-400 hover:text-white transition-colors" title="メニュー">
+<span class="material-symbols-outlined text-xl">more_vert</span>
+</button>
+</div>
+</header>
+<div class="flex flex-1 overflow-hidden relative">
+<!-- Posts List -->
+<div class="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-6 pb-40" id="thread-scroll-area">
+<!-- OP Post -->
+<article class="max-w-4xl" data-purpose="original-post" id="post-1">
+<div class="flex items-center gap-3 mb-2">
+<span class="font-bold text-blue-400 text-sm">1</span>
+<span class="font-bold text-green-500 text-xs">名無しさん＠お腹いっぱい。</span>
+<span class="text-xs text-slate-500">2024/05/20(月) 12:00:05.12 ID:AbC123de0</span>
+<span class="text-xs text-slate-600 bg-slate-800/50 px-1 rounded cursor-pointer hover:bg-slate-700">No.8293041</span>
+</div>
+<div class="bg-slate-800/20 rounded-xl p-5 border border-slate-800/50">
+<div class="mb-4">
+<p class="text-slate-300 leading-relaxed">
+                React 19がいよいよ現実味を帯びてきたけど、みんなはどう思う？<br/>
+                Server Components中心の設計に移行すべきか、まだ従来のSPA構成で粘るべきか。<br/><br/>
+                議論しましょう。<br/>
+<span class="text-blue-400 text-sm break-all">https://example.com/images/react19_structure.png</span>
+</p>
+</div>
+<!-- Logic for displaying thumbnails from text links (Square Fit) -->
+<div class="mt-4 pt-4 border-t border-slate-800/50 flex flex-wrap gap-2">
+<div class="w-24 h-24 bg-slate-900 border border-slate-700 rounded overflow-hidden flex-shrink-0 flex items-center justify-center">
+<img alt="Thumbnail Preview" class="w-full h-full object-contain cursor-zoom-in hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8jaoyzBbN4_D5n2ciq3-dTnTO8zCUchPdlYzwy5zng905R6PIFr-24gnnODIAEI4r7yCcuARQwpN8-Z2ZZM3r8mostWahF-NaZjR7XvAfjY3qHN6K8Zh7sk7Ngs_eTt6Ww6JqisbrRsIWX-jIzAcCgRHclbLQbfTRLFIsjgivQ_leb6XVxLfBBtFooJJDVPss2UZ3KYEfMKhzqyn0OSGGPD_cyR-j52ZgFwHhAoxM4nbWSgmrGoDZw23BWzUoAvNQaH8kpXYzkt8"/>
+</div>
+<span class="text-[10px] text-slate-500 mt-1 self-end">react19_structure.png</span>
+</div>
+</div>
+</article>
+<!-- Reply Post -->
+<article class="max-w-4xl" data-purpose="reply-post" id="post-2">
+<div class="flex items-center gap-3 mb-2">
+<span class="font-bold text-blue-400 text-sm">2</span>
+<span class="font-bold text-slate-400 text-xs">名無しさん＠お腹いっぱい。</span>
+<span class="text-xs text-slate-500">2024/05/20(月) 12:05:30.45 ID:XyZ987qw0</span>
+<span class="text-xs text-slate-600 bg-slate-800/50 px-1 rounded cursor-pointer hover:bg-slate-700">No.8293052</span>
+</div>
+<div class="pl-4 border-l-2 border-slate-800 ml-1">
+<p class="text-blue-500 text-xs mb-1 hover:underline cursor-pointer">&gt;&gt;1</p>
+<p class="text-slate-300 leading-relaxed mb-4">
+              Vercelのエコシステムに乗っかるなら移行一択だろうけど、セルフホスト派にはまだ厳しい印象。
+            </p>
+</div>
+</article>
+<div class="h-[600px] flex items-center justify-center text-slate-700 italic text-sm">... (スクロールシミュレーション) ...</div>
+<!-- Another Post with Media Link -->
+<article class="max-w-4xl" data-purpose="reply-post" id="post-3">
+<div class="flex items-center gap-3 mb-2">
+<span class="font-bold text-blue-400 text-sm">3</span>
+<span class="font-bold text-slate-400 text-xs">名無しさん＠お腹いっぱい。</span>
+<span class="text-xs text-slate-500">2024/05/20(月) 12:10:15.00 ID:Lnk456bb1</span>
+<span class="text-xs text-slate-600 bg-slate-800/50 px-1 rounded cursor-pointer hover:bg-slate-700">No.8293110</span>
+</div>
+<div class="pl-4 border-l-2 border-slate-800 ml-1">
+<div class="mb-4">
+<p class="text-slate-300 leading-relaxed">
+                この動画解説がわかりやすかった。<br/>
+<span class="text-blue-400 text-sm break-all">https://example.com/video/react19-guide</span>
+</p>
+</div>
+<!-- Media Thumbnails -->
+<div class="mt-4 pt-4 border-t border-slate-800/50 flex flex-wrap gap-3">
+<div class="w-24 h-24 bg-slate-900 border border-slate-700 rounded overflow-hidden flex-shrink-0 flex items-center justify-center">
+<img alt="thumb1" class="w-full h-full object-contain cursor-zoom-in hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD8jaoyzBbN4_D5n2ciq3-dTnTO8zCUchPdlYzwy5zng905R6PIFr-24gnnODIAEI4r7yCcuARQwpN8-Z2ZZM3r8mostWahF-NaZjR7XvAfjY3qHN6K8Zh7sk7Ngs_eTt6Ww6JqisbrRsIWX-jIzAcCgRHclbLQbfTRLFIsjgivQ_leb6XVxLfBBtFooJJDVPss2UZ3KYEfMKhzqyn0OSGGPD_cyR-j52ZgFwHhAoxM4nbWSgmrGoDZw23BWzUoAvNQaH8kpXYzkt8"/>
+</div>
+<div class="w-24 h-24 bg-slate-900 border border-slate-700 rounded overflow-hidden flex-shrink-0 flex items-center justify-center text-slate-600">
+<span class="material-symbols-outlined text-4xl">play_circle</span>
+</div>
+</div>
+</div>
+</article>
+</div>
+<!-- BEGIN: Minimap Sidebar -->
+<div class="minimap-container flex-shrink-0 flex flex-col pt-4 pb-40" id="minimap">
+<div class="minimap-thumb" id="minimap-thumb"></div>
+<div class="minimap-marker bg-amber-400" style="top: 5%" title="1: 画像リンクあり"></div>
+<div class="minimap-marker bg-blue-500" style="top: 15%" title="2: 返信"></div>
+<div class="minimap-marker bg-purple-500" style="top: 85%" title="3: 動画リンクあり"></div>
+<div class="absolute bottom-4 left-0 right-0 flex flex-col items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
+<div class="w-2 h-2 rounded-full bg-amber-400" title="画像"></div>
+<div class="w-2 h-2 rounded-full bg-purple-500" title="動画"></div>
+<div class="w-2 h-2 rounded-full bg-blue-500" title="リンク"></div>
+</div>
+</div>
+<!-- END: Minimap Sidebar -->
+</div>
+<!-- BEGIN: WritingUI -->
+<footer class="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-[#0f1115] via-[#0f1115] to-transparent pointer-events-none z-20">
+<div class="max-w-4xl mx-auto bg-[#1a1d24] border border-slate-700 rounded-2xl shadow-2xl pointer-events-auto overflow-hidden">
+<div class="flex items-center px-4 py-2 border-b border-slate-800 bg-slate-800/30 gap-3">
+<button class="text-slate-400 hover:text-white p-1 rounded transition-colors" title="太字">
+<span class="material-symbols-outlined text-lg">format_bold</span>
+</button>
+<button class="text-slate-400 hover:text-white p-1 rounded transition-colors" title="コード">
+<span class="material-symbols-outlined text-lg">code</span>
+</button>
+<div class="h-4 w-[1px] bg-slate-700 mx-1"></div>
+<button class="text-slate-400 hover:text-white p-1 rounded transition-colors flex items-center gap-1" title="画像をアップロード">
+<span class="material-symbols-outlined text-lg">image</span>
+<span class="text-xs font-medium">画像を追加</span>
+</button>
+</div>
+<div class="flex items-end p-4 gap-4">
+<div class="flex-1">
+<textarea class="w-full bg-transparent border-none focus:ring-0 text-slate-200 placeholder-slate-500 resize-none min-h-[40px] max-h-48 custom-scrollbar" id="reply-textarea" placeholder="返信を書き込む... (Markdown対応)" rows="1"></textarea>
+</div>
+<button class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2 rounded-xl font-bold text-sm transition-all flex-shrink-0">
+            書き込む
+          </button>
+</div>
+</div>
+</footer>
+<!-- END: WritingUI -->
+</main>
+<!-- END: Column3ThreadView -->
+</div>
+<!-- END: MainLayoutContainer -->
+<script data-purpose="interaction-logic">
+  // Sidebar Toggle logic
+  function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar-boards');
+    sidebar.classList.toggle('sidebar-collapsed');
+    
+    const icon = sidebar.querySelector('.material-symbols-outlined');
+    if (sidebar.classList.contains('sidebar-collapsed')) {
+      icon.innerText = 'menu';
+    } else {
+      icon.innerText = 'menu_open';
+    }
+  }
+
+  // Textarea auto-resize
+  const tx = document.getElementById("reply-textarea");
+  tx.setAttribute("style", "height:" + (tx.scrollHeight) + "px;overflow-y:hidden;");
+  tx.addEventListener("input", function() {
+    this.style.height = 0;
+    this.style.height = (this.scrollHeight) + "px";
+  }, false);
+
+  // Minimap Sync Logic
+  const scrollArea = document.getElementById('thread-scroll-area');
+  const minimapThumb = document.getElementById('minimap-thumb');
+
+  function updateMinimap() {
+    if (!scrollArea || !minimapThumb) return;
+    const scrollHeight = scrollArea.scrollHeight;
+    const clientHeight = scrollArea.clientHeight;
+    const scrollTop = scrollArea.scrollTop;
+    
+    const thumbHeight = (clientHeight / scrollHeight) * 100;
+    const thumbTop = (scrollTop / scrollHeight) * 100;
+    
+    minimapThumb.style.height = thumbHeight + '%';
+    minimapThumb.style.top = thumbTop + '%';
+  }
+
+  scrollArea.addEventListener('scroll', updateMinimap);
+  window.addEventListener('resize', updateMinimap);
+  updateMinimap();
+
+  // Functional marker clicking
+  document.querySelectorAll('.minimap-marker').forEach(marker => {
+    marker.addEventListener('click', () => {
+      const topPercent = parseFloat(marker.style.top);
+      scrollArea.scrollTo({
+        top: (topPercent / 100) * scrollArea.scrollHeight - (scrollArea.clientHeight / 4),
+        behavior: 'smooth'
+      });
+    });
+  });
+</script>
+</body></html>
