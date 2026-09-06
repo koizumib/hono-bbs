@@ -19,6 +19,15 @@ cd packages/api && npm run dev    # バックエンド (http://localhost:8787)
 cd packages/web && npm run dev    # フロントエンド (http://localhost:5173)
 ```
 
+ローカル開発の詳細手順は各パッケージのREADME（[`packages/api`](./packages/api#ローカル開発手順) / [`packages/web`](./packages/web#開発環境のセットアップ)）を参照してください。
+
+## Cloudflareへのデプロイ
+
+- [`packages/api/docs/deployment.md`](./packages/api/docs/deployment.md) — バックエンド (Cloudflare Workers + D1 + KV) の初回セットアップ・更新デプロイ手順
+- [`packages/web/docs/deployment.md`](./packages/web/docs/deployment.md) — フロントエンド (Cloudflare Pages) のデプロイ手順
+
+いずれも `wrangler` CLIコマンドを直接実行する運用で、専用の自動化スクリプトは用意していません。
+
 ## ライセンス
 
 Apache-2.0

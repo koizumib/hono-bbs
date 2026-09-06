@@ -1,488 +1,314 @@
-# デプロイガイド
+# セットアップ・デプロイガイド
 
-hono-bbs は Cloudflare Workers だけでなく、Linux サーバー (Node.js/Bun) にもデプロイできます。
+hono-bbs 本体 (`packages/api`) の開発環境構築・本番デプロイ手順です。
+リソース作成からデプロイまで、すべて `wrangler` CLI コマンドを直接実行します（専用スクリプトは用意していません）。
+
+環境変数の一覧・`vars`/`secret` の区別は [`docs/env-vars.md`](./env-vars.md) を参照してください。
 
 ---
 
 ## 目次
 
-- [Cloudflare Workers へのデプロイ](#cloudflare-workers-へのデプロイ)
-- [Linux サーバーへのデプロイ (Node.js)](#linux-サーバーへのデプロイ-nodejs)
-- [Docker でのデプロイ](#docker-でのデプロイ)
-- [プラグインのデプロイ](#プラグインのデプロイ)
-  - [turnstileApiToken を Linux サーバーにデプロイ](#pluginsturnstileapitoken-を-linux-サーバーにデプロイ)
-  - [twoCh を Linux サーバーにデプロイ](#pluginstwoch-を-linux-サーバーにデプロイ)
-- [DB マイグレーション](#db-マイグレーション)
-- [環境変数リファレンス](./env-vars.md)
+- [前提条件](#前提条件)
+- [Cloudflareへの認証方法](#cloudflareへの認証方法)
+- [ローカル開発環境](#ローカル開発環境)
+- [本番デプロイ（初回: リソース作成）](#本番デプロイ初回リソース作成)
+- [更新デプロイ（2回目以降）](#更新デプロイ2回目以降)
+- [D1 の操作](#d1-の操作)
+- [型生成](#型生成)
+- [トラブルシューティング](#トラブルシューティング)
+- [代替デプロイ先 (Node.js / Docker)](#代替デプロイ先-nodejs--docker)
 
 ---
 
-## Cloudflare Workers へのデプロイ
+## 前提条件
 
-### 前提条件
-
-- Cloudflare アカウント
-- `wrangler` CLI (npm でインストール済み)
 - Node.js 18 以上
+- npm
+- Cloudflareアカウント
 
-### 手順
+`wrangler` CLI は `npm install` でこのリポジトリのdevDependencyとして入るため、別途インストール不要です（`npx wrangler ...` で実行する）。
 
-#### 1. 依存パッケージのインストール
+---
+
+## Cloudflareへの認証方法
+
+以下のどちらか一方でよい。
+
+### A. `wrangler login`（個人の手元での作業向け）
 
 ```bash
-npm install
+npx wrangler login
 ```
 
-#### 2. Cloudflare リソースの作成
+ブラウザが開き、自分のCloudflareアカウントでログインする。以後 `npx wrangler whoami` で確認できる。
+自分のアカウント権限をそのまま使うので、個人の開発機での作業に向く。
+
+### B. APIトークン（自動化・複数人での共有運用向け）
+
+1. https://dash.cloudflare.com/profile/api-tokens で「カスタムトークンを作成」し、以下の権限を付与する:
+   - Account > Workers Scripts > Edit
+   - Account > Workers KV Storage > Edit
+   - Account > D1 > Edit
+   - Account > Cloudflare Pages > Edit （`packages/web` もデプロイする場合）
+2. リポジトリルートに `.cloudflare.env`（`.cloudflare.env.example` をコピー）を作成し、値を埋める。
+   Account IDはトークンさえあれば `npx wrangler whoami` の出力からも確認できる。
+   ```bash
+   cp .cloudflare.env.example .cloudflare.env
+   chmod 600 .cloudflare.env
+   ```
+3. コマンドを実行する前に毎回 `source` する:
+   ```bash
+   source .cloudflare.env
+   npx wrangler whoami   # 認証できていることを確認
+   ```
+
+`.cloudflare.env` は `.gitignore` 済みでコミットされない。以降の手順で `npx wrangler ...` を実行する前に、必ずどちらかの方法で認証済みであることを確認すること。
+
+---
+
+## ローカル開発環境
+
+### 1. 依存関係のインストール
 
 ```bash
-# D1 データベースを作成
-npx wrangler d1 create hono-bbs-db
-
-# KV ネームスペースを作成
-npx wrangler kv namespace create SESSION_KV
+npm install          # リポジトリルートで実行 (npm workspaces)
+cd packages/api
 ```
 
-#### 3. wrangler.jsonc の設定
+### 2. 設定ファイルのコピー
+
+```bash
+cp wrangler.example.jsonc wrangler.jsonc
+cp .dev.vars.example .dev.vars
+```
+
+### 3. `.dev.vars` の編集
+
+```ini
+API_BASE_PATH=/api/v1
+ADMIN_INITIAL_PASSWORD=your-local-password
+CORS_ORIGIN=http://localhost:5173
+# ENABLE_TURNSTILE は設定しない (ローカル開発時は Turnstile スキップ)
+```
+
+### 4. ローカルD1の初期化
+
+```bash
+npx wrangler d1 execute hono-bbs-db --local --file=schema/init.sql
+```
+
+`wrangler.jsonc` の `database_id` を本番用に設定していなくても、`--local` 実行はwranglerが自動でローカルSQLiteファイルを管理するため問題ない。
+
+### 5. 開発サーバー起動
+
+```bash
+npm run dev
+# → http://localhost:8787
+```
+
+### 6. admin初期設定・動作確認
+
+```bash
+curl -X POST http://localhost:8787/api/v1/auth/setup \
+  -H "Content-Type: application/json" \
+  -d '{"password":"your-local-password"}'
+
+curl -X POST http://localhost:8787/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"id":"admin","password":"your-local-password"}'
+
+curl http://localhost:8787/api/v1/boards
+```
+
+> ローカルのD1データは `.wrangler/state/v3/d1/`、KVデータは `.wrangler/state/v3/kv/` に保存される。
+
+---
+
+## 本番デプロイ（初回: リソース作成）
+
+新しいCloudflareアカウント/環境に初めてデプロイするときの手順。[認証方法](#cloudflareへの認証方法)のどちらかを済ませてから進める。
+
+### 1. `wrangler.jsonc` の準備
 
 ```bash
 cp wrangler.example.jsonc wrangler.jsonc
 ```
 
-`wrangler.jsonc` を編集し、上で作成した `database_id` と KV の `id` を設定します。
-
-#### 4. DB の初期化
+### 2. D1データベースの作成
 
 ```bash
-# 本番 D1 を初期化
-npx wrangler d1 execute hono-bbs-db --file=schema/init.sql
-
-# ローカル開発用 D1 を初期化
-npx wrangler d1 execute hono-bbs-db --local --file=schema/init.sql
+npx wrangler d1 create hono-bbs-db
 ```
 
-#### 5. シークレットの設定
+出力される `database_id` を `wrangler.jsonc` の `d1_databases[0].database_id` に貼り付ける。
+
+> 既に同名のデータベースが存在する場合、`A database with that name already exists` エラーになる。
+> その場合は `npx wrangler d1 list` で既存の `uuid` を確認して使う。
+
+### 3. KV Namespaceの作成
+
+```bash
+npx wrangler kv namespace create SESSION_KV
+```
+
+出力される `id` を `wrangler.jsonc` の `kv_namespaces[0].id` に貼り付ける。
+同様に既に存在する場合は `npx wrangler kv namespace list` で確認する。
+
+### 4. 非機密設定 (`vars`) の記入
+
+`wrangler.jsonc` の `vars` に、必要な項目を追記する（一覧は [`docs/env-vars.md`](./env-vars.md)）。最低限、フロントエンドのオリジンを許可するために以下を設定することが多い:
+
+```jsonc
+"vars": {
+  "API_BASE_PATH": "/api/v1",
+  "USER_DISPLAY_LIMIT": "0",
+  "ROLE_DISPLAY_LIMIT": "0",
+  "CORS_ORIGIN": "https://your-frontend.pages.dev"
+}
+```
+
+### 5. 機密情報 (secrets) の設定
 
 ```bash
 npx wrangler secret put ADMIN_INITIAL_PASSWORD
 ```
 
-Turnstile セッション検証を有効にする場合は `wrangler.jsonc` の `vars` に追加します:
-
-```jsonc
-"vars": {
-  "ENABLE_TURNSTILE": "true"
-}
-```
-
-> **Note**: `TURNSTILE_SITE_KEY` / `TURNSTILE_SECRET_KEY` は **turnstileApiToken プラグイン** 側の設定です。hono-bbs 本体は `ENABLE_TURNSTILE` と `SESSION_KV` のみを参照します。
-
-#### 6. デプロイ
+`vars` と違い、値はプロンプトから入力する（コマンド履歴やファイルに残らない）。Turnstile/画像アップロード機能を使う場合は必要に応じて追加する:
 
 ```bash
-npx wrangler deploy
+npx wrangler secret put TURNSTILE_SECRET_KEY
+npx wrangler secret put TURNSTILE_SESSION_PEPPER
+npx wrangler secret put S3_ACCESS_KEY_ID
+npx wrangler secret put S3_SECRET_ACCESS_KEY
+npx wrangler secret put ADMIN_API_KEY
 ```
 
-#### 7. admin 初期設定
+### 6. 本番D1の初期化
 
 ```bash
-curl -X POST https://your-worker.workers.dev/api/v1/auth/setup \
+npx wrangler d1 execute hono-bbs-db --remote --file=schema/init.sql
+```
+
+> **警告**: `schema/init.sql` は全テーブルをDROPして再作成する。**初回のみ**実行すること。
+> 既にデータが入った本番DBに対して実行すると、全データが失われる。
+
+### 7. デプロイ
+
+```bash
+npm run deploy
+```
+
+出力される `https://<worker-name>.<subdomain>.workers.dev` がAPIのURL。
+
+### 8. admin初期設定（一度だけ実行可能）
+
+```bash
+curl -X POST https://<worker-name>.<subdomain>.workers.dev/api/v1/auth/setup \
   -H "Content-Type: application/json" \
-  -d '{"password":"<ADMIN_INITIAL_PASSWORD>"}'
+  -d '{"password":"<ADMIN_INITIAL_PASSWORDに設定した値>"}'
+```
+
+成功レスポンス: `{"data":{"message":"Admin password has been set"}}`
+2回目の実行は `409 ALREADY_SETUP` になる。
+
+設定が終わったら、シークレットを削除しておく（再利用しないため）:
+
+```bash
+npx wrangler secret delete ADMIN_INITIAL_PASSWORD
+```
+
+### 初回セットアップ チェックリスト
+
+- [ ] `wrangler.jsonc` を作成した
+- [ ] `wrangler.jsonc` に D1 の `database_id` を設定した
+- [ ] `wrangler.jsonc` に KV の `id` を設定した
+- [ ] `CORS_ORIGIN` など必要な `vars` を設定した
+- [ ] `ADMIN_INITIAL_PASSWORD` をsecretとして登録した
+- [ ] `npx wrangler d1 execute hono-bbs-db --remote --file=schema/init.sql` を実行した
+- [ ] `npm run deploy` を実行した
+- [ ] `POST /auth/setup` を実行してadminパスワードを設定した
+- [ ] adminでログインできることを確認した
+
+---
+
+## 更新デプロイ（2回目以降）
+
+コードを変更して再デプロイするだけなら、リソース作成は不要。以下のみでよい:
+
+```bash
+npm run deploy
+```
+
+`wrangler.jsonc` の `vars` を追記・変更した場合も同じコマンドで反映される（再デプロイのたびに読み込まれる）。
+DBスキーマを変更した場合は、[D1 の操作](#d1-の操作)を参照して個別に反映すること（`init.sql` の再実行は既存データを消すため使わない）。
+
+---
+
+## D1 の操作
+
+```bash
+# 内容確認 (本番)
+npx wrangler d1 execute hono-bbs-db --remote --command "SELECT * FROM users;"
+
+# 内容確認 (ローカル)
+npx wrangler d1 execute hono-bbs-db --local --command "SELECT * FROM users;"
+
+# バックアップ
+npx wrangler d1 export hono-bbs-db --remote --output=backup-$(date +%Y%m%d).sql
+
+# スキーマの全リセット（破壊的・既存データが全て消える。初回セットアップ以外では使わない）
+npx wrangler d1 execute hono-bbs-db --remote --file=schema/init.sql
 ```
 
 ---
 
-## Linux サーバーへのデプロイ (Node.js)
+## 型生成
 
-### 前提条件
-
-- Node.js 18 以上 (または Bun 1 以上)
-- MySQL / PostgreSQL / SQLite のいずれか
-- Redis (オプション、セッション管理用)
-
-### 手順
-
-#### 1. 依存パッケージのインストール
+`wrangler.jsonc` を変更した後（binding追加など）は型定義を再生成する:
 
 ```bash
-npm install
+npm run cf-typegen
+```
 
-# DB ドライバー (使用するものをインストール)
+---
+
+## トラブルシューティング
+
+### `POST /auth/setup` が `ALREADY_SETUP` を返す
+
+既にadminパスワードが設定済み。ログインして操作する。
+
+### CORSエラーが出る
+
+`wrangler.jsonc` の `vars.CORS_ORIGIN` にフロントエンドのオリジンが含まれているか確認する。
+
+### D1に接続できない
+
+`wrangler.jsonc` の `database_id` が正しいか確認する。ローカルなら `--local`、本番なら `--remote` を付けて実行しているか確認する。
+
+### Cloudflare Pagesプロジェクトの作成が失敗する
+
+同名のプロジェクトが既に存在する、または過去に作った同名プロジェクトにカスタムドメインが紐づいたまま残っている場合に失敗することがある。`npx wrangler pages project list` で既存プロジェクトを確認する。
+
+### 型エラーが出る
+
+```bash
+npm run cf-typegen
+```
+
+---
+
+## 代替デプロイ先 (Node.js / Docker)
+
+Cloudflare Workers以外にデプロイしたい場合、`src/index.node.ts` というNode.js/Bun向けの代替エントリポイントが用意されている。ただし以下のオプション依存を別途インストールする必要があり、`tsconfig.json` のデフォルト設定（`@cloudflare/workers-types` のみ）ではこのファイル単体を `tsc --noEmit` すると型エラーになるのが既知の状態（バグではない）。
+
+```bash
 npm install better-sqlite3   # SQLite (デフォルト)
-npm install mysql2            # MySQL
-npm install pg                # PostgreSQL
-
-# KV ドライバー (Redis を使用する場合)
-npm install ioredis
-
-# Node.js サーバー
-npm install @hono/node-server
+npm install mysql2           # MySQL 使用時
+npm install pg               # PostgreSQL 使用時
+npm install ioredis          # Redis (KVの代替) 使用時
+npm install @hono/node-server @types/node
 ```
 
-#### 2. 環境変数の設定
-
-```bash
-cp .dev.vars.example .env
-```
-
-`.env` を編集:
-
-```env
-# DB 設定 (SQLite の場合)
-DB_DRIVER=sqlite
-DATABASE_URL=./data/hono-bbs.db
-
-# DB 設定 (MySQL の場合)
-# DB_DRIVER=mysql
-# DATABASE_URL=mysql://user:password@localhost:3306/hono_bbs
-
-# DB 設定 (PostgreSQL の場合)
-# DB_DRIVER=postgresql
-# DATABASE_URL=postgresql://user:password@localhost:5432/hono_bbs
-
-# KV 設定 (メモリ: 開発用)
-KV_DRIVER=memory
-
-# KV 設定 (Redis の場合)
-# KV_DRIVER=redis
-# REDIS_URL=redis://localhost:6379
-
-# 複数インスタンス運用時のプレフィックス
-# KV_PREFIX=prod:
-
-# API 設定
-API_BASE_PATH=/api/v1
-ADMIN_INITIAL_PASSWORD=your-secure-password
-CORS_ORIGIN=https://your-frontend.example.com
-
-# Turnstile セッション検証を有効にする場合 (turnstileApiToken プラグインと連携時)
-# ENABLE_TURNSTILE=true
-```
-
-#### 3. DB の初期化
-
-```bash
-# SQLite
-node -e "
-const Database = require('better-sqlite3');
-const fs = require('fs');
-const db = new Database('./data/hono-bbs.db');
-db.exec(fs.readFileSync('./schema/init.sql', 'utf8'));
-"
-
-# MySQL / MariaDB
-mysql -u user -p hono_bbs < schema/init.mysql.sql
-
-# PostgreSQL
-psql -U user -d hono_bbs -f schema/init.postgresql.sql
-```
-
-#### 4. Node.js サーバーの起動
-
-```bash
-node src/index.node.ts
-# または
-npx tsx src/index.node.ts
-```
-
-#### 5. systemd サービス設定 (本番運用)
-
-`/etc/systemd/system/hono-bbs.service`:
-
-```ini
-[Unit]
-Description=hono-bbs API Server
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/hono-bbs
-EnvironmentFile=/opt/hono-bbs/.env
-ExecStart=/usr/bin/node /opt/hono-bbs/src/index.node.ts
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable hono-bbs
-sudo systemctl start hono-bbs
-```
-
----
-
-## Docker でのデプロイ
-
-### Dockerfile の例
-
-```dockerfile
-FROM node:22-alpine
-
-WORKDIR /app
-COPY package*.json ./
-RUN npm ci --omit=dev
-
-COPY . .
-
-ENV DB_DRIVER=sqlite
-ENV DATABASE_URL=/data/hono-bbs.db
-ENV KV_DRIVER=memory
-ENV API_BASE_PATH=/api/v1
-
-VOLUME ["/data"]
-EXPOSE 8787
-
-CMD ["node", "src/index.node.ts"]
-```
-
-### Docker Compose の例 (MySQL + Redis)
-
-```yaml
-version: "3.9"
-services:
-  api:
-    build: .
-    ports:
-      - "8787:8787"
-    environment:
-      DB_DRIVER: mysql
-      DATABASE_URL: mysql://hono_bbs:password@db:3306/hono_bbs
-      KV_DRIVER: redis
-      REDIS_URL: redis://redis:6379
-      API_BASE_PATH: /api/v1
-      ADMIN_INITIAL_PASSWORD: your-secure-password
-    depends_on:
-      - db
-      - redis
-
-  db:
-    image: mysql:8
-    environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: hono_bbs
-      MYSQL_USER: hono_bbs
-      MYSQL_PASSWORD: password
-    volumes:
-      - db_data:/var/lib/mysql
-      - ./schema/init.sql:/docker-entrypoint-initdb.d/init.sql
-
-  redis:
-    image: redis:7-alpine
-    volumes:
-      - redis_data:/data
-
-volumes:
-  db_data:
-  redis_data:
-```
-
----
-
-## プラグインのデプロイ
-
-各プラグインは独立した Worker/サービスとしてデプロイします。
-
-| プラグイン | Cloudflare Workers | Linux Node.js | ドキュメント |
-|---|---|---|---|
-| turnstileApiToken | ✅ | ✅ | `plugins/turnstileApiToken/` |
-| twoCh | ✅ | ✅ | [docs/plugins/twoCh/deploy.md](./plugins/twoCh/deploy.md) |
-| imageUploader | ✅ | - | `plugins/imageUploader/` |
-| datImport | ✅ | - | `plugins/datImport/` |
-
-### D1 / KV の共有設定
-
-hono-bbs 本体とプラグインで D1 および KV を共有します。
-
-```
-hono-bbs 本体
-  ├─ DB (D1 / SQLite / MySQL)   ── twoCh プラグインと共有
-  └─ SESSION_KV (KV / Redis)    ── twoCh / turnstileApiToken プラグインと共有可能
-                                    (KV_PREFIX でキー衝突を防止)
-```
-
-**KV を共有する場合の設定例 (Cloudflare Workers):**
-
-```jsonc
-// wrangler.jsonc (hono-bbs 本体)
-"kv_namespaces": [{ "binding": "SESSION_KV", "id": "abc123..." }],
-"vars": { "KV_PREFIX": "prod:" }
-
-// wrangler.jsonc (twoCh プラグイン) — 同じ KV ID / KV_PREFIX を設定
-"kv_namespaces": [{ "binding": "SESSION_KV", "id": "abc123..." }],
-"vars": { "KV_PREFIX": "prod:" }
-```
-
----
-
-### plugins/turnstileApiToken を Linux サーバーにデプロイ
-
-```bash
-cd /opt/hono-bbs
-
-# 依存パッケージ (Redis を使う場合)
-npm install @hono/node-server ioredis
-
-# 環境変数ファイル
-cat > plugins/turnstileApiToken/.env << 'EOF'
-TURNSTILE_SITE_KEY=your-site-key
-TURNSTILE_SECRET_KEY=your-secret-key
-KV_DRIVER=redis
-REDIS_URL=redis://localhost:6379
-KV_PREFIX=prod:
-TURNSTILE_PATH=/auth/turnstile
-CORS_ORIGIN=https://your-frontend.example.com
-PORT=8788
-EOF
-
-# 起動
-node plugins/turnstileApiToken/src/index.node.ts
-```
-
-**systemd サービス** (`/etc/systemd/system/hono-bbs-turnstile.service`):
-
-```ini
-[Unit]
-Description=hono-bbs Turnstile Plugin
-After=network.target redis.service
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/hono-bbs
-EnvironmentFile=/opt/hono-bbs/plugins/turnstileApiToken/.env
-ExecStart=/usr/bin/node /opt/hono-bbs/plugins/turnstileApiToken/src/index.node.ts
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
----
-
-### plugins/twoCh を Linux サーバーにデプロイ
-
-hono-bbs 本体と **同じ DB** を指定してください。
-
-```bash
-cd /opt/hono-bbs
-
-# 依存パッケージ
-npm install @hono/node-server better-sqlite3  # SQLite の場合
-# npm install @hono/node-server mysql2        # MySQL の場合
-
-# 環境変数ファイル
-cat > plugins/twoCh/.env << 'EOF'
-# hono-bbs 本体と同じ DB を指定
-DB_DRIVER=sqlite
-DATABASE_URL=/opt/hono-bbs/data/hono-bbs.db
-
-# KV (edge-token 管理用, hono-bbs 本体と同じ Redis を共有可)
-KV_DRIVER=redis
-REDIS_URL=redis://localhost:6379
-KV_PREFIX=prod:
-
-# 2ch ブラウザ向け公開URL
-SITE_URL=http://2ch.example.com
-BBS_NAME=掲示板
-
-# Turnstile 認証 (必要な場合)
-# ENABLE_TURNSTILE=true
-# TURNSTILE_SITE_KEY=your-site-key
-# TURNSTILE_SECRET_KEY=your-secret-key
-
-PORT=8789
-EOF
-
-# 起動
-node plugins/twoCh/src/index.node.ts
-```
-
-**systemd サービス** (`/etc/systemd/system/hono-bbs-twoch.service`):
-
-```ini
-[Unit]
-Description=hono-bbs twoCh Plugin
-After=network.target
-
-[Service]
-Type=simple
-User=www-data
-WorkingDirectory=/opt/hono-bbs
-EnvironmentFile=/opt/hono-bbs/plugins/twoCh/.env
-ExecStart=/usr/bin/node /opt/hono-bbs/plugins/twoCh/src/index.node.ts
-Restart=on-failure
-RestartSec=5
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable hono-bbs-twoch
-sudo systemctl start hono-bbs-twoch
-```
-
----
-
-## DB マイグレーション
-
-既存 DB にスキーマ変更を適用する場合は `schema/` 以下のマイグレーションファイルを使用します。
-
-| ファイル | 内容 |
-|---|---|
-| `schema/init.sql` | 全テーブル作成 (SQLite / Cloudflare D1 用) |
-| `schema/init.mysql.sql` | 全テーブル作成 (MySQL / MariaDB 用) |
-| `schema/init.postgresql.sql` | 全テーブル作成 (PostgreSQL 用) |
-| `schema/migrate_add_is_deleted.sql` | posts テーブルに `is_deleted` カラムを追加 (SQLite/D1/PostgreSQL) |
-
-**Cloudflare D1:**
-
-```bash
-npx wrangler d1 execute hono-bbs-db --file=schema/migrate_add_is_deleted.sql
-# ローカル D1 に適用する場合
-npx wrangler d1 execute hono-bbs-db --local --file=schema/migrate_add_is_deleted.sql
-```
-
-**SQLite:**
-
-```bash
-sqlite3 ./data/hono-bbs.db < schema/migrate_add_is_deleted.sql
-```
-
-**MySQL / PostgreSQL:**
-
-```bash
-mysql -u user -p hono_bbs < schema/migrate_add_is_deleted.sql
-# または
-psql -U user -d hono_bbs -f schema/migrate_add_is_deleted.sql
-```
-
----
-
-## ローカル開発
-
-```bash
-# 依存パッケージのインストール
-npm install
-
-# ローカル DB の初期化
-npx wrangler d1 execute hono-bbs-db --local --file=schema/init.sql
-
-# 開発サーバーの起動
-npm run dev
-
-# admin パスワードの初期設定
-curl -X POST http://localhost:8787/api/v1/auth/setup \
-  -H "Content-Type: application/json" \
-  -d '{"password":"password"}'
-
-# ログイン
-curl -X POST http://localhost:8787/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"id":"admin","password":"password"}'
-```
+`schema/init.mysql.sql` / `init.postgresql.sql` は古い所有者/グループ権限モデルを前提としており、現行のACLモデルとは一致しない（[`CLAUDE.md`](../../../CLAUDE.md)参照）。これらを使う場合は最新のACLスキーマへの追従が別途必要になる。日常的な運用経路ではないため、詳細な手順（systemd/Docker設定例）はこのドキュメントでは割愛する。

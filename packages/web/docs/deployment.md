@@ -86,9 +86,30 @@ location / {
 
 ## Cloudflare Pages へのデプロイ（推奨）
 
-hono-bbs が Cloudflare Workers にデプロイされている場合、同じ Cloudflare エコシステムで管理できます。
+hono-bbs 本体 (`packages/api`) が Cloudflare Workers にデプロイされている場合、同じ Cloudflare エコシステムで管理できる。
+認証方法（`wrangler login` / APIトークン）は [`packages/api/docs/deployment.md`](../../api/docs/deployment.md#cloudflareへの認証方法) と共通なので参照する。
 
-### GitHub 連携による自動デプロイ
+### `wrangler` CLI によるデプロイ（推奨・専用スクリプト不要）
+
+```bash
+# 1. Pagesプロジェクトの作成（初回のみ。既に存在すればこのコマンドは失敗するが無視してよい）
+npx wrangler pages project create hono-bbs-web --production-branch=main
+
+# 2. 本番用APIのURLを設定
+cp .env.production.example .env.production
+# .env.production を編集し、VITE_API_BASE_URL に packages/api のデプロイ先URLを設定する
+
+# 3. ビルド + デプロイ
+npm run deploy
+# 内部で `npm run build && wrangler pages deploy dist --project-name=hono-bbs-web` を実行する
+```
+
+2回目以降の更新デプロイは `npm run deploy` のみでよい（プロジェクト作成は初回だけ）。
+
+> 同名のPagesプロジェクトが既に存在し、かつ過去のプロジェクトにカスタムドメインが紐づいたまま残っていると、
+> 新規プロジェクト作成が失敗することがある。`npx wrangler pages project list` で既存プロジェクトを確認する。
+
+### GitHub 連携による自動デプロイ（代替）
 
 1. Cloudflare Pages ダッシュボードで新しいプロジェクトを作成
 2. GitHub リポジトリを連携
@@ -100,7 +121,7 @@ hono-bbs が Cloudflare Workers にデプロイされている場合、同じ Cl
 
 ### `_redirects` の配置
 
-`public/` ディレクトリに `_redirects` ファイルを作成：
+`public/_redirects` ファイルに以下を配置する（このリポジトリには既に用意済み）：
 
 ```
 /* /index.html 200

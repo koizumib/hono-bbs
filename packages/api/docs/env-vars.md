@@ -1,137 +1,75 @@
 # 環境変数リファレンス
 
-hono-bbs 本体および全プラグインの環境変数を一覧化したリファレンスです。
+hono-bbs 本体 (`packages/api`) の環境変数一覧です。`turnstile`/`imageUpload` は本体に統合済みの機能
+（[`src/features/`](../src/features)）としてここに含む。twoCh/datImport は廃止済みのため掲載しない。
+
+設定方法は「本番: `wrangler.jsonc` の `vars` または `wrangler secret put`」「ローカル: `.dev.vars`」のいずれか。
+本番でどちらに設定すべきかは、この表の「種別」列の通り: **`vars` = 非機密、`secret` = 機密**。
+機密でない値を誤って `wrangler secret put` に入れても動作はするが、`wrangler.jsonc` を見るだけでは値が追えなくなり、
+変更のたびに再設定が必要になるので推奨しない。
 
 ---
 
-## hono-bbs 本体
-
-### Cloudflare Workers バインディング (wrangler.jsonc / wrangler.example.jsonc)
+## Cloudflare Workers バインディング
 
 | 変数名 | 種別 | 必須 | 説明 |
 |---|---|---|---|
 | `DB` | D1 binding | ✅ | Cloudflare D1 データベース |
-| `SESSION_KV` | KV binding | ✅ | セッション・Turnstile トークン保存先 KV |
+| `SESSION_KV` | KV binding | ✅ | セッション・Turnstileトークン保存先 KV |
+| `IMAGE_KV` | KV binding | | 画像アップロードのレート制限用 (任意、未設定時はレート制限無効) |
 
-### vars (wrangler.jsonc の vars / .dev.vars)
+## vars（非機密、`wrangler.jsonc` の `vars` に設定）
 
 | 変数名 | デフォルト | 説明 |
 |---|---|---|
-| `API_BASE_PATH` | `/api/v1` | API ベースパス |
-| `CORS_ORIGIN` | `*` | 許可する CORS オリジン (カンマ区切り) |
-| `BBS_ALLOW_DOMAIN` | *(制限なし)* | 許可するドメイン (カンマ区切り) |
-| `USER_DISPLAY_LIMIT` | `0` (無制限) | ユーザ一覧の 1 ページあたり件数 |
-| `ROLE_DISPLAY_LIMIT` | `0` (無制限) | ロール一覧の 1 ページあたり件数 |
-| `MAX_REQUEST_SIZE` | *(無制限)* | リクエストサイズ上限 (例: `1mb`, `500kb`) |
+| `API_BASE_PATH` | `/api/v1` | APIベースパス |
+| `CORS_ORIGIN` | `*` | 許可するCORSオリジン (カンマ区切り) |
+| `BBS_ALLOW_DOMAIN` | *(制限なし)* | アクセスを許可するドメイン (`Host`ヘッダーチェック、カンマ区切り) |
+| `MAX_REQUEST_SIZE` | *(無制限)* | リクエストボディサイズ上限 (例: `1mb`, `500kb`) |
+| `USER_DISPLAY_LIMIT` | `0` (無制限) | ユーザ一覧の1ページあたり件数 |
+| `ROLE_DISPLAY_LIMIT` | `0` (無制限) | ロール一覧の1ページあたり件数 |
+| `ADMIN_USERNAME` | `admin` | 管理者ユーザID (変更時は`schema/init.sql`の初期データも合わせる) |
+| `USER_ADMIN_ROLE` | `user-admin-role` | ユーザ管理ロールID |
+| `KV_PREFIX` | *(なし)* | KVキーのグローバルプレフィックス (同一KVを複数インスタンスで共有する場合の衝突防止) |
+| `ENABLE_TURNSTILE` | *(未設定=検証スキップ)* | `"true"` で書き込み系エンドポイントの `X-Turnstile-Session` 検証を有効化 |
+| `ALLOW_BBS_UI_DOMAINS` | *(リダイレクトなし)* | Turnstile認証後のリダイレクト許可UIドメイン (カンマ区切り) |
+| `TURNSTILE_SITE_KEY` | | Cloudflare Turnstileのサイトキー (公開値、フロントに埋め込まれる) |
+| `UPLOAD_RATE_LIMIT` / `UPLOAD_RATE_WINDOW` | `0` (無制限) | 画像アップロードのレート制限 (件数/分) |
+| `ALLOWED_CONTENT_TYPES` / `MAX_IMAGE_SIZE` / `IMAGE_TTL_DAYS` | | 画像アップロードの制限設定 |
+| `IMAGE_PUBLIC_BASE_URL` | | 画像の公開URLベース (CDNまたはR2パブリックURL) |
+| `S3_ENDPOINT` / `S3_BUCKET` / `S3_REGION` | `S3_REGION`は`auto` | 画像保存先 (R2/S3互換) の接続先。エンドポイント自体は機密情報ではない |
 
-### secrets (wrangler secret put で設定)
+## secrets（機密、`wrangler secret put <KEY>` で設定）
 
 | 変数名 | 必須 | 説明 |
 |---|---|---|
-| `ADMIN_INITIAL_PASSWORD` | ✅ | admin 初期パスワード (`POST /auth/setup` で使用、設定後は削除推奨) |
-| `ENABLE_TURNSTILE` | | `"true"` で Turnstile セッション検証を有効化 (未設定時は検証スキップ) |
-| `KV_PREFIX` | | KV グローバルプレフィックス (複数インスタンス共存時のキー衝突防止、例: `prod:`) |
-| `ADMIN_USERNAME` | | 管理者ユーザ ID (デフォルト: `admin`、変更時は `init.sql` も変更) |
-| `USER_ADMIN_ROLE` | | ユーザ管理ロール ID (デフォルト: `user-admin-role`) |
+| `ADMIN_INITIAL_PASSWORD` | ✅ | admin初期パスワード (`POST /auth/setup`で使用、設定後は削除推奨) |
+| `TURNSTILE_SECRET_KEY` | | Cloudflare Turnstileのシークレットキー (Turnstile使用時必須) |
+| `TURNSTILE_SESSION_PEPPER` | | Turnstileセッション ID生成用ペッパー |
+| `S3_ACCESS_KEY_ID` / `S3_SECRET_ACCESS_KEY` | | 画像保存先 (R2/S3互換) の認証情報 (画像アップロード機能使用時必須) |
+| `ADMIN_API_KEY` | | 画像削除の管理者エンドポイント用Bearerトークン |
 
-### Node.js 環境 (Linux サーバー等)
+---
 
-Cloudflare Workers バインディングの代替として、以下の環境変数でアダプターを設定します。
+## ローカル開発 (`.dev.vars`)
 
-| 変数名 | デフォルト | 説明 |
-|---|---|---|
-| `DB_DRIVER` | `sqlite` | DB ドライバー: `mysql` / `postgresql` / `sqlite` |
-| `DATABASE_URL` | `./local.db` | DB 接続文字列 (例: `mysql://user:pass@host:3306/dbname`) |
-| `KV_DRIVER` | `memory` | KV ドライバー: `redis` / `memory` |
-| `REDIS_URL` | `redis://localhost:6379` | Redis 接続文字列 (`KV_DRIVER=redis` 時) |
-| `KV_PREFIX` | *(なし)* | KV グローバルプレフィックス (Workers と共通) |
-| `PORT` | `8787` | リスンポート |
-| `NODE_ENV` | `development` | 環境名 |
+ローカルでは `vars`/`secret` の区別なく、すべて `.dev.vars`（`.dev.vars.example`をコピー）に平文で書く。
 
-必要な npm パッケージ (用途に応じてインストール):
-
-```bash
-npm install mysql2          # MySQL 使用時
-npm install pg              # PostgreSQL 使用時
-npm install better-sqlite3  # SQLite 使用時 (デフォルト)
-npm install ioredis         # Redis 使用時
-npm install @hono/node-server  # Node.js サーバー用
+```ini
+API_BASE_PATH=/api/v1
+ADMIN_INITIAL_PASSWORD=your-local-password
+CORS_ORIGIN=http://localhost:5173
+# ENABLE_TURNSTILE は設定しない (ローカルではTurnstile検証をスキップ)
 ```
 
 ---
 
-## plugins/turnstileApiToken
+## KVキー設計
 
-| 変数名 | 種別 | 必須 | デフォルト | 説明 |
-|---|---|---|---|---|
-| `SESSION_KV` | KV binding | ✅ | | Turnstile トークン保存先 KV (hono-bbs 本体と共有可) |
-| `TURNSTILE_SITE_KEY` | vars | ✅ | | Cloudflare Turnstile サイトキー (公開値) |
-| `TURNSTILE_SECRET_KEY` | secret | ✅ | | Cloudflare Turnstile シークレットキー |
-| `TURNSTILE_TOKEN_TTL` | vars | | `525600` (1年) | トークン有効期限 (分単位、`0` = 無期限) |
-| `DISABLE_TURNSTILE` | vars | | | `"true"` で Turnstile 検証をスキップ (ローカル開発用のみ) |
-| `ALLOW_BBS_UI_DOMAINS` | vars | | *(リダイレクトなし)* | 認証後リダイレクト許可 UI ドメイン (カンマ区切り、`?returnTo=` と組み合わせて使用) |
-| `BBS_ALLOW_DOMAIN` | vars | | *(制限なし)* | 許可するドメイン (カンマ区切り) |
-| `CORS_ORIGIN` | vars | | `*` | 許可する CORS オリジン |
-| `KV_PREFIX` | vars | | *(なし)* | KV グローバルプレフィックス |
+`KV_PREFIX` を設定すると、同一KV Namespaceを複数環境（本番/ステージング等）で共有する際にキーが衝突しない。
 
----
-
-## plugins/twoCh
-
-### Cloudflare Workers バインディング
-
-| 変数名 | 種別 | 必須 | 説明 |
-|---|---|---|---|
-| `BBS_DB` | D1 binding | ✅ | hono-bbs 本体と **同じ** D1 データベース |
-| `SESSION_KV` | KV binding | ✅ (Turnstile 有効時) | edge-token 保存先 KV (hono-bbs 本体と共有可) |
-
-### vars / secrets
-
-| 変数名 | 必須 | デフォルト | 説明 |
-|---|---|---|---|
-| `SITE_URL` | | `Host` ヘッダーから自動生成 | このWorkerの公開URL (bbsmenu リンク生成に使用、例: `https://2ch.example.com`) |
-| `BBS_NAME` | | `掲示板` | bbsmenu のタイトルに表示するサイト名 |
-| `CORS_ORIGIN` | | `*` | 許可する CORS オリジン (カンマ区切り) |
-| `ENABLE_TURNSTILE` | | `false` | `"true"` で書き込み時に Turnstile 認証を必須とする |
-| `TURNSTILE_SITE_KEY` | | | Cloudflare Turnstile サイトキー (公開値) |
-| `TURNSTILE_SECRET_KEY` | secret | | Cloudflare Turnstile シークレットキー |
-| `KV_PREFIX` | | *(なし)* | KV グローバルプレフィックス (hono-bbs 本体と KV を共有する場合に衝突防止) |
-
----
-
-## plugins/datImport
-
-| 変数名 | 必須 | デフォルト | 説明 |
-|---|---|---|---|
-| `ADMIN_ROLE` | | `admin-role` | インポート操作を許可するロール ID。hono-bbs の `admin-role` (システム管理者ロール) と同じ値にすること |
-| `BASE_PATH` | | *(なし)* | エンドポイントのベースパス (例: `/dat`) |
-| `CORS_ORIGIN` | | `*` | 許可する CORS オリジン |
-
----
-
-## KV キー設計
-
-複数サービスで同一 KV ネームスペースを共有する際は `KV_PREFIX` で衝突を防ぎます。
-
-| サービス | キープレフィックス | 例 |
+| 用途 | キープレフィックス | 例 |
 |---|---|---|
-| hono-bbs 本体 (セッション) | `session:` | `session:abc123` |
-| hono-bbs 本体 (Turnstile) | `turnstile:` | `turnstile:xyz789` |
-| twoCh (edge-token) | `edge_token:` | `edge_token:uuid-...` |
-| グローバル (インスタンス分離) | `KV_PREFIX` | `prod:session:abc123` |
-
-`KV_PREFIX` は全サービスで同じ値を設定する必要があります。
-
----
-
-## オブジェクトストレージ (plugins/imageUploader)
-
-| 変数名 | 種別 | デフォルト | 説明 |
-|---|---|---|---|
-| `IMAGE_BUCKET` | R2 binding | | Cloudflare R2 バケット |
-| `S3_ENDPOINT` | vars | | S3 互換エンドポイント (MinIO 等) |
-| `S3_ACCESS_KEY_ID` | secret | | S3 アクセスキー ID |
-| `S3_SECRET_ACCESS_KEY` | secret | | S3 シークレットアクセスキー |
-| `S3_BUCKET` | vars | | S3 バケット名 |
-| `S3_REGION` | vars | `auto` | S3 リージョン |
-| `STORAGE_DRIVER` | vars | `r2` | ストレージドライバー: `r2` / `s3` |
+| セッション | `session:` | `session:abc123` |
+| Turnstileトークン | `turnstile:` | `turnstile:xyz789` |
+| グローバル (環境分離) | `KV_PREFIX` | `prod:session:abc123` |

@@ -9,6 +9,9 @@ hono-bbs-admin/
 *.log
 npm-debug.log*
 
+# Cloudflare API token credentials (see .cloudflare.env.example; never commit this)
+.cloudflare.env
+
 # misc
 .DS_Store
 
