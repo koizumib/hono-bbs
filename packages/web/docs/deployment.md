@@ -2,7 +2,7 @@
 
 ## 概要
 
-bbs-ui は静的ファイルとしてビルドし、任意の静的ホスティングサービスにデプロイできます。バックエンドの hono-bbs と同一オリジンまたは CORS 許可済みのオリジンに配置します。
+packages/web は静的ファイルとしてビルドし、任意の静的ホスティングサービスにデプロイできます。バックエンド (packages/api) と同一オリジンまたは CORS 許可済みのオリジンに配置します。
 
 ---
 
@@ -171,7 +171,7 @@ server {
 docker build \
   --build-arg VITE_API_BASE_URL=https://api.example.com \
   --build-arg VITE_TURNSTILE_SITE_KEY=your-site-key \
-  -t bbs-ui .
+  -t hono-bbs-web .
 ```
 
 ---

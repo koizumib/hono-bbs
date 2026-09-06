@@ -5,9 +5,7 @@
 - [`packages/api`](./packages/api) — Cloudflare Workers + Hono + D1 + KV のバックエンド API
 - [`packages/web`](./packages/web) — React + Vite のフロントエンド (AnonBoard)
 
-`hono-bbs`（API）と `hono-bbs-ui`（フロント）を統合し、権限管理をビットマスク＋CSV文字列から
-RBAC/ACL（`packages/api/src/utils/acl.ts`）に刷新した。旧 `turnstileApiToken`/`imageUploader`
-プラグインは本体に統合、`twoCh`/`datImport` は廃止した。詳細は各パッケージの README を参照。
+権限管理はRBAC/ACL（`packages/api/src/utils/acl.ts`）。詳細は各パッケージの README を参照。
 
 管理者用ダッシュボード（`hono-bbs-admin`）は別リポジトリで管理する。
 

@@ -1,6 +1,7 @@
-# bbs-ui — AnonBoard フロントエンド
+# AnonBoard (packages/web)
 
-[hono-bbs](https://github.com/yumekui8/hono-bbs) バックエンドと組み合わせて動作する、匿名掲示板のフロントエンドアプリケーションです。
+匿名掲示板のフロントエンドアプリケーションです。`hono-bbs-merge` モノレポの一部（npm workspaces）。
+バックエンドは [`packages/api`](../api) を参照。
 
 ## 技術スタック
 
