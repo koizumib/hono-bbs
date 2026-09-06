@@ -133,6 +133,10 @@ export type AppEnv = {
     DB?: D1Database
     SESSION_KV?: KVNamespace
     // ── 認証・セキュリティ ────────────────────────────────────────
+    // 'true' でない限り、書き込み系エンドポイントのX-Turnstile-Session検証と
+    // POST /auth/turnstile での本物のCloudflare siteverify呼び出しの両方をスキップする
+    // (ローカル開発用。以前はこの2つが ENABLE_TURNSTILE / DISABLE_TURNSTILE という
+    // 別々の変数だったが、常にセットで同じ値にする以外の使い道が無かったため統合した)
     ENABLE_TURNSTILE?: string
     ADMIN_INITIAL_PASSWORD?: string
     ADMIN_USERNAME?: string
@@ -141,7 +145,6 @@ export type AppEnv = {
     TURNSTILE_SITE_KEY?: string
     TURNSTILE_SECRET_KEY?: string
     TURNSTILE_SESSION_PEPPER?: string   // セッションID生成用ペッパー (wrangler secret put で設定推奨)
-    DISABLE_TURNSTILE?: string          // 'true' でスキップ (ローカル開発用)
     TURNSTILE_TOKEN_TTL?: string        // 有効期限 (分単位, 0=無期限, デフォルト: 525600=1年)
     ALLOW_BBS_UI_DOMAINS?: string       // Turnstile認証後のリダイレクト許可UIドメイン (カンマ区切り)
     // ── 画像アップロード (旧 imageUploader プラグイン) ────────────────

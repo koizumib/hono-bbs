@@ -148,8 +148,8 @@ export async function turnstileVerifyHandler(c: Context<AppEnv>): Promise<Respon
   const { minutes: ttlMinutes } = service.parseTurnstileTtl(c.env.TURNSTILE_TOKEN_TTL)
   const maxAge = ttlMinutes === 0 ? 365 * 24 * 3600 : ttlMinutes * 60
 
-  // 開発環境ではスキップ
-  if (c.env.DISABLE_TURNSTILE === 'true') {
+  // 開発環境ではスキップ (書き込み系エンドポイントの検証と同じフラグで制御する)
+  if (c.env.ENABLE_TURNSTILE !== 'true') {
     const devId = 'dev-turnstile-disabled'
     return new Response(
       JSON.stringify({ data: { sessionId: devId, alreadyIssued: false } }),

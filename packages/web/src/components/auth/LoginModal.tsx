@@ -8,6 +8,9 @@ import { env } from '../../config/env'
 
 function TurnstileLoginError() {
   const returnTo = encodeURIComponent(window.location.href)
+  if (!env.turnstileTokenUrl) {
+    return <span>Turnstileセッションが必要です。ページを再読み込みしてください。</span>
+  }
   return (
     <span>
       <a
@@ -159,7 +162,7 @@ export default function LoginModal({ onClose }: LoginModalProps) {
 
             {error && (
               <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {isTurnstileError && !env.disableTurnstile && env.turnstileTokenUrl ? (
+                {isTurnstileError ? (
                   <TurnstileLoginError />
                 ) : (
                   error
@@ -243,7 +246,7 @@ export default function LoginModal({ onClose }: LoginModalProps) {
 
             {regError && (
               <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-                {regIsTurnstileError && !env.disableTurnstile && env.turnstileTokenUrl ? (
+                {regIsTurnstileError ? (
                   <TurnstileLoginError />
                 ) : (
                   regError

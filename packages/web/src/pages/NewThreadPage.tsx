@@ -177,21 +177,10 @@ export default function NewThreadPage() {
         <div className="w-full max-w-[800px] flex flex-col gap-8">
           {error && (
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-red-400 text-sm">
-              {isTurnstileError && !env.disableTurnstile && env.turnstileTokenUrl ? (
+              {isTurnstileError ? (
                 <span>
-                  <a
-                    href={`${env.turnstileTokenUrl}?returnTo=${turnstileReturnTo}`}
-                    className="underline font-medium hover:text-red-300"
-                  >
-                    ここ
-                  </a>
-                  からturnstileの設定をしてください
-                </span>
-              ) : (
-                <>
-                  {error}
-                  {!env.disableTurnstile && env.turnstileTokenUrl && (
-                    <span className="block mt-1">
+                  {env.turnstileTokenUrl ? (
+                    <>
                       <a
                         href={`${env.turnstileTokenUrl}?returnTo=${turnstileReturnTo}`}
                         className="underline font-medium hover:text-red-300"
@@ -199,9 +188,13 @@ export default function NewThreadPage() {
                         ここ
                       </a>
                       からturnstileの設定をしてください
-                    </span>
+                    </>
+                  ) : (
+                    'Turnstileセッションが必要です'
                   )}
-                </>
+                </span>
+              ) : (
+                error
               )}
             </div>
           )}

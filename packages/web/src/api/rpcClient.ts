@@ -23,13 +23,17 @@ export const client = hc<AppType>(`${env.apiBaseUrl}${env.apiBasePath}`, {
 // リクエスト送信前にトークンの有無を確認し、無ければ即座にエラーを投げる
 // (現行の apiFetch の requiresSession/requiresTurnstile と同じUX)
 export function requireSession(): void {
-  if (!useAuthStore.getState().sessionId) {
+  if (!useAuthStore.getState().isLoggedIn()) {
     throw new ApiError('UNAUTHORIZED', '未ログインです', 401)
   }
 }
 
+// isValid() は VITE_DISABLE_TURNSTILE=true のとき常に true を返す (turnstileStore.ts 参照)。
+// 生の sessionId の有無だけを見ると、開発環境で無効化していても常にエラーになってしまう
+// (無効化時は各ページの isValid() が既に true を返すため、そもそもセッションを事前設定する
+// 処理自体が呼ばれず sessionId が null のままになりうる)。
 export function requireTurnstileSession(): void {
-  if (!useTurnstileStore.getState().sessionId) {
+  if (!useTurnstileStore.getState().isValid()) {
     throw new TurnstileRequiredError()
   }
 }

@@ -16,7 +16,7 @@
 		// BBS_ALLOW_DOMAIN:    アクセスを許可するドメイン (カンマ区切り、省略時は制限なし)
 		//                      例: "api.example.com"
 		// MAX_REQUEST_SIZE:    リクエストボディサイズ上限 (例: "1mb", "500kb")
-		// ENABLE_TURNSTILE:    'true' で X-Turnstile-Session ヘッダーの検証を有効化 (書き込み系エンドポイント)
+		// ENABLE_TURNSTILE:    'true' で書き込み系のX-Turnstile-Session検証 + POST /auth/turnstileでの本物のCloudflare検証を有効化 (未設定時は両方スキップ、開発用)
 		// ALLOW_BBS_UI_DOMAINS: Turnstile認証後のリダイレクト許可UIドメイン (カンマ区切り)
 		// ADMIN_USERNAME:      管理者ユーザ ID (デフォルト: admin)
 		// USER_ADMIN_ROLE:     ユーザ管理ロール ID (デフォルト: user-admin-role)

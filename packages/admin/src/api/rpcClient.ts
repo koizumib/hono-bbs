@@ -21,13 +21,15 @@ export const client = hc<AdminAppType>(`${env.apiBaseUrl}${env.apiBasePath}`, {
 })
 
 export function requireSession(): void {
-  if (!useAuthStore.getState().sessionId) {
+  if (!useAuthStore.getState().isLoggedIn()) {
     throw new ApiError('UNAUTHORIZED', '未ログインです', 401)
   }
 }
 
+// isValid() は VITE_DISABLE_TURNSTILE=true のとき常に true を返す (turnstileStore.ts 参照)。
+// 生の sessionId の有無だけを見ると、開発環境で無効化していても常にエラーになってしまう。
 export function requireTurnstileSession(): void {
-  if (!useTurnstileStore.getState().sessionId) {
+  if (!useTurnstileStore.getState().isValid()) {
     throw new TurnstileRequiredError()
   }
 }

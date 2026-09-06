@@ -31,8 +31,7 @@ hono-bbs 本体 (`packages/api`) の環境変数一覧です。`turnstile`/`imag
 | `ADMIN_USERNAME` | `admin` | 管理者ユーザID (変更時は`schema/init.sql`の初期データも合わせる) |
 | `USER_ADMIN_ROLE` | `user-admin-role` | ユーザ管理ロールID |
 | `KV_PREFIX` | *(なし)* | KVキーのグローバルプレフィックス (同一KVを複数インスタンスで共有する場合の衝突防止) |
-| `ENABLE_TURNSTILE` | *(未設定=検証スキップ)* | `"true"` で書き込み系エンドポイントの `X-Turnstile-Session` 検証を有効化 |
-| `DISABLE_TURNSTILE` | *(未設定)* | `"true"` で `GET/POST /auth/turnstile` 自体をスキップし固定セッションIDを返す (ローカル開発専用) |
+| `ENABLE_TURNSTILE` | *(未設定=両方スキップ)* | `"true"` で (1) 書き込み系エンドポイントの `X-Turnstile-Session` 検証、(2) `POST /auth/turnstile` での本物のCloudflare siteverify呼び出し、の両方を有効化。未設定時は両方スキップし固定セッションIDを返す (ローカル開発用) |
 | `TURNSTILE_TOKEN_TTL` | `525600`（1年、分単位） | 発行するTurnstileセッションの有効期限 (`0` で無期限) |
 | `ALLOW_BBS_UI_DOMAINS` | *(リダイレクトなし)* | Turnstile認証後のリダイレクト許可UIドメイン (カンマ区切り) |
 | `TURNSTILE_SITE_KEY` | | Cloudflare Turnstileのサイトキー (公開値、フロントに埋め込まれる) |

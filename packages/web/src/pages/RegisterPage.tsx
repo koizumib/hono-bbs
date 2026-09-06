@@ -131,14 +131,18 @@ export default function RegisterPage() {
 
           {error && (
             <p className="text-red-400 text-xs bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
-              {isTurnstileError && !env.disableTurnstile && env.turnstileTokenUrl ? (
+              {isTurnstileError ? (
                 <span>
-                  <a
-                    href={`${env.turnstileTokenUrl}?returnTo=${turnstileReturnTo}`}
-                    className="underline font-medium hover:text-red-300"
-                  >
-                    Turnstile
-                  </a>
+                  {env.turnstileTokenUrl ? (
+                    <a
+                      href={`${env.turnstileTokenUrl}?returnTo=${turnstileReturnTo}`}
+                      className="underline font-medium hover:text-red-300"
+                    >
+                      Turnstile
+                    </a>
+                  ) : (
+                    'Turnstile'
+                  )}
                   セッションが必要です
                 </span>
               ) : (

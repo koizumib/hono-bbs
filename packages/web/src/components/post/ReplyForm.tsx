@@ -26,6 +26,9 @@ interface ReplyFormProps {
 
 function TurnstileErrorMessage() {
   const returnTo = encodeURIComponent(window.location.href)
+  if (!env.turnstileTokenUrl) {
+    return <span>Turnstileセッションが必要です</span>
+  }
   return (
     <span>
       <a
@@ -267,16 +270,7 @@ export default function ReplyForm({
 
   const errorNode = error && (
     <div className="px-4 py-2 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex-shrink-0">
-      {isTurnstileError && !env.disableTurnstile && env.turnstileTokenUrl ? (
-        <TurnstileErrorMessage />
-      ) : (
-        <>
-          {error}
-          {!env.disableTurnstile && env.turnstileTokenUrl && (
-            <span className="block mt-0.5"><TurnstileErrorMessage /></span>
-          )}
-        </>
-      )}
+      {isTurnstileError ? <TurnstileErrorMessage /> : error}
     </div>
   )
 

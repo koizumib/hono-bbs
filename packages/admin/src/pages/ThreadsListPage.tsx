@@ -1,32 +1,92 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { getThreads, deleteThread } from '../api/threads'
+import { getThreads, patchThread, deleteThread } from '../api/threads'
+import type { Thread } from '../api/types'
+import AclEditor, { type AclInput } from '../components/AclEditor'
 import ErrorBanner from '../components/ErrorBanner'
+
+function ThreadRow({ boardId, thread }: { boardId: string; thread: Thread }) {
+  const queryClient = useQueryClient()
+  const [editingAcl, setEditingAcl] = useState(false)
+  const [acl, setAcl] = useState<AclInput>({
+    grants: thread.acl.grants,
+    authenticatedActions: thread.acl.authenticatedActions,
+    anonymousActions: thread.acl.anonymousActions,
+  })
+  const [error, setError] = useState<unknown>(null)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSaveAcl() {
+    setSaving(true)
+    setError(null)
+    try {
+      await patchThread(boardId, thread.id, { acl })
+      await queryClient.invalidateQueries({ queryKey: ['threads', boardId] })
+      setEditingAcl(false)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function handleDelete() {
+    if (!window.confirm('このスレッドを削除しますか？ 投稿も全て削除されます。')) return
+    setError(null)
+    try {
+      await deleteThread(boardId, thread.id)
+      await queryClient.invalidateQueries({ queryKey: ['threads', boardId] })
+    } catch (e) {
+      setError(e)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-b border-border-dark py-3">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm">{thread.title}</p>
+        <div className="flex shrink-0 gap-3 text-sm">
+          <Link to={`/boards/${boardId}/threads/${thread.id}`} className="text-primary hover:underline">
+            投稿一覧
+          </Link>
+          <button type="button" onClick={() => setEditingAcl((v) => !v)} className="text-primary hover:underline">
+            ACL編集
+          </button>
+          <button type="button" onClick={handleDelete} className="text-red-400 hover:underline">
+            削除
+          </button>
+        </div>
+      </div>
+
+      <ErrorBanner error={error} />
+
+      {editingAcl && (
+        <div className="flex flex-col gap-2">
+          <AclEditor label={`${thread.title} のACL`} value={acl} onChange={setAcl} ownerUserId={thread.acl.ownerUserId} />
+          <button
+            type="button"
+            onClick={handleSaveAcl}
+            disabled={saving}
+            className="self-start rounded bg-primary px-3 py-1.5 text-sm text-white disabled:opacity-50"
+          >
+            {saving ? '保存中...' : '保存'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
 
 export default function ThreadsListPage() {
   const { boardId } = useParams<{ boardId: string }>()
-  const queryClient = useQueryClient()
   const [cursor, setCursor] = useState<string | undefined>(undefined)
-  const [error, setError] = useState<unknown>(null)
 
   const { data, isLoading } = useQuery({
     queryKey: ['threads', boardId, cursor],
     queryFn: () => getThreads(boardId!, { limit: 20, cursor }),
     enabled: Boolean(boardId),
   })
-
-  async function handleDelete(threadId: string) {
-    if (!boardId) return
-    if (!window.confirm('このスレッドを削除しますか？ 投稿も全て削除されます。')) return
-    setError(null)
-    try {
-      await deleteThread(boardId, threadId)
-      await queryClient.invalidateQueries({ queryKey: ['threads', boardId] })
-    } catch (e) {
-      setError(e)
-    }
-  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -35,34 +95,14 @@ export default function ThreadsListPage() {
         <Link to="/boards" className="text-sm text-primary hover:underline">板一覧へ戻る</Link>
       </div>
 
-      <ErrorBanner error={error} />
-
       {isLoading ? (
         <p className="text-sm text-gray-400">読み込み中...</p>
       ) : (
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b border-border-dark text-left text-gray-400">
-              <th className="py-2">タイトル</th>
-              <th className="py-2" />
-            </tr>
-          </thead>
-          <tbody>
-            {data?.data.map((thread) => (
-              <tr key={thread.id} className="border-b border-border-dark">
-                <td className="py-2">{thread.title}</td>
-                <td className="py-2 text-right">
-                  <Link to={`/boards/${boardId}/threads/${thread.id}`} className="mr-3 text-primary hover:underline">
-                    投稿一覧
-                  </Link>
-                  <button type="button" onClick={() => handleDelete(thread.id)} className="text-red-400 hover:underline">
-                    削除
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="flex flex-col">
+          {data?.data.map((thread) => (
+            <ThreadRow key={thread.id} boardId={boardId!} thread={thread} />
+          ))}
+        </div>
       )}
 
       {data?.nextCursor && (

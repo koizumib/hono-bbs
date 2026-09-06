@@ -8,9 +8,10 @@
 # admin ユーザーの初期パスワード (POST /auth/setup で使用)
 ADMIN_INITIAL_PASSWORD=password
 
-# Turnstile セッション検証を有効にする場合は true に設定
-# true のとき X-Turnstile-Session ヘッダーを KV で検証する
-# 未設定または false のときは検証をスキップする (ローカル開発時は未設定推奨)
+# Turnstileを本番相当で有効にする場合は true に設定
+# true のとき (1) 書き込み系エンドポイントでX-Turnstile-SessionヘッダーをKVで検証する、
+# (2) POST /auth/turnstileが本物のCloudflare siteverifyを呼び出す、の両方が有効になる。
+# 未設定または false のときは両方スキップする (ローカル開発時は未設定推奨)
 # ENABLE_TURNSTILE=true
 
 # ────────────────────────────────────────────────────────────
@@ -33,7 +34,9 @@ ADMIN_INITIAL_PASSWORD=password
 
 # 許可する CORS オリジン (カンマ区切りで複数指定可)
 # 本番環境は wrangler secret put CORS_ORIGIN で設定することを推奨
-CORS_ORIGIN=http://localhost:5173
+# packages/web と packages/admin を両方ローカルで同時起動すると、Viteが5173を早い者勝ちで
+# 使うためどちらかが5174/5175等にずれる。両方同時に開発する場合は複数ポートを並べておくとよい。
+CORS_ORIGIN=http://localhost:5173,http://localhost:5174,http://localhost:5175
 
 # 許可するドメイン (カンマ区切りで複数指定可、未設定時は制限なし)
 # BBS_ALLOW_DOMAIN=localhost:8787,example.com

@@ -8,4 +8,16 @@
   #root {
     height: 100%;
   }
+
+  /* 常に固定のダークテーマ (このアプリはスタッフ向けなのでライトモード切り替えは無い)。
+     bg/textをここでbodyに設定しておくことで、各コンポーネント側で背景色/文字色の
+     指定を忘れても黒背景に黒文字のような表示崩れが起きないようにする。 */
+  body {
+    @apply bg-background-dark text-gray-100;
+  }
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #3b82f6;
 }

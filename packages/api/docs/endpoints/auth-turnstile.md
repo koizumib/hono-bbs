@@ -24,11 +24,12 @@ Turnstile ウィジェットを埋め込んだ HTML ページを返す。
 同一 IP+User-Agent+当日中の再発行はデデュープされ `alreadyIssued: true` を返す（KV再書き込み無し）。
 発行された `sessionId` は `X-Turnstile-Session` ヘッダーとして書き込み系エンドポイントに使用する。
 
-`DISABLE_TURNSTILE=true` のとき、固定値 `dev-turnstile-disabled` を検証なしで返す（ローカル開発用）。
+`ENABLE_TURNSTILE` が `"true"` でないとき、固定値 `dev-turnstile-disabled` を検証なしで返す
+（ローカル開発用。書き込み系エンドポイントの `X-Turnstile-Session` 検証と同じフラグで制御される）。
 
 ## 関連する環境変数
 
-`TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SESSION_PEPPER`, `TURNSTILE_TOKEN_TTL`,
-`ALLOW_BBS_UI_DOMAINS`, `DISABLE_TURNSTILE` は本体の `wrangler.jsonc`/secret にそのまま設定する
+`ENABLE_TURNSTILE`, `TURNSTILE_SITE_KEY`, `TURNSTILE_SECRET_KEY`, `TURNSTILE_SESSION_PEPPER`,
+`TURNSTILE_TOKEN_TTL`, `ALLOW_BBS_UI_DOMAINS` は本体の `wrangler.jsonc`/secret にそのまま設定する
 （詳細は [`docs/env-vars.md`](../env-vars.md)）。この POST エンドポイントへの書き込みレート制限は
 現状かけていない点に注意。

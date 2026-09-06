@@ -105,7 +105,6 @@ async function main() {
         TURNSTILE_SITE_KEY:       process.env.TURNSTILE_SITE_KEY,
         TURNSTILE_SECRET_KEY:     process.env.TURNSTILE_SECRET_KEY,
         TURNSTILE_SESSION_PEPPER: process.env.TURNSTILE_SESSION_PEPPER,
-        DISABLE_TURNSTILE:        process.env.DISABLE_TURNSTILE,
         TURNSTILE_TOKEN_TTL:      process.env.TURNSTILE_TOKEN_TTL,
         ALLOW_BBS_UI_DOMAINS:     process.env.ALLOW_BBS_UI_DOMAINS,
         // 画像アップロード機能 (/upload, /images) は D1/R2 依存のため Node.js ローカル環境では未マウント
