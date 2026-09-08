@@ -84,7 +84,10 @@ export default function BoardFormPage() {
       if (isEdit && boardId) {
         await patchBoard(boardId, form)
       } else {
-        await createBoard(form)
+        // id は空文字だと「未指定」ではなく空文字としてバリデーションに引っかかるため、
+        // 空のときはキー自体を送らない (サーバー側で crypto.randomUUID() が使われる)
+        const { id, ...rest } = form
+        await createBoard(id ? form : rest)
       }
       navigate('/boards')
     } catch (e) {

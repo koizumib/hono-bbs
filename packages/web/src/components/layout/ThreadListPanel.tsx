@@ -4,6 +4,7 @@ import { useThreads } from '../../hooks/useThreads'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { filterThreads } from '../../utils/filter'
 import ThreadCard from '../thread/ThreadCard'
+import NgHiddenNotice from '../ui/NgHiddenNotice'
 import { useDragResize } from '../../hooks/useDragResize'
 import { getHistory, removeThreadFromHistory } from '../../utils/threadHistory'
 import { fuzzyMatch } from '../../utils/fuzzySearch'
@@ -207,6 +208,8 @@ export default function ThreadListPanel() {
           className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-colors ${sortMode === 'newest' ? 'bg-c-accent text-[var(--c-accent-text)]' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-800'}`}
         >新しい順</button>
       </div>
+
+      <NgHiddenNotice count={rawThreads.length - baseThreads.length} />
 
       {selectedIds.size > 0 && (
         <div className="flex items-center gap-2 px-3 py-1.5 bg-c-accent/10 border-b border-c-accent/20 flex-shrink-0">

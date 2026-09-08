@@ -9,7 +9,9 @@ interface NgWords {
   threadTitle: string
   threadTitleRegex: boolean
   posterId: string
+  posterIdRegex: boolean
   posterName: string
+  posterNameRegex: boolean
   content: string
   contentRegex: boolean
 }
@@ -60,7 +62,9 @@ export const useSettingsStore = create<SettingsState>()(
         threadTitle: '',
         threadTitleRegex: false,
         posterId: '',
+        posterIdRegex: false,
         posterName: '',
+        posterNameRegex: false,
         content: '',
         contentRegex: false,
       },

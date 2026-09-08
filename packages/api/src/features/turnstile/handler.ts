@@ -38,8 +38,11 @@ export async function turnstilePageHandler(c: Context<AppEnv>): Promise<Response
   // redirectTo を JS に安全に埋め込む (JSON.stringify でエスケープ)
   const redirectToJs = JSON.stringify(redirectTo)
 
-  // POSTエンドポイントはこのページ自身と同じURL (GETとPOSTで同一パス)
-  const postEndpoint = JSON.stringify(c.req.url.split('?')[0])
+  // POSTエンドポイントはこのページ自身と同じURL (GETとPOSTで同一パス)。
+  // index.ts が API_BASE_PATH を剥がしてから内部ルーターに転送するため、c.req.url (path) は
+  // 既に "/api/v1" が外れた内部パスになっている。外部から見えるパスに戻すため basePath を付け直す。
+  const basePath = c.env.API_BASE_PATH ?? '/api/v1'
+  const postEndpoint = JSON.stringify(basePath + c.req.path)
 
   const html = `<!DOCTYPE html>
 <html lang="ja">

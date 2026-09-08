@@ -5,6 +5,7 @@ import { useThreads } from '../hooks/useThreads'
 import { useThreadView } from '../hooks/useThreadView'
 import { useSettingsStore } from '../stores/settingsStore'
 import { filterThreads } from '../utils/filter'
+import NgHiddenNotice from '../components/ui/NgHiddenNotice'
 import { fuzzyMatch } from '../utils/fuzzySearch'
 import { getHistory, removeThreadFromHistory } from '../utils/threadHistory'
 import { getThreadPosts } from '../api/posts'
@@ -183,6 +184,8 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
           />
         </div>
       )}
+
+      <NgHiddenNotice count={rawThreads.length - baseThreads.length} />
 
       <div className="flex-1 relative overflow-hidden">
         <div
@@ -410,6 +413,7 @@ function MobileThreadViewInner({
     thread,
     isLoading,
     filteredPosts,
+    ngHiddenCount,
     anchorCountMap,
     idCountMap,
     ownPostNumbers,
@@ -552,6 +556,8 @@ function MobileThreadViewInner({
           </div>
         }
       />
+
+      <NgHiddenNotice count={ngHiddenCount} />
 
       {showSearch && (
         <div className="px-2 py-1 border-b border-c-border flex-shrink-0">

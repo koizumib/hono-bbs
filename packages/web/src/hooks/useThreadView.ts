@@ -324,6 +324,7 @@ export function useThreadView(
     thread,
     isLoading,
     filteredPosts,
+    ngHiddenCount: rawPosts.length - posts.length,
     anchorCountMap,
     idCountMap,
     ownPostNumbers,

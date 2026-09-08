@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import type { AccentColor, FontSize } from '../stores/settingsStore'
 import Toggle from '../components/ui/Toggle'
+import NgWordTagInput from '../components/ui/NgWordTagInput'
 import { useTurnstileStore } from '../stores/turnstileStore'
 import { env } from '../config/env'
 
@@ -25,15 +26,15 @@ import { formatDistanceToNow } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
 
-type TabType = 'profile' | 'history' | 'posts' | 'images' | 'terms'
+type TabType = 'account' | 'preferences' | 'history' | 'posts' | 'images' | 'terms'
 
 export default function SettingsPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const [tab, setTab] = useState<TabType>(() => {
     const t = searchParams.get('tab')
-    if (t === 'profile' || t === 'history' || t === 'posts' || t === 'images' || t === 'terms') return t
-    return 'profile'
+    if (t === 'account' || t === 'preferences' || t === 'history' || t === 'posts' || t === 'images' || t === 'terms') return t
+    return 'account'
   })
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn())
   const clearSession = useAuthStore((s) => s.clearSession)
@@ -180,11 +181,12 @@ export default function SettingsPage() {
   }, [tab])
 
   const TAB_LABELS: Record<TabType, { full: string; short: string }> = {
-    profile:  { full: 'プロフィール・設定', short: '設定' },
-    history:  { full: '閲覧履歴',           short: '履歴' },
-    posts:    { full: '投稿履歴',           short: '投稿' },
-    images:   { full: '画像履歴',           short: '画像' },
-    terms:    { full: '利用規約',           short: '規約' },
+    account:     { full: 'アカウント',       short: 'アカ' },
+    preferences: { full: '表示・書き込み設定', short: '設定' },
+    history:     { full: '閲覧履歴',           short: '履歴' },
+    posts:       { full: '投稿履歴',           short: '投稿' },
+    images:      { full: '画像履歴',           short: '画像' },
+    terms:       { full: '利用規約',           short: '規約' },
   }
 
   return (
@@ -283,7 +285,7 @@ export default function SettingsPage() {
         {/* タブヘッダー（常に表示・スクロールしない） */}
         <header className={`bg-c-base border-b border-c-border flex-shrink-0 ${isMobile ? '' : 'px-8'}`}>
           <div className={`flex ${isMobile ? 'gap-0' : 'gap-8'}`}>
-            {(['profile', 'history', 'posts', 'images', 'terms'] as TabType[]).map((t) => (
+            {(['account', 'preferences', 'history', 'posts', 'images', 'terms'] as TabType[]).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
@@ -302,7 +304,7 @@ export default function SettingsPage() {
         {/* スクロールエリア */}
         <main ref={mainRef} className="flex-1 overflow-y-auto custom-scrollbar">
         <div className={isMobile ? 'px-3 py-4 space-y-6' : 'max-w-4xl w-full mx-auto p-8 space-y-10'}>
-          {tab === 'profile' && (
+          {tab === 'account' && (
             <>
               {/* プロフィールセクション */}
               {profile && (
@@ -418,6 +420,49 @@ export default function SettingsPage() {
                       )}
                     </div>
                   </div>
+
+                  {/* 保存ボタン（プロフィール編集フォームの直下に置く。この下の項目は変更が自動保存される） */}
+                  <div className="flex justify-end gap-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (profile) {
+                          setDisplayName(profile.displayName)
+                          setBio(profile.bio ?? '')
+                          setEmail(profile.email ?? '')
+                        }
+                        setCurrentPassword('')
+                        setNewPassword('')
+                        setNewPasswordConfirm('')
+                        setPasswordError(null)
+                      }}
+                      className="px-8 py-2.5 border border-c-border bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl text-sm font-bold transition-all"
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPasswordError(null)
+                        if (newPassword || currentPassword) {
+                          if (newPassword !== newPasswordConfirm) {
+                            setPasswordError('新しいパスワードが一致しません')
+                            return
+                          }
+                          if (!currentPassword) {
+                            setPasswordError('現在のパスワードを入力してください')
+                            return
+                          }
+                        }
+                        updateMutation.mutate()
+                      }}
+                      disabled={updateMutation.isPending}
+                      className="px-10 py-2.5 bg-c-accent hover:opacity-90 text-[var(--c-accent-text)] rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <span className="material-symbols-outlined text-sm">save</span>
+                      プロフィールを保存
+                    </button>
+                  </div>
                 </section>
               )}
 
@@ -460,7 +505,7 @@ export default function SettingsPage() {
                         className="w-full bg-c-surface2 border border-c-border rounded-xl px-4 py-3 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-c-accent/50 text-sm font-mono"
                       />
                       <p className="text-[11px] text-slate-500 mt-1.5">
-                        トークンはCookieに保存されます（有効期間: 30日）
+                        トークンはこのブラウザに保存されます（有効期間: 30日）
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
@@ -483,6 +528,38 @@ export default function SettingsPage() {
                 </section>
               )}
 
+              {/* Danger Zone */}
+              {isLoggedIn && (
+                <section className="space-y-6">
+                  <h3 className="text-lg font-bold text-red-500 flex items-center gap-3">
+                    <span className="material-symbols-outlined">warning</span>
+                    危険な操作（Danger Zone）
+                  </h3>
+                  <div className="bg-red-500/5 border border-red-500/20 p-8 rounded-2xl space-y-4 shadow-lg shadow-red-950/5">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div>
+                        <p className="text-sm font-bold text-red-400">アカウントの削除</p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          一度削除したアカウントとデータは復旧できません。
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleDeleteAccount}
+                        disabled={deleteMutation.isPending}
+                        className="px-6 py-2.5 bg-red-600/10 border border-red-600/30 hover:bg-red-600/20 text-red-500 text-sm font-bold rounded-xl transition-all disabled:opacity-50"
+                      >
+                        アカウントを削除
+                      </button>
+                    </div>
+                  </div>
+                </section>
+              )}
+            </>
+          )}
+
+          {tab === 'preferences' && (
+            <>
               {/* スレッド一覧自動更新 */}
               <section className="space-y-6">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
@@ -621,6 +698,9 @@ export default function SettingsPage() {
                   <span className="material-symbols-outlined text-c-accent">filter_list</span>
                   NGワード・フィルタリング設定
                 </h3>
+                <p className="text-xs text-slate-500 -mt-4">
+                  各欄に単語を入力してEnterで追加します。一致したスレッド・レスは一覧から非表示になります。
+                </p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* スレッドタイトル */}
                   <div className="bg-c-surface2 rounded-2xl border border-c-border shadow-lg overflow-hidden flex flex-col">
@@ -640,48 +720,61 @@ export default function SettingsPage() {
                         </span>
                       </label>
                     </div>
-                    <div className="p-4 bg-transparent">
-                      <textarea
-                        value={ngWords.threadTitle}
-                        onChange={(e) => setNgWords({ threadTitle: e.target.value })}
-                        className="w-full h-32 bg-transparent border-none text-slate-700 dark:text-slate-200 placeholder-slate-400 text-sm p-0 focus:ring-0 resize-none custom-scrollbar"
-                        placeholder="1行に1つずつ入力..."
-                      />
-                    </div>
+                    <NgWordTagInput
+                      value={ngWords.threadTitle}
+                      onChange={(v) => setNgWords({ threadTitle: v })}
+                      useRegex={ngWords.threadTitleRegex}
+                    />
                   </div>
 
                   {/* 投稿者ID */}
                   <div className="bg-c-surface2 rounded-2xl border border-c-border shadow-lg overflow-hidden flex flex-col">
-                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border">
+                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border flex justify-between items-center">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         投稿者ID
                       </label>
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={ngWords.posterIdRegex}
+                          onChange={(e) => setNgWords({ posterIdRegex: e.target.checked })}
+                          className="rounded border-c-border bg-c-surface2 text-c-accent focus:ring-c-accent/50 h-3.5 w-3.5"
+                        />
+                        <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">
+                          正規表現
+                        </span>
+                      </label>
                     </div>
-                    <div className="p-4 bg-transparent">
-                      <textarea
-                        value={ngWords.posterId}
-                        onChange={(e) => setNgWords({ posterId: e.target.value })}
-                        className="w-full h-32 bg-transparent border-none text-slate-700 dark:text-slate-200 placeholder-slate-400 text-sm p-0 focus:ring-0 resize-none custom-scrollbar"
-                        placeholder="1行に1つずつ入力..."
-                      />
-                    </div>
+                    <NgWordTagInput
+                      value={ngWords.posterId}
+                      onChange={(v) => setNgWords({ posterId: v })}
+                      useRegex={ngWords.posterIdRegex}
+                    />
                   </div>
 
                   {/* 名前 */}
                   <div className="bg-c-surface2 rounded-2xl border border-c-border shadow-lg overflow-hidden flex flex-col">
-                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border">
+                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border flex justify-between items-center">
                       <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                         名前（コテハン）
                       </label>
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={ngWords.posterNameRegex}
+                          onChange={(e) => setNgWords({ posterNameRegex: e.target.checked })}
+                          className="rounded border-c-border bg-c-surface2 text-c-accent focus:ring-c-accent/50 h-3.5 w-3.5"
+                        />
+                        <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">
+                          正規表現
+                        </span>
+                      </label>
                     </div>
-                    <div className="p-4 bg-transparent">
-                      <textarea
-                        value={ngWords.posterName}
-                        onChange={(e) => setNgWords({ posterName: e.target.value })}
-                        className="w-full h-32 bg-transparent border-none text-slate-700 dark:text-slate-200 placeholder-slate-400 text-sm p-0 focus:ring-0 resize-none custom-scrollbar"
-                        placeholder="1行に1つずつ入力..."
-                      />
-                    </div>
+                    <NgWordTagInput
+                      value={ngWords.posterName}
+                      onChange={(v) => setNgWords({ posterName: v })}
+                      useRegex={ngWords.posterNameRegex}
+                    />
                   </div>
 
                   {/* レス（本文） */}
@@ -702,14 +795,11 @@ export default function SettingsPage() {
                         </span>
                       </label>
                     </div>
-                    <div className="p-4 bg-transparent">
-                      <textarea
-                        value={ngWords.content}
-                        onChange={(e) => setNgWords({ content: e.target.value })}
-                        className="w-full h-32 bg-transparent border-none text-slate-700 dark:text-slate-200 placeholder-slate-400 text-sm p-0 focus:ring-0 resize-none custom-scrollbar"
-                        placeholder="1行に1つずつ入力..."
-                      />
-                    </div>
+                    <NgWordTagInput
+                      value={ngWords.content}
+                      onChange={(v) => setNgWords({ content: v })}
+                      useRegex={ngWords.contentRegex}
+                    />
                   </div>
                 </div>
               </section>
@@ -824,75 +914,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </section>
-
-              {/* Danger Zone */}
-              {isLoggedIn && (
-                <section className="space-y-6">
-                  <h3 className="text-lg font-bold text-red-500 flex items-center gap-3">
-                    <span className="material-symbols-outlined">warning</span>
-                    危険な操作（Danger Zone）
-                  </h3>
-                  <div className="bg-red-500/5 border border-red-500/20 p-8 rounded-2xl space-y-4 shadow-lg shadow-red-950/5">
-                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                      <div>
-                        <p className="text-sm font-bold text-red-400">アカウントの削除</p>
-                        <p className="text-xs text-slate-500 mt-1">
-                          一度削除したアカウントとデータは復旧できません。
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handleDeleteAccount}
-                        disabled={deleteMutation.isPending}
-                        className="px-6 py-2.5 bg-red-600/10 border border-red-600/30 hover:bg-red-600/20 text-red-500 text-sm font-bold rounded-xl transition-all disabled:opacity-50"
-                      >
-                        アカウントを削除
-                      </button>
-                    </div>
-                  </div>
-                </section>
-              )}
-
-              {/* 保存ボタン */}
-              {isLoggedIn && (
-                <div className="flex justify-end gap-4 pb-16">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (profile) {
-                        setDisplayName(profile.displayName)
-                        setBio(profile.bio ?? '')
-                        setEmail(profile.email ?? '')
-                      }
-                    }}
-                    className="px-8 py-2.5 border border-c-border bg-slate-100 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-200 dark:hover:bg-slate-800 rounded-xl text-sm font-bold transition-all"
-                  >
-                    キャンセル
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPasswordError(null)
-                      if (newPassword || currentPassword) {
-                        if (newPassword !== newPasswordConfirm) {
-                          setPasswordError('新しいパスワードが一致しません')
-                          return
-                        }
-                        if (!currentPassword) {
-                          setPasswordError('現在のパスワードを入力してください')
-                          return
-                        }
-                      }
-                      updateMutation.mutate()
-                    }}
-                    disabled={updateMutation.isPending}
-                    className="px-10 py-2.5 bg-c-accent hover:opacity-90 text-[var(--c-accent-text)] rounded-xl text-sm font-bold shadow-lg transition-all flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <span className="material-symbols-outlined text-sm">save</span>
-                    設定を保存
-                  </button>
-                </div>
-              )}
             </>
           )}
 

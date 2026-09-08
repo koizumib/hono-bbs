@@ -7,6 +7,7 @@ import { useSettingsStore } from '../stores/settingsStore'
 import { useAuthStore } from '../stores/authStore'
 import { canDo } from '../utils/permissions'
 import { filterPosts } from '../utils/filter'
+import NgHiddenNotice from '../components/ui/NgHiddenNotice'
 import PostArticle, { type PostHandlers } from '../components/post/PostArticle'
 import PostPopup, { type PopupEntry } from '../components/post/PostPopup'
 import Minimap from '../components/post/Minimap'
@@ -530,6 +531,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     <main className="flex-1 flex flex-col bg-c-base overflow-hidden">
       {header}
       {filterBar}
+      <NgHiddenNotice count={rawPosts.length - posts.length} />
 
       {replyLayout === 'bottom' ? (
         <>
