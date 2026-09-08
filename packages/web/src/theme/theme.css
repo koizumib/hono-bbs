@@ -94,12 +94,14 @@ html.dark {
 
 /* ------------------------------------------------------------
  * ライトグレーテーマ
+ * 中途半端な明るさで文字とのコントラストが弱かったため、
+ * はっきり明るい側に寄せた (ライトモードの文字色がそのまま使われる想定)。
  * ------------------------------------------------------------ */
 html.light-gray {
-  --c-base: #dde3ec;
-  --c-surface: #e8eef5;
-  --c-surface2: #f0f4f9;
-  --c-border: #c8d2df;
+  --c-base: #e7ebf1;
+  --c-surface: #f1f4f8;
+  --c-surface2: #f7f9fb;
+  --c-border: #d3dae3;
 
   --c-scrollbar-thumb: rgba(100, 116, 139, 0.35);
 
@@ -109,30 +111,36 @@ html.light-gray {
 
 /* ------------------------------------------------------------
  * グレーテーマ
+ * 以前は中間的な明るさ(#b0bac4)で、ライト用/ダーク用どちらの文字色とも
+ * コントラストが弱かった。ダーク系(light文字ではなくdark:文字を使う)側に
+ * 倒して、light-gray〜dark-grayの明るさのグラデーションが自然につながる
+ * ようにした (App.tsxでdarkクラスも付与する)。
  * ------------------------------------------------------------ */
 html.gray {
-  --c-base: #b0bac4;
-  --c-surface: #c5cfd9;
-  --c-surface2: #d3dce6;
-  --c-border: #9aa4af;
+  --c-base: #414a5a;
+  --c-surface: #4a5468;
+  --c-surface2: #535e73;
+  --c-border: #5f6b82;
 
-  --c-scrollbar-thumb: rgba(80, 96, 112, 0.45);
+  --c-scrollbar-thumb: rgba(148, 163, 184, 0.35);
+  --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 60%, transparent);
 
-  --c-reply-tint: color-mix(in srgb, #000000 9%, var(--c-base));
-  --c-reply-line: #1e293b;
+  --c-reply-tint: color-mix(in srgb, #ffffff 8%, var(--c-base));
+  --c-reply-line: #dbe1e8;
 }
 
 /* ------------------------------------------------------------
- * ダークグレーテーマ
+ * ダークグレーテーマ (Atom One Dark 風の配色)
  * ------------------------------------------------------------ */
 html.dark-gray {
-  --c-base: #22293a;
-  --c-surface: #2c3549;
-  --c-surface2: #344058;
-  --c-border: #3e4f6b;
+  --c-base: #282c34;
+  --c-surface: #2f333c;
+  --c-surface2: #363b45;
+  --c-border: #3f4451;
 
-  --c-scrollbar-thumb: rgba(62, 79, 107, 0.7);
+  --c-scrollbar-thumb: rgba(92, 99, 112, 0.6);
+  --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 60%, transparent);
 
   --c-reply-tint: color-mix(in srgb, #ffffff 8%, var(--c-base));
-  --c-reply-line: #e2e8f0;
+  --c-reply-line: #9da5b4;
 }

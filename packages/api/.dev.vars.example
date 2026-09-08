@@ -61,3 +61,16 @@ CORS_ORIGIN=http://localhost:5173,http://localhost:5174,http://localhost:5175
 # KV グローバルプレフィックス (例: "prod:" → "prod:session:{id}" になる)
 # KV_PREFIX=
 
+# ────────────────────────────────────────────────────────────
+# 画像アップロード (R2/S3互換ストレージ)
+# ローカルエミュレーションはできないため、ローカル開発でも実際のR2バケット等が必要。
+# 未設定のままでも他の機能には影響しない (画像アップロード機能のみ動作しない)。
+# ────────────────────────────────────────────────────────────
+
+# S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+# S3_BUCKET=your-bucket-name
+# S3_REGION=auto
+# S3_ACCESS_KEY_ID=your-access-key-id
+# S3_SECRET_ACCESS_KEY=your-secret-access-key
+# IMAGE_PUBLIC_BASE_URL=https://pub-xxxxxxxx.r2.dev
+

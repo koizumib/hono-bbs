@@ -55,7 +55,8 @@ function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else if (theme === 'light-gray') {
       root.classList.add('light-gray')
     } else if (theme === 'gray') {
-      root.classList.add('gray')
+      // grayは背景が暗め (ダーク寄り) なので、dark:のテキスト色を使う
+      root.classList.add('dark', 'gray')
     } else if (theme === 'auto') {
       const mq = window.matchMedia('(prefers-color-scheme: dark)')
       if (mq.matches) root.classList.add('dark')

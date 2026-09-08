@@ -9,8 +9,8 @@
 権限管理はRBAC/ACL（`packages/api/src/utils/acl.ts`）。詳細は各パッケージの README を参照。
 
 `hono-bbs-admin`（別リポジトリ、FastAPI製の旧管理画面）は現行APIと非互換になったため、
-`packages/admin` に置き換えた。旧リポジトリ自体は参照用にこのディレクトリ配下に残っている場合が
-あるが、gitignore対象でありこのモノレポの作業対象外。
+`packages/admin` に置き換えた。ローカルのクローンは削除済み（GitHub上のリポジトリ自体は
+参照用に残っている）。
 
 ## セットアップ
 
