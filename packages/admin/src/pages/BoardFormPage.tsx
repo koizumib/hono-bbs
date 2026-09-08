@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { getBoard, createBoard, patchBoard, type CreateBoardInput } from '../api/boards'
-import type { Board } from '../api/types'
+import type { Board, NgWordRule } from '../api/types'
 import AclEditor, { type AclInput } from '../components/AclEditor'
+import NgWordEditor from '../components/NgWordEditor'
 import ErrorBanner from '../components/ErrorBanner'
 import Button from '../components/ui/Button'
 
@@ -37,6 +38,8 @@ function boardToFormState(board: Board): CreateBoardInput {
       authenticatedActions: board.defaultPostAcl.authenticatedActions,
       anonymousActions: board.defaultPostAcl.anonymousActions,
     },
+    // ngWords は adminMeta と同様 isSysAdmin/isUserAdmin にのみ返るフィールド (api/types.ts 参照)
+    ngWords: (board as Board & { ngWords?: NgWordRule[] }).ngWords ?? [],
   }
 }
 
@@ -57,6 +60,7 @@ const NEW_BOARD_DEFAULT: CreateBoardInput = {
   acl: DEFAULT_ACL,
   defaultThreadAcl: DEFAULT_ACL,
   defaultPostAcl: DEFAULT_ACL,
+  ngWords: [],
 }
 
 export default function BoardFormPage() {
@@ -262,6 +266,12 @@ export default function BoardFormPage() {
         label="投稿時のデフォルトACL (defaultPostAcl)"
         value={form.defaultPostAcl}
         onChange={(defaultPostAcl) => setField('defaultPostAcl', defaultPostAcl)}
+      />
+
+      <h2 className="mt-2 text-sm font-semibold text-gray-400">NGワード (サーバー側)</h2>
+      <NgWordEditor
+        value={form.ngWords}
+        onChange={(ngWords) => setField('ngWords', ngWords)}
       />
 
       <Button type="submit" variant="filled" disabled={saving} className="self-start px-4 py-2">

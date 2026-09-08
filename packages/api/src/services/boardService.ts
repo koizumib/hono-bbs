@@ -7,6 +7,14 @@ import { can, buildAcl, resourceAclInputSchema } from '../utils/acl'
 import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
+const NG_WORD_TARGETS = ['title', 'posterName', 'content'] as const
+
+// サーバー側NGワード (板単位)。一致した投稿は拒否される (クライアント側のNGワード機能とは別物)
+export const ngWordRuleSchema = z.object({
+  pattern: z.string().min(1).max(500),
+  isRegex: z.boolean(),
+  target: z.enum(NG_WORD_TARGETS),
+})
 
 // POST /boards および PUT /boards/:boardId (upsert) で使用: 全フィールド必須
 export const boardBodySchema = z.object({
@@ -26,6 +34,7 @@ export const boardBodySchema = z.object({
   // スレッド/レス作成時に instantiateAcl() でコピーされるテンプレート
   defaultThreadAcl: resourceAclInputSchema,
   defaultPostAcl: resourceAclInputSchema,
+  ngWords: z.array(ngWordRuleSchema).max(200).default([]),
   category: z.string().max(128).optional(),
 })
 
@@ -68,6 +77,7 @@ function buildBoardFromInput(
     // owner は板ではなくスレッド/レス作成時に決まるため、テンプレートは ownerUserId=null で保存
     defaultThreadAcl: buildAcl(input.defaultThreadAcl, null),
     defaultPostAcl: buildAcl(input.defaultPostAcl, null),
+    ngWords: input.ngWords,
     category: input.category ?? '',
     createdAt: now,
     adminMeta: { creatorUserId, creatorSessionId, creatorTurnstileSessionId },
@@ -163,6 +173,7 @@ export async function putBoard(
     defaultIdFormat: input.defaultIdFormat,
     defaultThreadAcl: buildAcl(input.defaultThreadAcl, null),
     defaultPostAcl: buildAcl(input.defaultPostAcl, null),
+    ngWords: input.ngWords,
     category: input.category ?? '',
   })
   return (await boardRepository.findBoardById(db, boardId))!
@@ -197,6 +208,7 @@ export async function patchBoard(
     defaultIdFormat: input.defaultIdFormat,
     defaultThreadAcl: input.defaultThreadAcl !== undefined ? buildAcl(input.defaultThreadAcl, null) : undefined,
     defaultPostAcl: input.defaultPostAcl !== undefined ? buildAcl(input.defaultPostAcl, null) : undefined,
+    ngWords: input.ngWords,
     category: input.category,
   })
   return (await boardRepository.findBoardById(db, boardId))!

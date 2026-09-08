@@ -7,6 +7,7 @@ import * as boardRepository from '../repository/boardRepository'
 import * as postRepository from '../repository/postRepository'
 import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
+import { matchesAnyNgWord } from '../utils/ngWords'
 import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
@@ -134,6 +135,16 @@ export async function createThread(
     throw new Error('CONTENT_TOO_MANY_LINES')
   }
 
+  // サーバー側NGワードチェック (板単位。一致したら投稿自体を拒否する)
+  const posterName = input.posterName ?? board.defaultPosterName
+  if (
+    matchesAnyNgWord(board.ngWords, 'title', input.title) ||
+    matchesAnyNgWord(board.ngWords, 'content', input.content) ||
+    matchesAnyNgWord(board.ngWords, 'posterName', posterName)
+  ) {
+    throw new Error('CONTENT_REJECTED')
+  }
+
   const now = new Date().toISOString()
 
   // 板の defaultThreadAcl テンプレートから、作成者をownerにしたACLを作る
@@ -163,7 +174,6 @@ export async function createThread(
   // 第1レスを作成
   const idFormat = board.defaultIdFormat
   const authorId = await computeDisplayUserId(idFormat, userId, turnstileSessionId)
-  const posterName = input.posterName ?? board.defaultPosterName
 
   // 板の defaultPostAcl テンプレートから、作成者をownerにしたACLを作る
   const postAcl = instantiateAcl(board.defaultPostAcl, userId)

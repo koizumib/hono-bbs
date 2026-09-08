@@ -64,6 +64,14 @@ export type ResourceAcl = {
   anonymousActions: AclAction[]      // 未ログインユーザーへのフォールバック
 }
 
+// サーバー側NGワード (板単位)。一致した投稿は拒否される (クライアント側のNGワード機能とは別物)
+export type NgWordTarget = 'title' | 'posterName' | 'content'
+export type NgWordRule = {
+  pattern: string
+  isRegex: boolean
+  target: NgWordTarget
+}
+
 export type Board = {
   id: string
   acl: ResourceAcl
@@ -80,6 +88,7 @@ export type Board = {
   defaultIdFormat: IdFormat
   defaultThreadAcl: ResourceAcl  // スレッド作成時に instantiateAcl() でコピーされるテンプレート
   defaultPostAcl: ResourceAcl    // 投稿作成時に instantiateAcl() でコピーされるテンプレート
+  ngWords: NgWordRule[]
   category: string
   createdAt: string
   adminMeta: AdminMeta
@@ -120,6 +129,31 @@ export type Post = {
   editedAt: string | null
   createdAt: string
   adminMeta: AdminMeta
+}
+
+export type IpBan = {
+  id: string
+  ip: string
+  reason: string | null
+  createdAt: string
+  createdBy: string | null
+}
+
+export type ReportTargetType = 'thread' | 'post'
+export type ReportStatus = 'open' | 'resolved' | 'dismissed'
+
+export type Report = {
+  id: string
+  targetType: ReportTargetType
+  boardId: string
+  threadId: string
+  postNumber: number | null      // targetType='post' のときのみ
+  contentSnapshot: string        // 通報時点のタイトル/本文
+  reporterTurnstileSessionId: string | null
+  status: ReportStatus
+  createdAt: string
+  resolvedAt: string | null
+  resolvedBy: string | null
 }
 
 import type { DbAdapter } from '../adapters/db'

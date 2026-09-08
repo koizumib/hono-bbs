@@ -9,6 +9,7 @@ import { recordThreadView, getHistory, saveThreadScrollPosition } from '../utils
 import { extractMedia } from '../utils/urlExtract'
 import { fuzzyMatch } from '../utils/fuzzySearch'
 import { getPostHistory } from '../utils/postHistory'
+import { reportPost } from '../api/posts'
 
 interface UseThreadViewOptions {
   /** 返信ボタン押下時の追加コールバック（モバイルで返信シートを開くなど） */
@@ -25,7 +26,7 @@ export function useThreadView(
   options?: UseThreadViewOptions,
 ) {
   const { data, isLoading, refetch } = usePosts(boardId, threadId)
-  const ngWords = useSettingsStore((s) => s.ngWords)
+  const ngRules = useSettingsStore((s) => s.ngRules)
   const historyMaxGenerations = useSettingsStore((s) => s.historyMaxGenerations)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const lastRefreshRef = useRef(0)
@@ -56,7 +57,7 @@ export function useThreadView(
 
   const thread = data?.data.thread
   const rawPosts = data?.data.posts ?? []
-  const posts = useMemo(() => filterPosts(rawPosts, ngWords), [rawPosts, ngWords])
+  const posts = useMemo(() => filterPosts(rawPosts, ngRules), [rawPosts, ngRules])
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ownPostNumbers = useMemo(() => {
@@ -314,6 +315,16 @@ export function useThreadView(
       insertSeqRef.current += 1
       setInsertAnchor({ text: String(postNumber), seq: insertSeqRef.current })
       optionsRef.current?.onReply?.(postNumber)
+    },
+    onReport: async (postNumber) => {
+      if (!boardId || !threadId) return
+      if (!window.confirm(`No.${postNumber} を通報しますか？`)) return
+      try {
+        await reportPost(boardId, threadId, postNumber)
+        window.alert('通報しました')
+      } catch {
+        window.alert('通報に失敗しました')
+      }
     },
   }
 

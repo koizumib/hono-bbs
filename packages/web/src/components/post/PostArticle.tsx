@@ -15,6 +15,7 @@ export interface PostHandlers {
   onNameClick: (name: string, triggerY: number) => void
   onBodyClick: (postNumber: number, triggerY: number) => void
   onReply: (postNumber: number) => void
+  onReport: (postNumber: number) => void
   // モバイル版 (hooks/useThreadView.ts) では未実装。未提供の場合は削除ボタン自体を出さない。
   onDelete?: (postNumber: number) => void
 }
@@ -243,22 +244,33 @@ export default function PostArticle({
         {/* 返信ボタン */}
         <button
           type="button"
-          className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors ${canDelete ? '' : 'ml-auto'}`}
+          className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors`}
           onClick={() => handlers.onReply(post.postNumber)}
         >
           返信
         </button>
 
-        {/* 削除ボタン (権限がある場合のみ。モバイル版など handlers.onDelete 未提供の画面では出さない) */}
-        {canDelete && (
+        <div className="ml-auto flex items-center gap-1.5">
+          {/* 通報ボタン (誰でも押せる) */}
           <button
             type="button"
-            className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors ml-auto`}
-            onClick={() => handlers.onDelete?.(post.postNumber)}
+            className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors`}
+            onClick={() => handlers.onReport(post.postNumber)}
           >
-            削除
+            通報
           </button>
-        )}
+
+          {/* 削除ボタン (権限がある場合のみ。モバイル版など handlers.onDelete 未提供の画面では出さない) */}
+          {canDelete && (
+            <button
+              type="button"
+              className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors`}
+              onClick={() => handlers.onDelete?.(post.postNumber)}
+            >
+              削除
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 本文 */}

@@ -8,6 +8,7 @@ import {
   putPostHandler,
   patchPostHandler,
   deletePostHandler,
+  reportPostHandler,
 } from '../handlers/postHandler'
 import { createPostSchema, updatePostSchema, patchPostSchema } from '../services/postService'
 import { requireLogin } from '../middleware/auth'
@@ -32,5 +33,6 @@ const posts = new Hono<AppEnv>()
   .put('/:postNumber', requireTurnstile, zValidator('json', updatePostSchema, zValidatorHook), putPostHandler)
   .patch('/:postNumber', requireLogin, requireTurnstile, zValidator('json', patchPostSchema, zValidatorHook), patchPostHandler)
   .delete('/:postNumber', requireTurnstile, deletePostHandler)
+  .post('/:postNumber/report', requireTurnstile, reportPostHandler)
 
 export default posts

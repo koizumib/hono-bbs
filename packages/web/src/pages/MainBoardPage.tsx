@@ -17,8 +17,8 @@ import { recordThreadView, getHistory, saveThreadScrollPosition } from '../utils
 import { extractMedia } from '../utils/urlExtract'
 import { fuzzyMatch } from '../utils/fuzzySearch'
 import { getPostHistory } from '../utils/postHistory'
-import { softDeletePost } from '../api/posts'
-import { deleteThread } from '../api/threads'
+import { softDeletePost, reportPost } from '../api/posts'
+import { deleteThread, reportThread } from '../api/threads'
 
 interface ThreadViewProps {
   replyLayout: 'bottom' | 'right'
@@ -29,7 +29,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
   const navigate = useNavigate()
   const { data, isLoading, refetch } = usePosts(boardId, threadId)
   const userId = useAuthStore((s) => s.userId)
-  const ngWords = useSettingsStore((s) => s.ngWords)
+  const ngRules = useSettingsStore((s) => s.ngRules)
   const historyMaxGenerations = useSettingsStore((s) => s.historyMaxGenerations)
   const setReplyLayout = useSettingsStore((s) => s.setReplyLayout)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -76,7 +76,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
 
   const thread = data?.data.thread
   const rawPosts = data?.data.posts ?? []
-  const posts = useMemo(() => filterPosts(rawPosts, ngWords), [rawPosts, ngWords])
+  const posts = useMemo(() => filterPosts(rawPosts, ngRules), [rawPosts, ngRules])
 
   // 自分が書き込んだレスの番号セット（投稿後の refetch で更新）
   const ownPostNumbers = useMemo(() => {
@@ -352,6 +352,16 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
       insertSeqRef.current += 1
       setInsertAnchor({ text: String(postNumber), seq: insertSeqRef.current })
     },
+    onReport: async (postNumber) => {
+      if (!boardId || !threadId) return
+      if (!window.confirm(`No.${postNumber} を通報しますか？`)) return
+      try {
+        await reportPost(boardId, threadId, postNumber)
+        window.alert('通報しました')
+      } catch {
+        window.alert('通報に失敗しました')
+      }
+    },
     onDelete: async (postNumber) => {
       if (!boardId || !threadId) return
       if (!window.confirm(`No.${postNumber} を削除しますか？`)) return
@@ -372,6 +382,17 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
       navigate(`/${boardId}`)
     } catch {
       window.alert('削除に失敗しました')
+    }
+  }
+
+  async function handleReportThread() {
+    if (!boardId || !threadId) return
+    if (!window.confirm('このスレッドを通報しますか？')) return
+    try {
+      await reportThread(boardId, threadId)
+      window.alert('通報しました')
+    } catch {
+      window.alert('通報に失敗しました')
     }
   }
 
@@ -482,6 +503,13 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
             <span className="material-symbols-outlined text-xl">delete</span>
           </button>
         )}
+        <button
+          className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+          title="スレッドを通報"
+          onClick={handleReportThread}
+        >
+          <span className="material-symbols-outlined text-xl">flag</span>
+        </button>
         <button
           className="p-2 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
           title="更新"

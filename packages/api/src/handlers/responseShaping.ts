@@ -11,8 +11,12 @@ function omitAdminMeta<T extends { adminMeta: unknown }>(resource: T): Omit<T, '
   return rest
 }
 
-export function stripBoard(board: Board, visible: boolean): Board | Omit<Board, 'adminMeta'> {
-  return visible ? board : omitAdminMeta(board)
+// ngWords はNG判定に使う具体的なパターンを含むため、一般公開すると回避策を教えることになる。
+// adminMeta と同様に管理者以外には見せない。
+export function stripBoard(board: Board, visible: boolean): Board | Omit<Board, 'adminMeta' | 'ngWords'> {
+  if (visible) return board
+  const { adminMeta: _adminMeta, ngWords: _ngWords, ...rest } = board
+  return rest
 }
 
 export function stripThread(thread: Thread, visible: boolean): Thread | Omit<Thread, 'adminMeta'> {

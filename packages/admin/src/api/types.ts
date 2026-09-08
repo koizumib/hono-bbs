@@ -35,6 +35,24 @@ type RolesListResponse = InferResponseType<typeof client.identity.roles.$get, 20
 export type RolesResponse = RolesListResponse
 export type Role = RolesListResponse['data'][number]
 
+type IpBansListResponse = InferResponseType<(typeof client.moderation)['ip-bans']['$get'], 200>
+export type IpBansResponse = IpBansListResponse
+export type IpBan = IpBansListResponse['data'][number]
+
+type ReportsListResponse = InferResponseType<typeof client.moderation.reports.$get, 200>
+export type ReportsResponse = ReportsListResponse
+export type Report = ReportsListResponse['data'][number]
+
+// 板ごとのサーバー側NGワード。adminMeta と同様 isSysAdmin/isUserAdmin にのみ返るフィールドで、
+// stripBoard() の戻り値がUnion型になるため Board から直接は導出できない (管理画面は常に
+// このロールでログインする前提なので手書きで補う)。
+export type NgWordTarget = 'title' | 'posterName' | 'content'
+export interface NgWordRule {
+  pattern: string
+  isRegex: boolean
+  target: NgWordTarget
+}
+
 // admin-role/user-admin-role メンバーのみ返るフィールド (packages/api の responseShaping.ts 参照)。
 // 管理画面は常にこのロールでログインする前提なので、Board から手書きで補う。
 export interface AdminMeta {

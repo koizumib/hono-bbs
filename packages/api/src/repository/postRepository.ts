@@ -80,6 +80,15 @@ export async function findPostByNumber(
   return row ? rowToPost(row) : null
 }
 
+// 連投(コピペ)検知用: スレッド内で最後に投稿されたレスを取得する
+export async function findLatestPostInThread(db: DbAdapter, threadId: string): Promise<Post | null> {
+  const row = await db.first<PostRow>(
+    'SELECT * FROM posts WHERE thread_id = ? ORDER BY post_number DESC LIMIT 1',
+    [threadId],
+  )
+  return row ? rowToPost(row) : null
+}
+
 export async function nextPostNumber(db: DbAdapter, threadId: string): Promise<number> {
   const row = await db.first<{ next: number }>(
     'SELECT COALESCE(MAX(post_number), 0) + 1 AS next FROM posts WHERE thread_id = ?',

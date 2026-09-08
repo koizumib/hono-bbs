@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../types'
 import * as postService from '../services/postService'
+import * as reportService from '../services/reportService'
 import { isZodError, zodMessage } from '../utils/zodHelper'
 import { parsePaginationQuery } from '../utils/pagination'
 import { adminVisible, stripPost } from './responseShaping'
@@ -59,6 +60,8 @@ export async function createPostHandler(c: WithThreadId) {
       if (e.message === 'POST_LIMIT_REACHED') return c.json({ error: 'POST_LIMIT_REACHED', message: 'Post limit reached' }, 422)
       if (e.message === 'CONTENT_TOO_LONG') return c.json({ error: 'CONTENT_TOO_LONG', message: 'Content is too long' }, 422)
       if (e.message === 'CONTENT_TOO_MANY_LINES') return c.json({ error: 'CONTENT_TOO_MANY_LINES', message: 'Content has too many lines' }, 422)
+      if (e.message === 'CONTENT_REJECTED') return c.json({ error: 'CONTENT_REJECTED', message: 'Content was rejected' }, 400)
+      if (e.message === 'DUPLICATE_CONTENT') return c.json({ error: 'DUPLICATE_CONTENT', message: 'Duplicate content' }, 409)
     }
     throw e
   }
@@ -134,6 +137,26 @@ export async function deletePostHandler(c: WithPostNumber) {
   } catch (e) {
     if (e instanceof Error && e.message === 'FORBIDDEN') {
       return c.json({ error: 'FORBIDDEN', message: 'Insufficient permissions' }, 403)
+    }
+    throw e
+  }
+}
+
+// POST /boards/:boardId/threads/:threadId/posts/:postNumber/report - レスを通報 (誰でも可)
+export async function reportPostHandler(c: WithPostNumber) {
+  const boardId = c.req.param('boardId')
+  const threadId = c.req.param('threadId')
+  const postNumber = parseInt(c.req.param('postNumber'), 10)
+  if (isNaN(postNumber) || postNumber < 1) {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'postNumber must be a positive integer' }, 400)
+  }
+  try {
+    await reportService.reportPost(c.get('db'), boardId, threadId, postNumber, c.get('turnstileSessionId'))
+    return c.json({ data: { message: 'Post reported' } }, 201)
+  } catch (e) {
+    if (e instanceof Error) {
+      if (e.message === 'THREAD_NOT_FOUND') return c.json({ error: 'THREAD_NOT_FOUND', message: 'Thread not found' }, 404)
+      if (e.message === 'POST_NOT_FOUND') return c.json({ error: 'POST_NOT_FOUND', message: 'Post not found' }, 404)
     }
     throw e
   }

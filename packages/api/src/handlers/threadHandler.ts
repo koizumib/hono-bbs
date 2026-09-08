@@ -2,6 +2,7 @@ import type { Context } from 'hono'
 import { isZodError, zodMessage } from '../utils/zodHelper'
 import type { AppEnv } from '../types'
 import * as threadService from '../services/threadService'
+import * as reportService from '../services/reportService'
 import { parsePaginationQuery } from '../utils/pagination'
 import { adminVisible, stripThread, stripPost } from './responseShaping'
 
@@ -61,6 +62,7 @@ export async function createThreadHandler(c: WithBoardId) {
       if (e.message === 'TITLE_TOO_LONG') return c.json({ error: 'TITLE_TOO_LONG', message: 'Thread title is too long' }, 422)
       if (e.message === 'CONTENT_TOO_LONG') return c.json({ error: 'CONTENT_TOO_LONG', message: 'Content is too long' }, 422)
       if (e.message === 'CONTENT_TOO_MANY_LINES') return c.json({ error: 'CONTENT_TOO_MANY_LINES', message: 'Content has too many lines' }, 422)
+      if (e.message === 'CONTENT_REJECTED') return c.json({ error: 'CONTENT_REJECTED', message: 'Content was rejected' }, 400)
     }
     throw e
   }
@@ -125,6 +127,21 @@ export async function deleteThreadHandler(c: WithThreadId) {
   } catch (e) {
     if (e instanceof Error && e.message === 'FORBIDDEN') {
       return c.json({ error: 'FORBIDDEN', message: 'Insufficient permissions' }, 403)
+    }
+    throw e
+  }
+}
+
+// POST /boards/:boardId/threads/:threadId/report - スレッドを通報 (誰でも可)
+export async function reportThreadHandler(c: WithThreadId) {
+  const boardId = c.req.param('boardId')
+  const threadId = c.req.param('threadId')
+  try {
+    await reportService.reportThread(c.get('db'), boardId, threadId, c.get('turnstileSessionId'))
+    return c.json({ data: { message: 'Thread reported' } }, 201)
+  } catch (e) {
+    if (e instanceof Error && e.message === 'THREAD_NOT_FOUND') {
+      return c.json({ error: 'THREAD_NOT_FOUND', message: 'Thread not found' }, 404)
     }
     throw e
   }

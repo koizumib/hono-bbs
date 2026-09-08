@@ -5,13 +5,24 @@ export type Theme = 'light' | 'dark' | 'auto' | 'light-gray' | 'gray' | 'dark-gr
 export type AccentColor = 'blue' | 'yellow' | 'pink' | 'purple' | 'orange' | 'green'
 export type FontSize = 1 | 2 | 3 | 4 | 5
 
-interface NgWords {
+export type NgTarget = 'threadTitle' | 'posterId' | 'posterName' | 'content'
+
+export interface NgRule {
+  id: string
+  target: NgTarget
+  pattern: string
+  isRegex: boolean
+  enabled: boolean
+}
+
+// v1までの1カテゴリ1テキストエリア形式。マイグレーションでのみ参照する。
+interface LegacyNgWords {
   threadTitle: string
   threadTitleRegex: boolean
   posterId: string
-  posterIdRegex: boolean
+  posterIdRegex?: boolean
   posterName: string
-  posterNameRegex: boolean
+  posterNameRegex?: boolean
   content: string
   contentRegex: boolean
 }
@@ -21,7 +32,7 @@ interface SettingsState {
   accentColor: AccentColor
   fontSize: FontSize
   safeSearch: boolean
-  ngWords: NgWords
+  ngRules: NgRule[]
   notifications: {
     ownPostReply: boolean
     directMessage: boolean
@@ -39,7 +50,10 @@ interface SettingsState {
   setAccentColor: (c: AccentColor) => void
   setFontSize: (s: FontSize) => void
   setSafeSearch: (val: boolean) => void
-  setNgWords: (ngWords: Partial<NgWords>) => void
+  addNgRule: (rule: Omit<NgRule, 'id'>) => void
+  removeNgRule: (id: string) => void
+  setNgRuleEnabled: (id: string, enabled: boolean) => void
+  setNgRuleRegex: (id: string, isRegex: boolean) => void
   setNotification: (key: keyof SettingsState['notifications'], val: boolean) => void
   setHistoryMaxGenerations: (n: number) => void
   setPostHistoryMaxGenerations: (n: number) => void
@@ -51,6 +65,21 @@ interface SettingsState {
   setHiddenBoardIds: (ids: string[]) => void
 }
 
+// 旧形式(1カテゴリ1改行区切りテキスト)を新形式(1レコード1件)に変換する
+function migrateLegacyNgWords(legacy: LegacyNgWords): NgRule[] {
+  const rules: NgRule[] = []
+  const pushLines = (text: string, target: NgTarget, isRegex: boolean) => {
+    (text ?? '').split('\n').map((w) => w.trim()).filter(Boolean).forEach((pattern) => {
+      rules.push({ id: crypto.randomUUID(), target, pattern, isRegex, enabled: true })
+    })
+  }
+  pushLines(legacy.threadTitle, 'threadTitle', legacy.threadTitleRegex)
+  pushLines(legacy.posterId, 'posterId', legacy.posterIdRegex ?? false)
+  pushLines(legacy.posterName, 'posterName', legacy.posterNameRegex ?? false)
+  pushLines(legacy.content, 'content', legacy.contentRegex)
+  return rules
+}
+
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
@@ -58,16 +87,7 @@ export const useSettingsStore = create<SettingsState>()(
       accentColor: 'blue',
       fontSize: 3,
       safeSearch: true,
-      ngWords: {
-        threadTitle: '',
-        threadTitleRegex: false,
-        posterId: '',
-        posterIdRegex: false,
-        posterName: '',
-        posterNameRegex: false,
-        content: '',
-        contentRegex: false,
-      },
+      ngRules: [],
       notifications: {
         ownPostReply: true,
         directMessage: true,
@@ -85,8 +105,14 @@ export const useSettingsStore = create<SettingsState>()(
       setAccentColor: (accentColor) => set({ accentColor }),
       setFontSize: (fontSize) => set({ fontSize }),
       setSafeSearch: (safeSearch) => set({ safeSearch }),
-      setNgWords: (words) =>
-        set((s) => ({ ngWords: { ...s.ngWords, ...words } })),
+      addNgRule: (rule) =>
+        set((s) => ({ ngRules: [...s.ngRules, { ...rule, id: crypto.randomUUID() }] })),
+      removeNgRule: (id) =>
+        set((s) => ({ ngRules: s.ngRules.filter((r) => r.id !== id) })),
+      setNgRuleEnabled: (id, enabled) =>
+        set((s) => ({ ngRules: s.ngRules.map((r) => (r.id === id ? { ...r, enabled } : r)) })),
+      setNgRuleRegex: (id, isRegex) =>
+        set((s) => ({ ngRules: s.ngRules.map((r) => (r.id === id ? { ...r, isRegex } : r)) })),
       setNotification: (key, val) =>
         set((s) => ({ notifications: { ...s.notifications, [key]: val } })),
       setHistoryMaxGenerations: (historyMaxGenerations) => set({ historyMaxGenerations }),
@@ -100,6 +126,15 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: 'bbs-settings',
+      version: 1,
+      migrate: (persisted, version) => {
+        const state = persisted as Record<string, unknown>
+        if (version < 1 && state.ngWords) {
+          const { ngWords, ...rest } = state
+          return { ...rest, ngRules: migrateLegacyNgWords(ngWords as LegacyNgWords) }
+        }
+        return state
+      },
     },
   ),
 )

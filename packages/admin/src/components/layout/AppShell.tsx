@@ -30,6 +30,8 @@ export default function AppShell() {
           <li><NavLink to="/boards" className={navLinkClass}>板</NavLink></li>
           <li><NavLink to="/users" className={navLinkClass}>ユーザー</NavLink></li>
           <li><NavLink to="/roles" className={navLinkClass}>ロール</NavLink></li>
+          <li><NavLink to="/reports" className={navLinkClass}>通報キュー</NavLink></li>
+          <li><NavLink to="/ip-bans" className={navLinkClass}>IPBAN</NavLink></li>
         </ul>
         <Button variant="text" onClick={handleLogout} className="mt-auto self-start">
           ログアウト

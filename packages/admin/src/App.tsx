@@ -13,6 +13,8 @@ import UserDetailPage from './pages/UserDetailPage'
 import RolesListPage from './pages/RolesListPage'
 import RoleFormPage from './pages/RoleFormPage'
 import RoleDetailPage from './pages/RoleDetailPage'
+import IpBansListPage from './pages/IpBansListPage'
+import ReportsListPage from './pages/ReportsListPage'
 
 // GET /auth/turnstile からのリダイレクト (?setTurnstileToken=<sessionId>) を受け取り、
 // turnstileStore に保存してURLから消す (packages/web の App.tsx と同じ仕組み)。
@@ -53,6 +55,8 @@ export default function App() {
             <Route path="roles" element={<RolesListPage />} />
             <Route path="roles/new" element={<RoleFormPage />} />
             <Route path="roles/:id" element={<RoleDetailPage />} />
+            <Route path="ip-bans" element={<IpBansListPage />} />
+            <Route path="reports" element={<ReportsListPage />} />
           </Route>
         </Route>
       </Routes>

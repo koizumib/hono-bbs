@@ -57,3 +57,11 @@ export const requireUserAdminRole: MiddlewareHandler<AppEnv> = async (c, next) =
   }
   await next()
 }
+
+// システム管理者(adminRole)必須 (IPBAN・通報キューなどサイト全体のmoderation操作, requireLogin と併用)
+export const requireSysAdmin: MiddlewareHandler<AppEnv> = async (c, next) => {
+  if (!c.get('isSysAdmin')) {
+    return c.json({ error: 'FORBIDDEN', message: 'Requires admin-role membership' }, 403)
+  }
+  await next()
+}

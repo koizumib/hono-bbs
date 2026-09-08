@@ -13,7 +13,7 @@ export default function ThreadListPanel() {
   const { boardId, threadId } = useParams()
   const navigate = useNavigate()
   const { data, isLoading, refetch } = useThreads(boardId)
-  const ngWords = useSettingsStore((s) => s.ngWords)
+  const ngRules = useSettingsStore((s) => s.ngRules)
   const threadListAutoRefresh = useSettingsStore((s) => s.threadListAutoRefresh)
   const threadListRefreshInterval = useSettingsStore((s) => s.threadListRefreshInterval)
 
@@ -27,7 +27,7 @@ export default function ThreadListPanel() {
 
   const board = data?.data.board
   const rawThreads = data?.data.threads ?? []
-  const baseThreads = filterThreads(rawThreads, ngWords)
+  const baseThreads = filterThreads(rawThreads, ngRules)
 
   const history = useMemo(() => getHistory(), [historyVersion])
   const readMap = useMemo(() => new Map(history.map(e => [e.threadId, e.lastReadCount])), [history])

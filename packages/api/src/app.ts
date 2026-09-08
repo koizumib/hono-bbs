@@ -7,11 +7,13 @@ import { authContext } from './middleware/auth'
 import { setupAdapters } from './middleware/adapters'
 import { domainRestrict } from './middleware/domain'
 import { requestSizeLimit } from './middleware/requestSize'
+import { blockBannedIp } from './middleware/ipBan'
 import auth from './routes/auth'
 import identity from './routes/identity'
 import profile from './routes/profile'
 import boards from './routes/boards'
 import images from './routes/images'
+import moderation from './routes/moderation'
 
 // 内部ルーター (ベースパスなし)。
 // boards 以下はチェーンでマウントし、hc<AppType>() のRPC型推論にスキーマが伝播するようにする
@@ -37,6 +39,8 @@ export const api = new Hono<AppEnv>()
   .use('*', requestSizeLimit)
   // アダプターセットアップ (DB / KV をコンテキストにセット)
   .use('*', setupAdapters)
+  // IPBAN (書き込み系のみブロック。閲覧(GET)は許可する)
+  .use('*', blockBannedIp)
   // 全ルートに認証コンテキストを適用
   .use('*', authContext)
   .route('/boards', boards)
@@ -47,6 +51,8 @@ api.route('/identity', identity)
 api.route('/profile', profile)
 // 旧 imageUploader プラグイン: /upload/* と /images/* を直下にマウント
 api.route('/', images)
+// IPBAN・通報キュー管理 (isSysAdmin のみ)
+api.route('/moderation', moderation)
 
 // グローバルエラーハンドラー
 api.onError((err, c) => {

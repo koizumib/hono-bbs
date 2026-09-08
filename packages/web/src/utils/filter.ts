@@ -1,54 +1,48 @@
 import type { Thread, Post } from '../api/types'
+import type { NgRule, NgTarget } from '../stores/settingsStore'
 
-interface NgWords {
-  threadTitle: string
-  threadTitleRegex: boolean
-  posterId: string
-  posterIdRegex?: boolean
-  posterName: string
-  posterNameRegex?: boolean
-  content: string
-  contentRegex: boolean
-}
-
-// NGワード入力UIでの正規表現バリデーション表示にも使う (matchesNg と判定基準を揃えるため共通化)
-export function isValidNgPattern(word: string, useRegex: boolean): boolean {
+// NGワード入力UIでの正規表現バリデーション表示にも使う (matchesText と判定基準を揃えるため共通化)
+export function isValidNgPattern(pattern: string, useRegex: boolean): boolean {
   if (!useRegex) return true
   try {
-    new RegExp(word)
+    new RegExp(pattern)
     return true
   } catch {
     return false
   }
 }
 
-function matchesNg(text: string, words: string, useRegex: boolean): boolean {
-  if (!words.trim()) return false
-  const lines = words.split('\n').filter((l) => l.trim())
-  for (const word of lines) {
-    if (!word.trim()) continue
-    if (useRegex) {
-      try {
-        if (new RegExp(word).test(text)) return true
-      } catch {
-        // 無効な正規表現は無視
-      }
-    } else {
-      if (text.includes(word)) return true
+function matchesText(text: string, pattern: string, useRegex: boolean): boolean {
+  if (!pattern.trim()) return false
+  if (useRegex) {
+    try {
+      return new RegExp(pattern).test(text)
+    } catch {
+      return false
     }
   }
-  return false
+  return text.includes(pattern)
 }
 
-export function filterThreads(threads: Thread[], ng: NgWords): Thread[] {
-  return threads.filter((t) => !matchesNg(t.title, ng.threadTitle, ng.threadTitleRegex))
+function activeRulesFor(rules: NgRule[], target: NgTarget): NgRule[] {
+  return rules.filter((r) => r.enabled && r.target === target)
 }
 
-export function filterPosts(posts: Post[], ng: NgWords): Post[] {
+export function filterThreads(threads: Thread[], rules: NgRule[]): Thread[] {
+  const active = activeRulesFor(rules, 'threadTitle')
+  if (active.length === 0) return threads
+  return threads.filter((t) => !active.some((r) => matchesText(t.title, r.pattern, r.isRegex)))
+}
+
+export function filterPosts(posts: Post[], rules: NgRule[]): Post[] {
+  const idRules = activeRulesFor(rules, 'posterId')
+  const nameRules = activeRulesFor(rules, 'posterName')
+  const contentRules = activeRulesFor(rules, 'content')
+  if (idRules.length === 0 && nameRules.length === 0 && contentRules.length === 0) return posts
   return posts.filter((p) => {
-    if (matchesNg(p.authorId, ng.posterId, ng.posterIdRegex ?? false)) return false
-    if (matchesNg(p.posterName, ng.posterName, ng.posterNameRegex ?? false)) return false
-    if (matchesNg(p.content, ng.content, ng.contentRegex)) return false
+    if (idRules.some((r) => matchesText(p.authorId, r.pattern, r.isRegex))) return false
+    if (nameRules.some((r) => matchesText(p.posterName, r.pattern, r.isRegex))) return false
+    if (contentRules.some((r) => matchesText(p.content, r.pattern, r.isRegex))) return false
     return true
   })
 }

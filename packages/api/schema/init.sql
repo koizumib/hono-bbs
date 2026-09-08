@@ -8,6 +8,8 @@ DROP TABLE IF EXISTS user_roles;
 DROP TABLE IF EXISTS users;
 DROP TABLE IF EXISTS roles;
 DROP TABLE IF EXISTS images;
+DROP TABLE IF EXISTS ip_bans;
+DROP TABLE IF EXISTS reports;
 
 -- acl 列の形式 (JSON, RBAC): {
 --   "ownerUserId": string|null,
@@ -64,6 +66,9 @@ CREATE TABLE boards (
   -- スレッド/レス作成時に instantiateAcl() でコピーされるテンプレート (ownerUserId は作成時に上書きされる)
   default_thread_acl TEXT NOT NULL DEFAULT '{"ownerUserId":null,"grants":[],"authenticatedActions":["read","create","update","delete"],"anonymousActions":["read","create"]}',
   default_post_acl TEXT NOT NULL DEFAULT '{"ownerUserId":null,"grants":[],"authenticatedActions":["read","create","update","delete"],"anonymousActions":["read","create"]}',
+  -- サーバー側NGワード (JSON配列): [{ "pattern": string, "isRegex": boolean, "target": "title"|"posterName"|"content" }]
+  -- 一致した投稿は拒否される (client側のNGワード機能とは別物で、こちらは実際に投稿をブロックする)
+  ng_words TEXT NOT NULL DEFAULT '[]',
   category TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL,
   creator_user_id TEXT,
@@ -133,6 +138,32 @@ CREATE TABLE images (
 
 CREATE INDEX IF NOT EXISTS idx_images_status     ON images(status);
 CREATE INDEX IF NOT EXISTS idx_images_expires_at ON images(expires_at);
+
+-- IPBAN (書き込み系エンドポイントのみをブロックする。閲覧(GET)はブロックしない)
+CREATE TABLE ip_bans (
+  id          TEXT    PRIMARY KEY,
+  ip          TEXT    NOT NULL UNIQUE,
+  reason      TEXT,
+  created_at  TEXT    NOT NULL,
+  created_by  TEXT                    -- BAN登録した管理者のuserId
+);
+
+-- スレッド/レスの通報キュー (画像の report_count とは別の、moderation向けの仕組み)
+CREATE TABLE reports (
+  id                              TEXT    PRIMARY KEY,
+  target_type                     TEXT    NOT NULL,  -- 'thread' | 'post'
+  board_id                        TEXT    NOT NULL,
+  thread_id                       TEXT    NOT NULL,
+  post_number                     INTEGER,            -- target_type='post' のときのみ
+  content_snapshot                TEXT    NOT NULL,   -- 通報時点のタイトル/本文 (後から編集・削除されても残る)
+  reporter_turnstile_session_id   TEXT,
+  status                          TEXT    NOT NULL DEFAULT 'open', -- open, resolved, dismissed
+  created_at                      TEXT    NOT NULL,
+  resolved_at                     TEXT,
+  resolved_by                     TEXT                -- 対応した管理者のuserId
+);
+
+CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status);
 
 -- 組み込みロール
 -- ADMIN_USERNAME 環境変数でカスタマイズ可能 (デフォルト: admin)

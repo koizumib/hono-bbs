@@ -6,6 +6,7 @@ import * as threadRepository from '../repository/threadRepository'
 import * as boardRepository from '../repository/boardRepository'
 import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
+import { matchesAnyNgWord } from '../utils/ngWords'
 import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
 export const createPostSchema = z.object({
@@ -124,6 +125,20 @@ export async function createPost(
 
   // 投稿者名 (入力 → スレッドデフォルト → ボードデフォルト)
   const posterName = input.posterName || thread.posterName || board.defaultPosterName
+
+  // サーバー側NGワードチェック (板単位。一致したら投稿自体を拒否する)
+  if (
+    matchesAnyNgWord(board.ngWords, 'content', input.content) ||
+    matchesAnyNgWord(board.ngWords, 'posterName', posterName)
+  ) {
+    throw new Error('CONTENT_REJECTED')
+  }
+
+  // 連投(コピペ)検知: 同一スレッド内で、直前の投稿と完全に同じ内容なら拒否する
+  const latestPost = await postRepository.findLatestPostInThread(db, threadId)
+  if (latestPost && !latestPost.isDeleted && latestPost.content === input.content) {
+    throw new Error('DUPLICATE_CONTENT')
+  }
 
   const now = new Date().toISOString()
   const postNumber = await postRepository.nextPostNumber(db, threadId)

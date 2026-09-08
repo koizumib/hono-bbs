@@ -7,7 +7,7 @@ import { useAuthStore } from '../stores/authStore'
 import { useSettingsStore } from '../stores/settingsStore'
 import type { AccentColor, FontSize } from '../stores/settingsStore'
 import Toggle from '../components/ui/Toggle'
-import NgWordTagInput from '../components/ui/NgWordTagInput'
+import NgRuleManager from '../components/settings/NgRuleManager'
 import { useTurnstileStore } from '../stores/turnstileStore'
 import { env } from '../config/env'
 
@@ -40,7 +40,6 @@ export default function SettingsPage() {
   const clearSession = useAuthStore((s) => s.clearSession)
   const {
     theme,
-    ngWords,
     historyMaxGenerations,
     postHistoryMaxGenerations,
     defaultPosterName,
@@ -49,7 +48,6 @@ export default function SettingsPage() {
     threadListRefreshInterval,
     hiddenBoardIds,
     setTheme,
-    setNgWords,
     setHistoryMaxGenerations,
     setPostHistoryMaxGenerations,
     setDefaultPosterName,
@@ -698,110 +696,7 @@ export default function SettingsPage() {
                   <span className="material-symbols-outlined text-c-accent">filter_list</span>
                   NGワード・フィルタリング設定
                 </h3>
-                <p className="text-xs text-slate-500 -mt-4">
-                  各欄に単語を入力してEnterで追加します。一致したスレッド・レスは一覧から非表示になります。
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* スレッドタイトル */}
-                  <div className="bg-c-surface2 rounded-2xl border border-c-border shadow-lg overflow-hidden flex flex-col">
-                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border flex justify-between items-center">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        スレッドタイトル
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={ngWords.threadTitleRegex}
-                          onChange={(e) => setNgWords({ threadTitleRegex: e.target.checked })}
-                          className="rounded border-c-border bg-c-surface2 text-c-accent focus:ring-c-accent/50 h-3.5 w-3.5"
-                        />
-                        <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">
-                          正規表現
-                        </span>
-                      </label>
-                    </div>
-                    <NgWordTagInput
-                      value={ngWords.threadTitle}
-                      onChange={(v) => setNgWords({ threadTitle: v })}
-                      useRegex={ngWords.threadTitleRegex}
-                    />
-                  </div>
-
-                  {/* 投稿者ID */}
-                  <div className="bg-c-surface2 rounded-2xl border border-c-border shadow-lg overflow-hidden flex flex-col">
-                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border flex justify-between items-center">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        投稿者ID
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={ngWords.posterIdRegex}
-                          onChange={(e) => setNgWords({ posterIdRegex: e.target.checked })}
-                          className="rounded border-c-border bg-c-surface2 text-c-accent focus:ring-c-accent/50 h-3.5 w-3.5"
-                        />
-                        <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">
-                          正規表現
-                        </span>
-                      </label>
-                    </div>
-                    <NgWordTagInput
-                      value={ngWords.posterId}
-                      onChange={(v) => setNgWords({ posterId: v })}
-                      useRegex={ngWords.posterIdRegex}
-                    />
-                  </div>
-
-                  {/* 名前 */}
-                  <div className="bg-c-surface2 rounded-2xl border border-c-border shadow-lg overflow-hidden flex flex-col">
-                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border flex justify-between items-center">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        名前（コテハン）
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={ngWords.posterNameRegex}
-                          onChange={(e) => setNgWords({ posterNameRegex: e.target.checked })}
-                          className="rounded border-c-border bg-c-surface2 text-c-accent focus:ring-c-accent/50 h-3.5 w-3.5"
-                        />
-                        <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">
-                          正規表現
-                        </span>
-                      </label>
-                    </div>
-                    <NgWordTagInput
-                      value={ngWords.posterName}
-                      onChange={(v) => setNgWords({ posterName: v })}
-                      useRegex={ngWords.posterNameRegex}
-                    />
-                  </div>
-
-                  {/* レス（本文） */}
-                  <div className="bg-c-surface2 rounded-2xl border border-c-border shadow-lg overflow-hidden flex flex-col">
-                    <div className="px-5 py-3 bg-slate-100/50 dark:bg-slate-800/30 border-b border-c-border flex justify-between items-center">
-                      <label className="text-xs font-bold text-slate-500 uppercase tracking-wider">
-                        レス（本文）
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer group">
-                        <input
-                          type="checkbox"
-                          checked={ngWords.contentRegex}
-                          onChange={(e) => setNgWords({ contentRegex: e.target.checked })}
-                          className="rounded border-c-border bg-c-surface2 text-c-accent focus:ring-c-accent/50 h-3.5 w-3.5"
-                        />
-                        <span className="text-[10px] text-slate-500 group-hover:text-slate-400 transition-colors">
-                          正規表現
-                        </span>
-                      </label>
-                    </div>
-                    <NgWordTagInput
-                      value={ngWords.content}
-                      onChange={(v) => setNgWords({ content: v })}
-                      useRegex={ngWords.contentRegex}
-                    />
-                  </div>
-                </div>
+                <NgRuleManager />
               </section>
 
               {/* アクセントカラー */}

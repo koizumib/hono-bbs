@@ -38,3 +38,12 @@ export async function softDeletePost(boardId: string, threadId: string, postNumb
     param: { boardId, threadId, postNumber: String(postNumber) },
   }))
 }
+
+export async function reportPost(boardId: string, threadId: string, postNumber: number) {
+  requireTurnstileSession()
+  return unwrap<ApiResponse<{ message: string }>>(
+    client.boards[':boardId'].threads[':threadId'].posts[':postNumber'].report.$post({
+      param: { boardId, threadId, postNumber: String(postNumber) },
+    }),
+  )
+}

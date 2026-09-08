@@ -3,6 +3,7 @@ import type { AppEnv } from './types'
 import boards from './routes/boards'
 import identity from './routes/identity'
 import auth from './routes/auth'
+import moderation from './routes/moderation'
 
 // packages/admin が hc<AdminAppType>() で型だけをimportするための、エクスポート専用ファイル。
 // このインスタンスはマウント・起動は一切されない (型を確定させるためだけの入れ物)。
@@ -13,5 +14,6 @@ const rpcAdminApp = new Hono<AppEnv>()
   .route('/boards', boards)
   .route('/identity', identity)
   .route('/auth', auth)
+  .route('/moderation', moderation)
 
 export type AdminAppType = typeof rpcAdminApp

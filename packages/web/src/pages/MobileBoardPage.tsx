@@ -9,6 +9,7 @@ import NgHiddenNotice from '../components/ui/NgHiddenNotice'
 import { fuzzyMatch } from '../utils/fuzzySearch'
 import { getHistory, removeThreadFromHistory } from '../utils/threadHistory'
 import { getThreadPosts } from '../api/posts'
+import { reportThread } from '../api/threads'
 import ThreadCard from '../components/thread/ThreadCard'
 import PostArticle from '../components/post/PostArticle'
 import PostPopup from '../components/post/PostPopup'
@@ -36,7 +37,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
 }: MobileThreadListPanelProps) {
   const navigate = useNavigate()
   const { data, isLoading, refetch } = useThreads(boardId)
-  const ngWords = useSettingsStore((s) => s.ngWords)
+  const ngRules = useSettingsStore((s) => s.ngRules)
   const lastRefreshRef = useRef(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
@@ -48,7 +49,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
 
   const board = data?.data.board
   const rawThreads = data?.data.threads ?? []
-  const baseThreads = filterThreads(rawThreads, ngWords)
+  const baseThreads = filterThreads(rawThreads, ngRules)
 
   const history = useMemo(() => getHistory(), [historyVersion])
 
@@ -713,6 +714,24 @@ function MobileThreadViewInner({
             >
               <span className="material-symbols-outlined text-lg">info</span>
               スレッド情報
+            </button>
+            <button
+              type="button"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm text-slate-700 dark:text-slate-200 hover:bg-c-surface2 transition-colors"
+              onClick={async () => {
+                setShowKebab(false)
+                if (!boardId || !threadId) return
+                if (!window.confirm('このスレッドを通報しますか？')) return
+                try {
+                  await reportThread(boardId, threadId)
+                  window.alert('通報しました')
+                } catch {
+                  window.alert('通報に失敗しました')
+                }
+              }}
+            >
+              <span className="material-symbols-outlined text-lg">flag</span>
+              スレッドを通報
             </button>
             <button
               type="button"

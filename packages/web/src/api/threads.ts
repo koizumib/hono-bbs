@@ -37,3 +37,10 @@ export async function deleteThread(boardId: string, threadId: string) {
   requireTurnstileSession()
   return unwrap<void>(client.boards[':boardId'].threads[':threadId'].$delete({ param: { boardId, threadId } }))
 }
+
+export async function reportThread(boardId: string, threadId: string) {
+  requireTurnstileSession()
+  return unwrap<ApiResponse<{ message: string }>>(
+    client.boards[':boardId'].threads[':threadId'].report.$post({ param: { boardId, threadId } }),
+  )
+}

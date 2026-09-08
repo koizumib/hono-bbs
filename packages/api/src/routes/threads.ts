@@ -8,6 +8,7 @@ import {
   putThreadHandler,
   patchThreadHandler,
   deleteThreadHandler,
+  reportThreadHandler,
 } from '../handlers/threadHandler'
 import { createThreadSchema, putThreadSchema, patchThreadSchema } from '../services/threadService'
 import { requireLogin } from '../middleware/auth'
@@ -33,6 +34,7 @@ const threads = new Hono<AppEnv>()
   .put('/:threadId', requireLogin, requireTurnstile, zValidator('json', putThreadSchema, zValidatorHook), putThreadHandler)
   .patch('/:threadId', requireLogin, requireTurnstile, zValidator('json', patchThreadSchema, zValidatorHook), patchThreadHandler)
   .delete('/:threadId', requireLogin, requireTurnstile, deleteThreadHandler)
+  .post('/:threadId/report', requireTurnstile, reportThreadHandler)
   .route('/:threadId/posts', posts)
 
 export default threads
