@@ -56,6 +56,7 @@ export async function createPostHandler(c: WithThreadId) {
     if (isZodError(e)) return c.json({ error: 'VALIDATION_ERROR', message: zodMessage(e) }, 400)
     if (e instanceof Error) {
       if (e.message === 'THREAD_NOT_FOUND') return c.json({ error: 'THREAD_NOT_FOUND', message: 'Thread not found' }, 404)
+      if (e.message === 'THREAD_ARCHIVED') return c.json({ error: 'THREAD_ARCHIVED', message: 'This thread is archived (dat-ochi)' }, 409)
       if (e.message === 'FORBIDDEN') return c.json({ error: 'FORBIDDEN', message: 'Insufficient permissions' }, 403)
       if (e.message === 'POST_LIMIT_REACHED') return c.json({ error: 'POST_LIMIT_REACHED', message: 'Post limit reached' }, 422)
       if (e.message === 'CONTENT_TOO_LONG') return c.json({ error: 'CONTENT_TOO_LONG', message: 'Content is too long' }, 422)

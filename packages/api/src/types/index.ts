@@ -111,6 +111,9 @@ export type Thread = {
   editedAt: string | null
   createdAt: string
   updatedAt: string
+  // dat落ち (過去ログ化)。レス数上限到達 or 板のスレ数上限による押し出しで立つ。物理削除はしない
+  isArchived: boolean
+  archivedAt: string | null
   adminMeta: AdminMeta
   firstPost?: Post | null       // スレッド一覧取得時のみ含まれる
 }
@@ -210,6 +213,8 @@ export type AppEnv = {
     BBS_ALLOW_DOMAIN?: string
     USER_DISPLAY_LIMIT?: string
     ROLE_DISPLAY_LIMIT?: string    // ロール一覧ページネーション件数 (0=無制限)
+    // dat落ちしたスレッドが一覧から消えるまでの猶予秒数 (0=無制限、常に一覧に残り続ける)
+    ARCHIVED_THREAD_VISIBLE_SECONDS?: string
     KV_PREFIX?: string
   }
   Variables: {

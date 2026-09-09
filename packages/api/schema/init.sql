@@ -91,6 +91,9 @@ CREATE TABLE threads (
   post_count INTEGER NOT NULL DEFAULT 0,
   is_edited INTEGER NOT NULL DEFAULT 0,
   edited_at TEXT,
+  -- dat落ち(過去ログ化)。レス数上限到達 or 板のスレ数上限による押し出しで立つ。物理削除はしない
+  is_archived INTEGER NOT NULL DEFAULT 0,
+  archived_at TEXT,  -- dat落ちした時刻。一覧のTTL表示判定に使う (ARCHIVED_THREAD_VISIBLE_SECONDS)
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   creator_user_id TEXT,
@@ -98,6 +101,8 @@ CREATE TABLE threads (
   creator_turnstile_session_id TEXT,
   FOREIGN KEY (board_id) REFERENCES boards(id) ON DELETE CASCADE
 );
+
+CREATE INDEX IF NOT EXISTS idx_threads_board_archived ON threads(board_id, is_archived, updated_at);
 
 CREATE TABLE posts (
   id TEXT PRIMARY KEY,

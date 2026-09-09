@@ -8,9 +8,16 @@ import * as postRepository from '../repository/postRepository'
 import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
 import { matchesAnyNgWord } from '../utils/ngWords'
-import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
+import { encodeCursor, decodeCursor, paginationQuerySchema, type PaginationQuery, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
+
+// GET /boards/:boardId/threads の ?includeArchived= クエリ (dat落ち済みスレも一覧に含めるか。
+// デフォルトは除外。管理画面のモデレーション用途でのみ true にする)
+export const listThreadsQuerySchema = paginationQuerySchema.extend({
+  includeArchived: z.coerce.boolean().default(false),
+})
+export type ListThreadsQuery = z.infer<typeof listThreadsQuerySchema>
 
 export const createThreadSchema = z.object({
   title: z.string().min(1).max(500),
@@ -43,6 +50,8 @@ export const patchThreadSchema = z.object({
   maxPosterNameLength: z.number().int().min(0).optional(),
   maxPosterOptionLength: z.number().int().min(0).optional(),
   idFormat: z.enum([...ID_FORMATS, '']).optional(),
+  // dat落ち状態の手動切り替え。isSysAdmin のみ (threadService.patchThread 参照)
+  isArchived: z.boolean().optional(),
 })
 
 export type CreateThreadInput = z.infer<typeof createThreadSchema>
@@ -62,6 +71,10 @@ export function parsePatchThread(data: unknown): PatchThreadInput {
 }
 
 // GET /boards/:boardId/threads (スレッド一覧、limit/cursorページネーション)
+// includeArchived=false (デフォルト) の場合、dat落ち済みのスレッドは一覧から除外する
+// (物理削除はしないので、直リンクや GET .../threads/:threadId では引き続き参照できる)。
+// archivedTtlSeconds > 0 の場合、dat落ちしてからその秒数が経つまでは一覧に残す猶予期間として扱う。
+// 0 (デフォルト) は無制限 = 猶予なしにフィルタしない (常に一覧に残り続ける)。
 export async function getThreads(
   db: DbAdapter,
   boardId: string,
@@ -69,6 +82,8 @@ export async function getThreads(
   userRoleIds: string[],
   isSysAdmin: boolean,
   pagination: PaginationQuery,
+  includeArchived: boolean = false,
+  archivedTtlSeconds: number = 0,
 ): Promise<Page<Thread> | null> {
   const board = await boardRepository.findBoardById(db, boardId)
   if (!board) return null
@@ -78,6 +93,8 @@ export async function getThreads(
   const { items, nextCursorRaw } = await threadRepository.findThreadsByBoardIdPage(db, boardId, {
     limit: pagination.limit,
     cursor,
+    includeArchived,
+    archivedTtlSeconds,
   })
   const filtered = isSysAdmin ? items : items.filter(t => can(t.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
   return {
@@ -116,12 +133,6 @@ export async function createThread(
 
   if (!can(board.acl, { userId, userRoleIds, isSysAdmin }, 'create')) throw new Error('FORBIDDEN')
 
-  // スレッド数上限チェック (0=無制限)
-  if (board.maxThreads > 0) {
-    const existing = await threadRepository.findThreadsByBoardId(db, boardId)
-    if (existing.length >= board.maxThreads) throw new Error('THREAD_LIMIT_REACHED')
-  }
-
   // タイトル長チェック
   if (board.maxThreadTitleLength > 0 && input.title.length > board.maxThreadTitleLength) {
     throw new Error('TITLE_TOO_LONG')
@@ -145,6 +156,17 @@ export async function createThread(
     throw new Error('CONTENT_REJECTED')
   }
 
+  // スレッド数上限チェック (0=無制限)。上限に達している場合は、新規作成をブロックするのではなく
+  // 最も最後にレスが付いていないアクティブなスレッドを1つdat落ちさせて枠を空ける
+  // (板の勢い順による押し出し。全ての検証を終えた後、実際に作成する直前に行う)
+  if (board.maxThreads > 0) {
+    const activeCount = await threadRepository.countActiveThreadsByBoardId(db, boardId)
+    if (activeCount >= board.maxThreads) {
+      const oldestId = await threadRepository.findOldestActiveThreadId(db, boardId)
+      if (oldestId) await threadRepository.setThreadArchived(db, oldestId, true)
+    }
+  }
+
   const now = new Date().toISOString()
 
   // 板の defaultThreadAcl テンプレートから、作成者をownerにしたACLを作る
@@ -165,6 +187,8 @@ export async function createThread(
     postCount: 1,
     isEdited: false,
     editedAt: null,
+    isArchived: false,
+    archivedAt: null,
     createdAt: now,
     updatedAt: now,
     adminMeta: { creatorUserId: userId, creatorSessionId: sessionId, creatorTurnstileSessionId: turnstileSessionId },
@@ -232,6 +256,8 @@ export async function putThread(
       postCount: 0,
       isEdited: false,
       editedAt: null,
+      isArchived: false,
+    archivedAt: null,
       createdAt: now,
       updatedAt: now,
       adminMeta: { creatorUserId: userId, creatorSessionId: sessionId, creatorTurnstileSessionId: turnstileSessionId },
@@ -270,6 +296,14 @@ export async function patchThread(
   if (!existing || existing.boardId !== boardId) return null
 
   if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+
+  // dat落ち状態の手動切り替えは、板ごとに自由に設定できるACLの update 権限とは別に、
+  // システム管理者のみに限定する (モデレーターによる強制dat落ち/解除)
+  if (input.isArchived !== undefined) {
+    if (!isSysAdmin) throw new Error('FORBIDDEN')
+    // updateThread() 経由だと updated_at が打ち直されてしまうため、専用関数を使う
+    await threadRepository.setThreadArchived(db, threadId, input.isArchived)
+  }
 
   const acl = input.acl !== undefined
     ? buildAcl(input.acl, existing.acl.ownerUserId ?? userId)

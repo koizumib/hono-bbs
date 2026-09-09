@@ -468,7 +468,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
 
   const header = (
     <header className="h-16 flex-shrink-0 border-b border-c-border bg-c-base/80 backdrop-blur-md shadow-sm flex items-center justify-between px-6 sticky top-0 z-10">
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1 flex items-center gap-2">
         <h2
           className="font-bold text-slate-900 dark:text-white truncate text-base cursor-pointer hover:text-c-accent transition-colors"
           onClick={() => { const el = scrollAreaRef.current; if (el) el.scrollTop = 0 }}
@@ -476,6 +476,11 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
         >
           {thread ? thread.title : '読み込み中...'}
         </h2>
+        {thread?.isArchived && (
+          <span className="flex-shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400">
+            dat落ち
+          </span>
+        )}
       </div>
       <div className="flex items-center gap-2 ml-4">
         <input
@@ -569,7 +574,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
               <Minimap posts={filteredPosts} scrollAreaRef={scrollAreaRef} anchorCountMap={anchorCountMap} ownPostNumbers={ownPostNumbers} replyToOwnNumbers={replyToOwnNumbers} />
             )}
           </div>
-          <ReplyForm boardId={boardId} threadId={threadId} threadTitle={thread?.title} layout="bottom" insertAnchor={insertAnchor} onPosted={handlePosted} />
+          <ReplyForm boardId={boardId} threadId={threadId} threadTitle={thread?.title} layout="bottom" insertAnchor={insertAnchor} onPosted={handlePosted} disabled={thread?.isArchived} />
         </>
       ) : (
         <div className="flex flex-1 overflow-hidden">
@@ -579,7 +584,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
               <Minimap posts={filteredPosts} scrollAreaRef={scrollAreaRef} anchorCountMap={anchorCountMap} ownPostNumbers={ownPostNumbers} replyToOwnNumbers={replyToOwnNumbers} />
             )}
           </div>
-          <ReplyForm boardId={boardId} threadId={threadId} threadTitle={thread?.title} layout="right" insertAnchor={insertAnchor} onPosted={handlePosted} />
+          <ReplyForm boardId={boardId} threadId={threadId} threadTitle={thread?.title} layout="right" insertAnchor={insertAnchor} onPosted={handlePosted} disabled={thread?.isArchived} />
         </div>
       )}
 

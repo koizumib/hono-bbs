@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
-import { getThreads, patchThread, deleteThread } from '../api/threads'
+import { getThreads, patchThread, deleteThread, type PatchThreadInput } from '../api/threads'
 import { getBoard } from '../api/boards'
 import type { Thread } from '../api/types'
 import AclEditor, { type AclInput } from '../components/AclEditor'
@@ -27,8 +27,20 @@ function ThreadRow({
     authenticatedActions: thread.acl.authenticatedActions,
     anonymousActions: thread.acl.anonymousActions,
   })
+  const [editingSettings, setEditingSettings] = useState(false)
+  const [settings, setSettings] = useState<PatchThreadInput>({
+    title: thread.title,
+    posterName: thread.posterName,
+    maxPosts: thread.maxPosts,
+    maxPostLength: thread.maxPostLength,
+    maxPostLines: thread.maxPostLines,
+    maxPosterNameLength: thread.maxPosterNameLength,
+    maxPosterOptionLength: thread.maxPosterOptionLength,
+    idFormat: thread.idFormat as PatchThreadInput['idFormat'],
+  })
   const [error, setError] = useState<unknown>(null)
   const [saving, setSaving] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
 
   async function handleSaveAcl() {
     setSaving(true)
@@ -44,11 +56,35 @@ function ThreadRow({
     }
   }
 
+  async function handleSaveSettings() {
+    setSavingSettings(true)
+    setError(null)
+    try {
+      await patchThread(boardId, thread.id, settings)
+      await queryClient.invalidateQueries({ queryKey: ['threads', boardId] })
+      setEditingSettings(false)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setSavingSettings(false)
+    }
+  }
+
   async function handleDelete() {
     if (!window.confirm('このスレッドを削除しますか？ 投稿も全て削除されます。')) return
     setError(null)
     try {
       await deleteThread(boardId, thread.id)
+      await queryClient.invalidateQueries({ queryKey: ['threads', boardId] })
+    } catch (e) {
+      setError(e)
+    }
+  }
+
+  async function handleToggleArchived() {
+    setError(null)
+    try {
+      await patchThread(boardId, thread.id, { isArchived: !thread.isArchived })
       await queryClient.invalidateQueries({ queryKey: ['threads', boardId] })
     } catch (e) {
       setError(e)
@@ -61,7 +97,17 @@ function ThreadRow({
         <div className="flex items-center gap-3">
           <input type="checkbox" checked={selected} onChange={onToggleSelected} />
           <div>
-            <p className="text-sm">{thread.title}</p>
+            <p className="text-sm flex items-center gap-2">
+              {thread.title}
+              {thread.isArchived && (
+                <span
+                  className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-surface-dark-2 text-gray-400"
+                  title={thread.archivedAt ? `${formatDate(thread.archivedAt)} にdat落ち` : undefined}
+                >
+                  dat落ち
+                </span>
+              )}
+            </p>
             <p className="text-xs text-gray-500">{thread.postCount}件の投稿・{formatDate(thread.createdAt)}</p>
           </div>
         </div>
@@ -70,6 +116,10 @@ function ThreadRow({
             投稿一覧
           </Link>
           <Button variant="text" onClick={() => setEditingAcl((v) => !v)}>ACL編集</Button>
+          <Button variant="text" onClick={() => setEditingSettings((v) => !v)}>詳細設定</Button>
+          <Button variant="outlined" onClick={handleToggleArchived}>
+            {thread.isArchived ? 'dat落ち解除' : '手動でdat落ちさせる'}
+          </Button>
           <Button variant="danger" onClick={handleDelete}>削除</Button>
         </div>
       </div>
@@ -81,6 +131,92 @@ function ThreadRow({
           <AclEditor label={`${thread.title} のACL`} value={acl} onChange={setAcl} ownerUserId={thread.acl.ownerUserId} />
           <Button variant="filled" onClick={handleSaveAcl} disabled={saving} className="self-start">
             {saving ? '保存中...' : '保存'}
+          </Button>
+        </div>
+      )}
+
+      {editingSettings && (
+        <div className="grid grid-cols-2 gap-3 rounded border border-border-dark/50 bg-surface-dark-2 p-3">
+          <label className="col-span-2 text-sm">
+            タイトル
+            <input
+              type="text"
+              value={settings.title ?? ''}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, title: e.target.value }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            />
+          </label>
+          <label className="text-sm">
+            投稿者名 (空=板のデフォルトを継承)
+            <input
+              type="text"
+              value={settings.posterName ?? ''}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, posterName: e.target.value }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            />
+          </label>
+          <label className="text-sm">
+            ID表示形式 (空=板のデフォルトを継承)
+            <select
+              value={settings.idFormat ?? ''}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, idFormat: e.target.value as PatchThreadInput['idFormat'] }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            >
+              <option value="">(板のデフォルトを継承)</option>
+              <option value="daily_hash">daily_hash</option>
+              <option value="daily_hash_or_user">daily_hash_or_user</option>
+              <option value="api_key_hash">api_key_hash</option>
+              <option value="api_key_hash_or_user">api_key_hash_or_user</option>
+              <option value="none">none (表示しない)</option>
+            </select>
+          </label>
+          <label className="text-sm">
+            最大レス数 (0=板のデフォルトを継承)
+            <input
+              type="number"
+              value={settings.maxPosts ?? 0}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, maxPosts: Number(e.target.value) }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            />
+          </label>
+          <label className="text-sm">
+            レス文字数上限 (0=板のデフォルトを継承)
+            <input
+              type="number"
+              value={settings.maxPostLength ?? 0}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, maxPostLength: Number(e.target.value) }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            />
+          </label>
+          <label className="text-sm">
+            レス行数上限 (0=板のデフォルトを継承)
+            <input
+              type="number"
+              value={settings.maxPostLines ?? 0}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, maxPostLines: Number(e.target.value) }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            />
+          </label>
+          <label className="text-sm">
+            投稿者名文字数上限 (0=板のデフォルトを継承)
+            <input
+              type="number"
+              value={settings.maxPosterNameLength ?? 0}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, maxPosterNameLength: Number(e.target.value) }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            />
+          </label>
+          <label className="text-sm">
+            メール欄文字数上限 (0=板のデフォルトを継承)
+            <input
+              type="number"
+              value={settings.maxPosterOptionLength ?? 0}
+              onChange={(e) => setSettings((s: PatchThreadInput) => ({ ...s, maxPosterOptionLength: Number(e.target.value) }))}
+              className="mt-1 w-full rounded border border-border-dark bg-surface-dark px-2 py-1.5"
+            />
+          </label>
+          <Button variant="filled" onClick={handleSaveSettings} disabled={savingSettings} className="col-span-2 self-start">
+            {savingSettings ? '保存中...' : '保存'}
           </Button>
         </div>
       )}
@@ -104,7 +240,8 @@ export default function ThreadsListPage() {
 
   const { data, isLoading } = useQuery({
     queryKey: ['threads', boardId, cursor],
-    queryFn: () => getThreads(boardId!, { limit: 20, cursor }),
+    // モデレーションではdat落ち済みスレも見える必要があるため、常に含める
+    queryFn: () => getThreads(boardId!, { limit: 20, cursor, includeArchived: true }),
     enabled: Boolean(boardId),
   })
 

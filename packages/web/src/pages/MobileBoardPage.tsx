@@ -768,7 +768,14 @@ function MobileThreadViewInner({
               <div>
                 <p className="text-xs text-slate-500 mb-1">タイトル</p>
                 <div className="flex items-start gap-2">
-                  <p className="flex-1 text-sm text-slate-700 dark:text-slate-200 break-all">{thread?.title ?? '読み込み中...'}</p>
+                  <p className="flex-1 text-sm text-slate-700 dark:text-slate-200 break-all">
+                    {thread?.title ?? '読み込み中...'}
+                    {thread?.isArchived && (
+                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400 align-middle">
+                        dat落ち
+                      </span>
+                    )}
+                  </p>
                   {thread?.title && (
                     <button
                       className="flex-shrink-0 text-slate-400 hover:text-slate-600 dark:hover:text-white"

@@ -2,12 +2,13 @@ import type { InferRequestType } from 'hono/client'
 import { client, unwrap, requireSession, requireTurnstileSession } from './rpcClient'
 import type { Thread, ThreadsResponse, ApiResponse } from './types'
 
-export async function getThreads(boardId: string, params?: { limit?: number; cursor?: string }) {
+export async function getThreads(boardId: string, params?: { limit?: number; cursor?: string; includeArchived?: boolean }) {
   return unwrap<ThreadsResponse>(client.boards[':boardId'].threads.$get({
     param: { boardId },
     query: {
       limit: params?.limit !== undefined ? String(params.limit) : undefined,
       cursor: params?.cursor,
+      includeArchived: params?.includeArchived ? 'true' : undefined,
     },
   }))
 }

@@ -17,6 +17,8 @@ type ThreadRow = {
   post_count: number
   is_edited: number
   edited_at: string | null
+  is_archived: number
+  archived_at: string | null
   created_at: string
   updated_at: string
   creator_user_id: string | null
@@ -58,6 +60,8 @@ function rowToThread(row: ThreadRow): Thread {
     postCount: row.post_count,
     isEdited: row.is_edited === 1,
     editedAt: row.edited_at,
+    isArchived: row.is_archived === 1,
+    archivedAt: row.archived_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     adminMeta: {
@@ -91,46 +95,33 @@ function rowToFirstPost(row: ThreadWithFirstPostRow): Post | null {
   }
 }
 
-export async function findThreadsByBoardId(db: DbAdapter, boardId: string): Promise<Thread[]> {
-  const result = await db.all<ThreadWithFirstPostRow>(
-    `SELECT
-      t.*,
-      p.id AS p_id,
-      p.post_number AS p_post_number,
-      p.acl AS p_acl,
-      p.author_id AS p_author_id,
-      p.poster_name AS p_poster_name,
-      p.poster_option_info AS p_poster_option_info,
-      p.content AS p_content,
-      p.is_deleted AS p_is_deleted,
-      p.is_edited AS p_is_edited,
-      p.edited_at AS p_edited_at,
-      p.created_at AS p_created_at,
-      p.creator_user_id AS p_creator_user_id,
-      p.creator_session_id AS p_creator_session_id,
-      p.creator_turnstile_session_id AS p_creator_turnstile_session_id
-    FROM threads t
-    LEFT JOIN posts p ON p.thread_id = t.id AND p.post_number = 1
-    WHERE t.board_id = ?
-    ORDER BY t.updated_at DESC`,
-    [boardId],
-  )
-  return result.results.map(row => ({ ...rowToThread(row), firstPost: rowToFirstPost(row) }))
-}
-
 export type ThreadCursor = { updatedAt: string; id: string }
 
 // limit/cursorページネーション。updated_at DESC, id DESC の複合キーでキーセットページングする。
+// includeArchived=false (デフォルト) の場合、dat落ち済み(is_archived=1)のスレッドは除外する。
+// ただし archivedTtlSeconds > 0 なら、dat落ちしてからその秒数が経つまでは猶予期間として
+// 一覧に残す (ARCHIVED_THREAD_VISIBLE_SECONDS)。0 = 無制限 (時間によるフィルタをしない)。
 export async function findThreadsByBoardIdPage(
   db: DbAdapter,
   boardId: string,
-  opts: { limit: number; cursor: ThreadCursor | null },
+  opts: {
+    limit: number
+    cursor: ThreadCursor | null
+    includeArchived: boolean
+    archivedTtlSeconds: number
+  },
 ): Promise<{ items: Thread[]; nextCursorRaw: ThreadCursor | null }> {
   const params: unknown[] = [boardId]
   let cursorClause = ''
   if (opts.cursor) {
     cursorClause = ' AND (t.updated_at < ? OR (t.updated_at = ? AND t.id < ?))'
     params.push(opts.cursor.updatedAt, opts.cursor.updatedAt, opts.cursor.id)
+  }
+  let archivedClause = ''
+  if (!opts.includeArchived && opts.archivedTtlSeconds > 0) {
+    const cutoff = new Date(Date.now() - opts.archivedTtlSeconds * 1000).toISOString()
+    archivedClause = ' AND (t.is_archived = 0 OR t.archived_at > ?)'
+    params.push(cutoff)
   }
   params.push(opts.limit + 1)
 
@@ -153,7 +144,7 @@ export async function findThreadsByBoardIdPage(
       p.creator_turnstile_session_id AS p_creator_turnstile_session_id
     FROM threads t
     LEFT JOIN posts p ON p.thread_id = t.id AND p.post_number = 1
-    WHERE t.board_id = ?${cursorClause}
+    WHERE t.board_id = ?${cursorClause}${archivedClause}
     ORDER BY t.updated_at DESC, t.id DESC LIMIT ?`,
     params,
   )
@@ -198,6 +189,34 @@ export async function incrementPostCount(db: DbAdapter, threadId: string, update
     'UPDATE threads SET post_count = post_count + 1, updated_at = ? WHERE id = ?',
     [updatedAt, threadId],
   )
+}
+
+// dat落ち(過去ログ化)フラグの設定/解除専用。updateThread()とは違い updated_at は更新しない
+// (アーカイブ操作自体でスレの「上がった」順序=updated_atを壊さないため)
+export async function setThreadArchived(db: DbAdapter, threadId: string, isArchived: boolean): Promise<void> {
+  const archivedAt = isArchived ? new Date().toISOString() : null
+  await db.run(
+    'UPDATE threads SET is_archived = ?, archived_at = ? WHERE id = ?',
+    [isArchived ? 1 : 0, archivedAt, threadId],
+  )
+}
+
+// 板のスレ数上限チェック用。dat落ち済みは数えない
+export async function countActiveThreadsByBoardId(db: DbAdapter, boardId: string): Promise<number> {
+  const row = await db.first<{ cnt: number }>(
+    'SELECT COUNT(*) AS cnt FROM threads WHERE board_id = ? AND is_archived = 0',
+    [boardId],
+  )
+  return row?.cnt ?? 0
+}
+
+// 板のスレ数上限による押し出し(dat落ち)用。最も最後にレスが付いていないアクティブなスレを探す
+export async function findOldestActiveThreadId(db: DbAdapter, boardId: string): Promise<string | null> {
+  const row = await db.first<{ id: string }>(
+    'SELECT id FROM threads WHERE board_id = ? AND is_archived = 0 ORDER BY updated_at ASC LIMIT 1',
+    [boardId],
+  )
+  return row?.id ?? null
 }
 
 export type ThreadUpdateFields = {

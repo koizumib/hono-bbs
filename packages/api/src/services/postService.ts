@@ -109,6 +109,10 @@ export async function createPost(
 
   if (!can(thread.acl, { userId, userRoleIds, isSysAdmin }, 'create')) throw new Error('FORBIDDEN')
 
+  // dat落ち済みのスレッドには書き込めない (レス数上限到達だけでなく、板のスレ数上限による
+  // 押し出しでアーカイブされた場合も対象。postCountがmaxPostsに達していなくても起こりうる)
+  if (thread.isArchived) throw new Error('THREAD_ARCHIVED')
+
   // 書き込み数上限チェック (0=無制限, スレッド設定→ボードデフォルト)
   const maxPosts = thread.maxPosts > 0 ? thread.maxPosts : board.defaultMaxPosts
   if (maxPosts > 0 && thread.postCount >= maxPosts) throw new Error('POST_LIMIT_REACHED')
@@ -164,6 +168,12 @@ export async function createPost(
 
   await postRepository.insertPost(db, post)
   await threadRepository.incrementPostCount(db, threadId, now)
+
+  // レス数上限に達したら、この投稿でdat落ちさせる (読み取りのたびに計算するのではなく、
+  // しきい値を超えた書き込みが発生したこの瞬間に1回だけ判定・記録する)
+  if (maxPosts > 0 && thread.postCount + 1 >= maxPosts) {
+    await threadRepository.setThreadArchived(db, threadId, true)
+  }
 
   return post
 }

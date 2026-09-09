@@ -11,11 +11,15 @@ type WithBoardId = Context<AppEnv, '/:boardId', any>
 type WithThreadId = Context<AppEnv, '/:boardId/:threadId', any>
 
 // GET /boards/:boardId/threads (limit/cursorページネーション)
+// ?includeArchived=true でdat落ち済みスレも含める (デフォルトは除外。管理画面用)
 export async function getThreadsHandler(c: WithBoardId) {
   const boardId = c.req.param('boardId')
   const pagination = parsePaginationQuery(c.req.query())
+  const includeArchived = c.req.query('includeArchived') === 'true'
+  const archivedTtlSeconds = parseInt(c.env.ARCHIVED_THREAD_VISIBLE_SECONDS ?? '0', 10) || 0
   const page = await threadService.getThreads(
     c.get('db'), boardId, c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'), pagination,
+    includeArchived, archivedTtlSeconds,
   )
   if (!page) return c.json({ error: 'BOARD_NOT_FOUND', message: 'Board not found' }, 404)
   const visible = adminVisible(c)
@@ -58,7 +62,6 @@ export async function createThreadHandler(c: WithBoardId) {
     if (e instanceof Error) {
       if (e.message === 'BOARD_NOT_FOUND') return c.json({ error: 'BOARD_NOT_FOUND', message: 'Board not found' }, 404)
       if (e.message === 'FORBIDDEN') return c.json({ error: 'FORBIDDEN', message: 'Insufficient permissions' }, 403)
-      if (e.message === 'THREAD_LIMIT_REACHED') return c.json({ error: 'THREAD_LIMIT_REACHED', message: 'Thread limit reached' }, 422)
       if (e.message === 'TITLE_TOO_LONG') return c.json({ error: 'TITLE_TOO_LONG', message: 'Thread title is too long' }, 422)
       if (e.message === 'CONTENT_TOO_LONG') return c.json({ error: 'CONTENT_TOO_LONG', message: 'Content is too long' }, 422)
       if (e.message === 'CONTENT_TOO_MANY_LINES') return c.json({ error: 'CONTENT_TOO_MANY_LINES', message: 'Content has too many lines' }, 422)

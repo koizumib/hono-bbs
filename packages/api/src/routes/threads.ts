@@ -10,12 +10,11 @@ import {
   deleteThreadHandler,
   reportThreadHandler,
 } from '../handlers/threadHandler'
-import { createThreadSchema, putThreadSchema, patchThreadSchema } from '../services/threadService'
+import { createThreadSchema, putThreadSchema, patchThreadSchema, listThreadsQuerySchema } from '../services/threadService'
 import { requireLogin } from '../middleware/auth'
 import { requireTurnstile } from '../middleware/turnstile'
 import { rateLimit } from '../middleware/rateLimit'
 import { zValidatorHook } from '../utils/zodHelper'
-import { paginationQuerySchema } from '../utils/pagination'
 import posts from './posts'
 
 const threadCreateRateLimit = rateLimit({
@@ -28,7 +27,7 @@ const threadCreateRateLimit = rateLimit({
 // /boards/:boardId/threads にマウントされる
 // チェーンで書くことで hc() のRPC型推論にルートスキーマが正しく伝播する
 const threads = new Hono<AppEnv>()
-  .get('/', zValidator('query', paginationQuerySchema, zValidatorHook), getThreadsHandler)
+  .get('/', zValidator('query', listThreadsQuerySchema, zValidatorHook), getThreadsHandler)
   .post('/', requireTurnstile, threadCreateRateLimit, zValidator('json', createThreadSchema, zValidatorHook), createThreadHandler)
   .get('/:threadId', getThreadHandler)
   .put('/:threadId', requireLogin, requireTurnstile, zValidator('json', putThreadSchema, zValidatorHook), putThreadHandler)

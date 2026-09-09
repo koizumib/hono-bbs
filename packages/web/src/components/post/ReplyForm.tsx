@@ -22,6 +22,8 @@ interface ReplyFormProps {
   layout: 'bottom' | 'right' | 'sheet'
   insertAnchor?: { text: string; seq: number } | null
   onPosted?: () => void
+  // dat落ち済みのスレッドなど、書き込み自体を封じたい場合に true にする
+  disabled?: boolean
 }
 
 function TurnstileErrorMessage() {
@@ -49,6 +51,7 @@ export default function ReplyForm({
   layout,
   insertAnchor,
   onPosted,
+  disabled,
 }: ReplyFormProps) {
   const navigate = useNavigate()
   const [tosAgreed, setTosAgreedState] = useState(() => hasTosAgreed())
@@ -273,6 +276,33 @@ export default function ReplyForm({
       {isTurnstileError ? <TurnstileErrorMessage /> : error}
     </div>
   )
+
+  // dat落ち済みのスレッドには書き込めない。フォーム一式の代わりに固定メッセージだけ表示する
+  if (disabled) {
+    const message = (
+      <p className="text-sm text-slate-500 text-center py-3 px-4">
+        このスレッドはdat落ちしているため書き込めません
+      </p>
+    )
+    if (layout === 'right') {
+      return (
+        <div
+          style={{ width: rightWidth }}
+          className="flex-shrink-0 flex h-full items-start bg-c-surface border-l border-c-border shadow-sm"
+        >
+          {message}
+        </div>
+      )
+    }
+    if (layout === 'sheet') {
+      return <div className="px-4 pb-safe">{message}</div>
+    }
+    return (
+      <footer className="bg-c-surface border-t border-c-border shadow-sm flex-shrink-0">
+        {message}
+      </footer>
+    )
+  }
 
   if (layout === 'right') {
     return (
