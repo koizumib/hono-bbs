@@ -18,6 +18,11 @@ import ReplyForm from '../components/post/ReplyForm'
 import MobileTopBar from '../components/mobile/MobileTopBar'
 import MobileBoardDrawer from '../components/mobile/MobileBoardDrawer'
 
+// プルリフレッシュ インジケーターの「離した瞬間」「自動収納」用トランジション。
+// ドラッグ中(touchmove)はこれを適用せず指に1:1追従させ、指を離した後の
+// 確定/収納だけをアニメーションさせることで、スナップ感(がくつき)をなくす。
+const PULL_SETTLE_TRANSITION = 'height 0.25s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease-out'
+
 // ─── スレッド一覧パネル ────────────────────────────────────────────────────────
 
 type SortMode = 'momentum' | 'newest'
@@ -48,34 +53,40 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
   const [historyVersion, setHistoryVersion] = useState(0)
 
   const board = data?.data.board
-  const rawThreads = data?.data.threads ?? []
-  const baseThreads = filterThreads(rawThreads, ngRules)
+  const rawThreads = useMemo(() => data?.data.threads ?? [], [data])
+  const baseThreads = useMemo(() => filterThreads(rawThreads, ngRules), [rawThreads, ngRules])
 
   const history = useMemo(() => getHistory(), [historyVersion])
 
-  let threads = [...baseThreads]
-  if (sortMode === 'momentum') {
-    threads = threads.slice().sort((a, b) => {
-      const ma = a.postCount / Math.max(1, (Date.now() - new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()) / 86400000)
-      const mb = b.postCount / Math.max(1, (Date.now() - new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()) / 86400000)
-      return mb - ma
-    })
-  } else if (sortMode === 'newest') {
-    threads = threads.slice().sort((a, b) => {
-      const da = new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()
-      const db = new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()
-      return db - da
-    })
-  }
-  if (showUnread) {
-    threads = threads.filter((t) => {
-      const entry = history.find((e) => e.boardId === boardId && e.threadId === t.id)
-      return entry !== undefined && entry.lastReadCount < t.postCount
-    })
-  }
-  if (searchQuery.trim()) {
-    threads = threads.filter((t) => fuzzyMatch(t.title, searchQuery))
-  }
+  // フィルタ/ソート/検索は重い処理なので、更新中の再レンダー(refetchによる複数回の
+  // 再描画)のたびに再計算しないようメモ化する。未メモ化だとリフレッシュ中に
+  // メインスレッドが詰まり、更新アイコンのspinアニメーションがガクつく原因になっていた。
+  const threads = useMemo(() => {
+    let result = [...baseThreads]
+    if (sortMode === 'momentum') {
+      result = result.slice().sort((a, b) => {
+        const ma = a.postCount / Math.max(1, (Date.now() - new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()) / 86400000)
+        const mb = b.postCount / Math.max(1, (Date.now() - new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()) / 86400000)
+        return mb - ma
+      })
+    } else if (sortMode === 'newest') {
+      result = result.slice().sort((a, b) => {
+        const da = new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()
+        const db = new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()
+        return db - da
+      })
+    }
+    if (showUnread) {
+      result = result.filter((t) => {
+        const entry = history.find((e) => e.boardId === boardId && e.threadId === t.id)
+        return entry !== undefined && entry.lastReadCount < t.postCount
+      })
+    }
+    if (searchQuery.trim()) {
+      result = result.filter((t) => fuzzyMatch(t.title, searchQuery))
+    }
+    return result
+  }, [baseThreads, sortMode, showUnread, history, searchQuery, boardId])
 
   const handleRefresh = useCallback(() => {
     const now = Date.now()
@@ -109,6 +120,9 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
     const el = listScrollRef.current
     if (el && el.scrollTop <= 0) {
       listPullStartRef.current = { y: e.touches[0].clientY }
+      // ドラッグ中は指に追従させるため、前回の設定アニメーションを解除しておく
+      const ind = listPullIndicatorRef.current
+      if (ind) ind.style.transition = 'none'
     }
   }
 
@@ -130,6 +144,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
     const dy = e.changedTouches[0].clientY - listPullStartRef.current.y
     listPullStartRef.current = null
     const ind = listPullIndicatorRef.current
+    if (ind) ind.style.transition = PULL_SETTLE_TRANSITION
     if (dy >= LIST_PULL_THRESHOLD) {
       if (ind) {
         ind.style.height = `${LIST_REFRESH_IND_H}px`
@@ -155,15 +170,15 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
         onMenuClick={onMenuClick}
         rightContent={
           boardId ? (
-            <div className="flex items-center">
+            <div className="flex items-center gap-0.5">
               <button
-                className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors"
                 onClick={() => navigate(`/new-thread/${boardId}`)}
               >
                 <span className="material-symbols-outlined text-xl">edit_square</span>
               </button>
               <button
-                className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+                className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors"
                 onClick={() => setShowSearch((s) => !s)}
               >
                 <span className="material-symbols-outlined text-xl">search</span>
@@ -271,7 +286,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className={`w-9 h-9 flex items-center justify-center rounded-lg transition-colors ${isRefreshing ? 'text-c-accent' : 'text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${isRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
           >
             <span className={`material-symbols-outlined text-xl${isRefreshing ? ' animate-spin' : ''}`}>refresh</span>
           </button>
@@ -473,6 +488,9 @@ function MobileThreadViewInner({
     if (!atTop && !atBottom) return
     // コンテンツが短い場合は atTop を優先（下に引いて更新できるように）
     viewPullStartRef.current = { y: e.touches[0].clientY, atBottom: !atTop && atBottom }
+    // ドラッグ中は指に追従させるため、前回の設定アニメーションを解除しておく
+    if (viewTopPullRef.current) viewTopPullRef.current.style.transition = 'none'
+    if (viewBottomPullRef.current) viewBottomPullRef.current.style.transition = 'none'
   }
 
   function handleViewTouchMove(e: React.TouchEvent) {
@@ -509,7 +527,12 @@ function MobileThreadViewInner({
     const botInd = viewBottomPullRef.current
     const activeInd = atBottom ? botInd : topInd
     const inactiveInd = atBottom ? topInd : botInd
-    if (inactiveInd) { inactiveInd.style.height = '0'; inactiveInd.style.opacity = '0' }
+    if (inactiveInd) {
+      inactiveInd.style.transition = PULL_SETTLE_TRANSITION
+      inactiveInd.style.height = '0'
+      inactiveInd.style.opacity = '0'
+    }
+    if (activeInd) activeInd.style.transition = PULL_SETTLE_TRANSITION
     if (dy >= VIEW_PULL_THRESHOLD) {
       if (activeInd) {
         activeInd.style.height = `${REFRESH_IND_H}px`
@@ -541,15 +564,15 @@ function MobileThreadViewInner({
         onBack={onBack}
         onTitleClick={scrollToTop}
         rightContent={
-          <div className="flex items-center">
+          <div className="flex items-center gap-0.5">
             <button
-              className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+              className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors"
               onClick={() => setShowSearch((s) => !s)}
             >
               <span className="material-symbols-outlined text-xl">search</span>
             </button>
             <button
-              className="w-10 h-10 flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors"
+              className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors"
               onClick={() => setShowKebab((s) => !s)}
             >
               <span className="material-symbols-outlined text-xl">more_vert</span>
@@ -573,33 +596,44 @@ function MobileThreadViewInner({
         </div>
       )}
 
-      {/* フィルターバー（固定幅・コンパクト） */}
-      <div className="flex items-center gap-1 px-1.5 py-1 border-b border-c-border bg-c-surface/50 flex-shrink-0">
+      {/* フィルタータブ（下線タブ形式・横スクロール） */}
+      <div className="flex items-center gap-3 px-3 border-b border-c-border bg-c-surface/50 flex-shrink-0 overflow-x-auto no-scrollbar text-xs font-medium">
+        <button
+          type="button"
+          onClick={clearFilters}
+          className={`relative py-2 shrink-0 transition-colors ${
+            postFilters.size === 0 ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
+          }`}
+        >
+          すべて
+          {postFilters.size === 0 && (
+            <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />
+          )}
+        </button>
         {[
           { key: 'popular', label: '人気', icon: 'local_fire_department' },
           { key: 'image',   label: '画像', icon: 'image' },
           { key: 'video',   label: '動画', icon: 'play_circle' },
           { key: 'link',    label: 'リンク', icon: 'link' },
-        ].map(({ key, label, icon }) => (
-          <button
-            key={key}
-            type="button"
-            onClick={() => toggleFilter(key)}
-            className={`w-14 py-1.5 flex items-center justify-center gap-0.5 text-[10px] font-bold rounded-lg transition-colors whitespace-nowrap ${
-              postFilters.has(key)
-                ? 'bg-c-accent text-[var(--c-accent-text)]'
-                : 'text-slate-500 bg-slate-100 dark:bg-slate-800'
-            }`}
-          >
-            <span className="material-symbols-outlined text-sm leading-none">{icon}</span>
-            {label}
-          </button>
-        ))}
-        {postFilters.size > 0 && (
-          <button type="button" onClick={clearFilters} className="text-[10px] text-slate-400 px-1">
-            ✕
-          </button>
-        )}
+        ].map(({ key, label, icon }) => {
+          const active = postFilters.has(key)
+          return (
+            <button
+              key={key}
+              type="button"
+              onClick={() => toggleFilter(key)}
+              className={`relative py-2 shrink-0 flex items-center gap-1 transition-colors whitespace-nowrap ${
+                active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
+              }`}
+            >
+              <span className="material-symbols-outlined text-sm leading-none">{icon}</span>
+              {label}
+              {active && (
+                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />
+              )}
+            </button>
+          )
+        })}
       </div>
 
       {/* 投稿リスト */}
@@ -666,26 +700,25 @@ function MobileThreadViewInner({
 
       {/* フッター: タップで最下部へ・書き込む・更新 */}
       <footer
-        className="flex items-center gap-2 px-2 py-1.5 border-t border-c-border bg-c-surface flex-shrink-0"
+        className="flex items-center gap-2 px-2.5 py-2 border-t border-c-border bg-c-surface flex-shrink-0"
         onClick={scrollToBottom}
       >
-        <div className="flex-1" />
-        <button
-          type="button"
-          onClick={(e) => { e.stopPropagation(); closeAll(); onOpenReply() }}
-          className="flex items-center gap-1 px-4 py-2 bg-c-accent hover:opacity-90 text-[var(--c-accent-text)] rounded-xl text-sm font-bold transition-all shadow-md flex-shrink-0"
-        >
-          <span className="material-symbols-outlined text-lg">edit</span>
-          書き込む
-        </button>
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); (e.currentTarget as HTMLButtonElement).blur(); doRefresh() }}
           disabled={isViewRefreshing}
-          className={`flex items-center gap-1 px-2 py-1.5 rounded-xl transition-colors text-xs font-bold flex-shrink-0 ${isViewRefreshing ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+          className={`flex items-center gap-1 px-2.5 py-1.5 rounded border transition-colors text-xs font-medium flex-shrink-0 ${isViewRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-500 dark:text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
         >
-          <span className={`material-symbols-outlined text-lg${isViewRefreshing ? ' animate-spin' : ''}`}>refresh</span>
+          <span className={`material-symbols-outlined text-base${isViewRefreshing ? ' animate-spin' : ''}`}>refresh</span>
           {isViewRefreshing ? '更新中' : '更新'}
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); closeAll(); onOpenReply() }}
+          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3.5 bg-c-accent active:opacity-90 text-[var(--c-accent-text)] rounded text-xs font-medium shadow transition-all"
+        >
+          <span className="material-symbols-outlined text-base">edit</span>
+          書き込む
         </button>
       </footer>
 

@@ -46,6 +46,8 @@ interface SettingsState {
   threadListAutoRefresh: boolean
   threadListRefreshInterval: number
   hiddenBoardIds: string[]
+  favoriteBoardIds: string[]
+  collapsedCategories: string[]
   setTheme: (theme: Theme) => void
   setAccentColor: (c: AccentColor) => void
   setFontSize: (s: FontSize) => void
@@ -63,6 +65,8 @@ interface SettingsState {
   setThreadListAutoRefresh: (v: boolean) => void
   setThreadListRefreshInterval: (n: number) => void
   setHiddenBoardIds: (ids: string[]) => void
+  toggleFavoriteBoard: (boardId: string) => void
+  toggleCategoryCollapsed: (category: string) => void
 }
 
 // 旧形式(1カテゴリ1改行区切りテキスト)を新形式(1レコード1件)に変換する
@@ -101,6 +105,8 @@ export const useSettingsStore = create<SettingsState>()(
       threadListAutoRefresh: false,
       threadListRefreshInterval: 30,
       hiddenBoardIds: [],
+      favoriteBoardIds: [],
+      collapsedCategories: [],
       setTheme: (theme) => set({ theme }),
       setAccentColor: (accentColor) => set({ accentColor }),
       setFontSize: (fontSize) => set({ fontSize }),
@@ -123,6 +129,18 @@ export const useSettingsStore = create<SettingsState>()(
       setThreadListAutoRefresh: (threadListAutoRefresh) => set({ threadListAutoRefresh }),
       setThreadListRefreshInterval: (threadListRefreshInterval) => set({ threadListRefreshInterval }),
       setHiddenBoardIds: (hiddenBoardIds) => set({ hiddenBoardIds }),
+      toggleFavoriteBoard: (boardId) =>
+        set((s) => ({
+          favoriteBoardIds: s.favoriteBoardIds.includes(boardId)
+            ? s.favoriteBoardIds.filter((id) => id !== boardId)
+            : [...s.favoriteBoardIds, boardId],
+        })),
+      toggleCategoryCollapsed: (category) =>
+        set((s) => ({
+          collapsedCategories: s.collapsedCategories.includes(category)
+            ? s.collapsedCategories.filter((c) => c !== category)
+            : [...s.collapsedCategories, category],
+        })),
     }),
     {
       name: 'bbs-settings',

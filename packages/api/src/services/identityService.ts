@@ -5,6 +5,7 @@ import type { SystemIds } from '../utils/constants'
 import * as userRepository from '../repository/userRepository'
 import * as roleRepository from '../repository/roleRepository'
 import { hashPassword, verifyPassword } from '../utils/password'
+import { PERMISSIONS } from '../utils/permissions'
 
 // ユーザ作成スキーマ (POST /identity/users)
 export const createUserSchema = z.object({
@@ -50,6 +51,8 @@ export const updateUserAdminSchema = z.object({
 
 export const roleSchema = z.object({
   name: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/, 'ロール名は英数字・_・- のみ使用できます'),
+  // isSysAdmin(admin-role)は常に全権限を持つのでここには依らない
+  permissions: z.array(z.enum(PERMISSIONS)).default([]),
 })
 
 export type CreateUserInput = z.infer<typeof createUserSchema>
@@ -190,6 +193,7 @@ export async function createRole(db: DbAdapter, input: RoleInput): Promise<Role>
   const role: Role = {
     id: crypto.randomUUID(),
     name: input.name,
+    permissions: input.permissions,
     createdAt: new Date().toISOString(),
   }
   await roleRepository.insertRole(db, role)
@@ -205,7 +209,7 @@ export async function updateRole(
   // システムロールは変更不可
   const systemRoles = [sysIds.userAdminRoleId, sysIds.adminRoleId, sysIds.generalRoleId]
   if (systemRoles.includes(roleId)) throw new Error('CANNOT_MODIFY_SYSTEM_ROLE')
-  const updated = await roleRepository.updateRole(db, roleId, input.name)
+  const updated = await roleRepository.updateRole(db, roleId, { name: input.name, permissions: input.permissions })
   if (!updated) throw new Error('ROLE_NOT_FOUND')
   return roleRepository.findRoleById(db, roleId)
 }

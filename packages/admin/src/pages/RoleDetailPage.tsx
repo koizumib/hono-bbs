@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { getRole, updateRole, deleteRole, getRoleMembers, addRoleMember, removeRoleMember } from '../api/roles'
+import { PERMISSION_LABELS } from '../constants/permissions'
 import ErrorBanner from '../components/ErrorBanner'
 import Button from '../components/ui/Button'
 import Card from '../components/ui/Card'
@@ -11,6 +12,7 @@ export default function RoleDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
+  const [permissions, setPermissions] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<unknown>(null)
@@ -20,10 +22,19 @@ export default function RoleDetailPage() {
   useEffect(() => {
     if (!id) return
     getRole(id)
-      .then((res) => setName(res.data.name))
+      .then((res) => {
+        setName(res.data.name)
+        setPermissions(res.data.permissions)
+      })
       .catch(setError)
       .finally(() => setLoading(false))
   }, [id])
+
+  function togglePermission(permission: string) {
+    setPermissions((prev) =>
+      prev.includes(permission) ? prev.filter((p) => p !== permission) : [...prev, permission],
+    )
+  }
 
   const { data: members } = useQuery({
     queryKey: ['roleMembers', id],
@@ -37,7 +48,7 @@ export default function RoleDetailPage() {
     setSaving(true)
     setError(null)
     try {
-      await updateRole(id, { name })
+      await updateRole(id, { name, permissions })
     } catch (e) {
       setError(e)
     } finally {
@@ -104,6 +115,23 @@ export default function RoleDetailPage() {
             className="mt-1 w-full rounded border border-border-dark bg-surface-dark-2 px-2 py-1.5"
           />
         </label>
+
+        <div className="text-sm">
+          権限
+          <div className="mt-1 flex flex-col gap-1.5">
+            {Object.entries(PERMISSION_LABELS).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={permissions.includes(key)}
+                  onChange={() => togglePermission(key)}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="flex gap-2">
           <Button type="submit" variant="filled" disabled={saving} className="px-4 py-2">
             {saving ? '保存中...' : '更新'}

@@ -1,10 +1,10 @@
 import type { Role } from '../types'
 import type { DbAdapter } from '../adapters/db'
 
-type RoleRow = { id: string; name: string; created_at: string }
+type RoleRow = { id: string; name: string; permissions: string; created_at: string }
 
 function rowToRole(row: RoleRow): Role {
-  return { id: row.id, name: row.name, createdAt: row.created_at }
+  return { id: row.id, name: row.name, permissions: JSON.parse(row.permissions) as string[], createdAt: row.created_at }
 }
 
 // page: 1始まり、limit: 0なら全件
@@ -39,18 +39,33 @@ export async function findRoleIdsByUserId(db: DbAdapter, userId: string): Promis
   return result.results.map((r) => r.role_id)
 }
 
+// hasPermission() から使う。複数ロールの permissions をまとめて引く
+export async function findRolesByIds(db: DbAdapter, ids: string[]): Promise<Role[]> {
+  if (ids.length === 0) return []
+  const placeholders = ids.map(() => '?').join(',')
+  const result = await db.all<RoleRow>(`SELECT * FROM roles WHERE id IN (${placeholders})`, ids)
+  return result.results.map(rowToRole)
+}
+
 export async function insertRole(db: DbAdapter, role: Role): Promise<void> {
   await db.run(
-    'INSERT INTO roles (id, name, created_at) VALUES (?, ?, ?)',
-    [role.id, role.name, role.createdAt],
+    'INSERT INTO roles (id, name, permissions, created_at) VALUES (?, ?, ?, ?)',
+    [role.id, role.name, JSON.stringify(role.permissions), role.createdAt],
   )
 }
 
-export async function updateRole(db: DbAdapter, id: string, name: string): Promise<boolean> {
-  const result = await db.run(
-    'UPDATE roles SET name = ? WHERE id = ?',
-    [name, id],
-  )
+export async function updateRole(
+  db: DbAdapter,
+  id: string,
+  updates: { name?: string; permissions?: string[] },
+): Promise<boolean> {
+  const fields: string[] = []
+  const values: unknown[] = []
+  if (updates.name !== undefined) { fields.push('name = ?'); values.push(updates.name) }
+  if (updates.permissions !== undefined) { fields.push('permissions = ?'); values.push(JSON.stringify(updates.permissions)) }
+  if (fields.length === 0) return true
+  values.push(id)
+  const result = await db.run(`UPDATE roles SET ${fields.join(', ')} WHERE id = ?`, values)
   return result.changes > 0
 }
 

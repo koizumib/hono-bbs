@@ -1,0 +1,770 @@
+<!DOCTYPE html><html class="dark" lang="ja"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport">
+<title>AnonBoard - test</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+  tailwind.config = {
+    darkMode: 'class',
+    theme: {
+      extend: {
+        colors: {
+          surface: '#051424',
+          'surface-container': '#0b1625',
+          'surface-container-high': '#122133',
+          'surface-container-highest': '#192b42',
+          borderSubtle: '#162338',
+          borderLight: '#1f3350',
+          accent: '#3b82f6',
+          accentHover: '#2563eb',
+          unreadMarker: '#38bdf8',
+        },
+        fontFamily: {
+          sans: ['-apple-system', 'BlinkMacSystemFont', '"Segoe UI"', 'Roboto', '"Hiragino Sans"', '"Noto Sans JP"', 'sans-serif'],
+          mono: ['SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', '"JetBrains Mono"', 'monospace']
+        }
+      }
+    }
+  }
+</script>
+<style data-purpose="custom-animations-and-chmate-scroll">
+  /* ChMate-like cubic easing */
+  :root {
+    --ease-chmate: cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  /* Right-edge Scroll Bar & Indicators track */
+  .chmate-rail {
+    position: absolute;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: 14px;
+    background: linear-gradient(to right, transparent, rgba(5, 20, 36, 0.65));
+    user-select: none;
+    pointer-events: auto;
+    z-index: 25;
+  }
+  .rail-thumb {
+    width: 3px;
+    background-color: #3b82f6;
+    border-radius: 2px;
+    position: absolute;
+    right: 3px;
+    min-height: 28px;
+    transition: top 0.08s linear;
+  }
+  .unread-gem {
+    position: absolute;
+    right: 3px;
+    width: 6px;
+    height: 6px;
+    transform: rotate(45deg);
+    background-color: #38bdf8;
+    box-shadow: 0 0 4px rgba(56, 189, 248, 0.5);
+  }
+
+  /* Smooth Popups */
+  .popup-card {
+    transition: transform 0.22s var(--ease-chmate), opacity 0.22s var(--ease-chmate);
+  }
+  .popup-card.enter {
+    transform: scale(0.96) translateY(12px);
+    opacity: 0;
+  }
+  .popup-card.show {
+    transform: scale(1) translateY(0);
+    opacity: 1;
+  }
+
+  /* Bottom sheet write drawer */
+  #write-sheet {
+    transition: transform 0.28s var(--ease-chmate), opacity 0.28s var(--ease-chmate);
+  }
+  #write-sheet.sheet-closed {
+    transform: translateY(100%);
+    pointer-events: none;
+  }
+  #write-sheet.sheet-open {
+    transform: translateY(0%);
+    pointer-events: auto;
+  }
+
+  /* Refresh spin */
+  .spin-active {
+    animation: chmate-spin 0.6s linear infinite;
+  }
+  @keyframes chmate-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  /* Quote line styling */
+  .quote-indicator {
+    border-left: 2px solid #3b82f6;
+  }
+  .post-hairline {
+    border-bottom: 1px solid #142133;
+  }
+
+  /* Hide default scrollbars */
+  #thread-scroll-container::-webkit-scrollbar {
+    display: none;
+  }
+  #thread-scroll-container {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  /* Tap Highlight */
+  .tap-press:active {
+    background-color: rgba(59, 130, 246, 0.12);
+  }
+</style>
+</head>
+<body class="bg-[#051424] text-[#d4e4fa] flex flex-col h-[100dvh] overflow-hidden select-none font-sans text-sm antialiased">
+<!-- BEGIN: Header -->
+<header class="bg-[#071322] border-b border-[#132338] z-30 shrink-0 select-none shadow-sm">
+<!-- Top Nav Row -->
+<div class="flex items-center justify-between px-3 h-12">
+<div class="flex items-center space-x-2.5 overflow-hidden">
+<!-- Back Navigation Button -->
+<button aria-label="戻る" class="text-slate-300 active:text-white p-1 rounded transition-colors tap-press" type="button">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M10 19l-7-7m0 0l7-7m-7 7h18" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<!-- Thread Title & Status -->
+<div class="flex items-center space-x-1.5 overflow-hidden">
+<h1 class="text-[16px] font-medium text-slate-100 truncate tracking-tight">test</h1>
+<span class="text-[11px] font-mono text-slate-400 bg-[#102033] px-1.5 py-0.2 rounded border border-[#1b2f4c]">9レス</span>
+</div>
+</div>
+<!-- Action Icons (ChMate top-right cluster) -->
+<div class="flex items-center space-x-1 shrink-0">
+<button aria-label="未読へジャンプ" class="p-1.5 text-sky-400 hover:text-sky-300 tap-press rounded" id="btn-quick-unread" title="未読へジャンプ" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 14l-7 7m0 0l-7-7m7 7V3" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<button aria-label="スレッド内検索" class="p-1.5 text-slate-400 hover:text-slate-200 tap-press rounded" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<button aria-label="メニュー" class="p-1.5 text-slate-400 hover:text-slate-200 tap-press rounded" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+<!-- ChMate Style Extraction Filter Tabs -->
+<nav class="relative flex items-center px-2 py-1 bg-[#06101c] border-t border-[#0f1b2b] overflow-x-auto no-scrollbar text-xs font-medium" id="filter-tabs"><button class="filter-tab-btn relative px-3 py-1 text-sky-400 tap-press transition-colors shrink-0 flex items-center space-x-1.5" data-filter="all"><span class="">すべて</span><span class="tab-indicator absolute bottom-0 left-2 right-2 h-[2px] bg-sky-400 rounded-full"></span></button><button class="filter-tab-btn relative px-3 py-1 text-slate-400 hover:text-slate-200 tap-press transition-colors shrink-0 flex items-center space-x-1" data-filter="popular"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">人気抽出</span></button><button class="filter-tab-btn relative px-3 py-1 text-slate-400 hover:text-slate-200 tap-press transition-colors shrink-0 flex items-center space-x-1" data-filter="images"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">画像 (1)</span></button><button class="filter-tab-btn relative px-3 py-1 text-slate-400 hover:text-slate-200 tap-press transition-colors shrink-0 flex items-center space-x-1" data-filter="links"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">リンク</span></button><button class="filter-tab-btn relative px-3 py-1 text-slate-400 hover:text-slate-200 tap-press transition-colors shrink-0 flex items-center space-x-1" data-filter="videos"><svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg><span class="">動画</span></button></nav>
+</header>
+<!-- END: Header -->
+<!-- BEGIN: Main Content Area with ChMate Scroll Rail -->
+<main class="flex-1 overflow-hidden relative flex bg-[#051424]">
+<!-- Scrollable Posts List -->
+<div class="flex-1 overflow-y-auto pb-20 relative select-text" id="thread-scroll-container">
+<!-- Post #1 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="1">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="1">1</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/08(火) 23:51:21.59</span>
+<span class="text-slate-500 font-mono">ID:0fa1bd213a</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="1" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 quote-indicator font-sans">
+        test
+      </div>
+</article>
+<!-- Post #2 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="2">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="2">2</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 12:20:52.85</span>
+<span class="text-slate-400 font-mono font-normal">ID:ac2653541c (3)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="2" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 quote-indicator font-sans">
+        テスト
+      </div>
+</article>
+<!-- Post #3 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="3">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="3">3 <span class="text-[10px] font-normal text-slate-400">(4)</span></span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 16:39:17.66</span>
+<span class="text-slate-400 font-mono font-normal">ID:ac2653541c (3)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="3" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 quote-indicator font-sans">
+        テスと
+      </div>
+</article>
+<!-- Post #4 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="4">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="4">4</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 16:48:37.91</span>
+<span class="text-slate-400 font-mono font-normal">ID:ac2653541c (3)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="4" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 quote-indicator space-y-1">
+<div><a class="text-sky-400 font-mono hover:underline anchor-link active:text-sky-300" data-anchor="3" href="javascript:void(0)">&gt;&gt;3</a></div>
+<div class="">テスト</div>
+</div>
+</article>
+<!-- Post #5 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="5">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="5">5</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 20:14:13</span>
+<span class="text-slate-400 font-mono font-normal">ID:ac2653541c (5)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="5" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5">
+<a class="text-sky-400 font-mono hover:underline anchor-link active:text-sky-300" data-anchor="3" href="javascript:void(0)">&gt;&gt;3</a>
+</div>
+</article>
+<!-- Post #6 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="6">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="6">6</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 20:14:26</span>
+<span class="text-slate-400 font-mono font-normal">ID:ac2653541c (5)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="6" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 space-y-1">
+<div><a class="text-sky-400 font-mono hover:underline anchor-link active:text-sky-300" data-anchor="3" href="javascript:void(0)">&gt;&gt;3</a></div>
+<div class="">テスト</div>
+</div>
+</article>
+<!-- Post #7 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="7">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="7">7</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 20:20:20</span>
+<span class="text-slate-400 font-mono font-normal">ID:fe60014c19 (3)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="7" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 quote-indicator">
+        test
+      </div>
+</article>
+<!-- Post #8 -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors" data-post-number="8">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="8">8</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 20:25:04</span>
+<span class="text-slate-400 font-mono font-normal">ID:fe60014c19 (3)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="8" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 quote-indicator">
+        てｓｔ
+      </div>
+</article>
+<!-- BEGIN: Unread Divider (ChMate / AnonBoard hybrid) -->
+<div class="relative my-3 select-none flex items-center justify-center px-4" data-purpose="unread-divider" id="unread-divider-marker">
+<div class="w-full border-t border-sky-900/60"></div>
+<span class="absolute bg-[#051424] px-3 text-[11px] text-sky-400 font-normal tracking-wide flex items-center space-x-1.5 border border-sky-900/40 rounded-full py-0.5">
+<span class="w-1.5 h-1.5 rounded-full bg-sky-400 animate-pulse"></span>
+<span class="">ここから未読</span>
+</span>
+</div>
+<!-- END: Unread Divider -->
+<!-- Post #9 (With Inline Image Thumbnail + Tap Zoom) -->
+<article class="post-item post-hairline px-3.5 py-2.5 relative tap-press transition-colors bg-[#081729]/40" data-post-number="9">
+<div class="flex items-baseline justify-between text-[11px] mb-1 leading-relaxed">
+<div class="flex items-center space-x-1.5 flex-wrap">
+<span class="font-bold text-sky-400 cursor-pointer anchor-trigger" data-target="9">9</span>
+<span class="text-slate-300 font-medium">名無しさん</span>
+<span class="text-slate-400">2026/09/09(水) 20:28:09</span>
+<span class="text-slate-400 font-mono font-normal">ID:fe60014c19 (3)</span>
+<button class="text-slate-500 hover:text-sky-400 ml-1 inline-reply-btn" data-target="9" type="button">返信</button>
+</div>
+<button class="text-[10px] text-slate-600 hover:text-slate-400 shrink-0 ml-2" type="button">通報</button>
+</div>
+<div class="text-[14.5px] leading-relaxed text-slate-100 pl-2.5 quote-indicator space-y-2">
+<div class="">てｓｔ</div>
+<div class="break-all text-[12px] text-sky-400 font-mono leading-snug hover:underline cursor-pointer">https://thumb.wikimedia.org/wikipedia/commons/thumb/7/78/Vasily_Perov_-_%D0%9F%D0%BE%D1%80%D1%82%D1%80%D0%B5%D1%82_%D0%A4.%D0%9C.%D0%94%D0%BE%D1%81%D1%82%D0%BE%D0%B5%D0%B2%D1%81%D0%BA%D0%BE%D0%B3%D0%BE_-_Google_Art_Project.jpg/960px-Vasily_Perov_-_%D0%9F%D0%BE%D1%80%D1%82%D1%80%D0%B5%D1%82_%D0%A4.%D0%9C.%D0%94%D0%BE%D1%81%D1%82%D0%BE%D0%B5%D0%B2%D1%81%D0%BA%D0%BE%D0%B3%D0%BE_-_Google_Art_Project.jpg</div>
+<!-- ChMate Style Inline Thumbnail Preview -->
+<div class="pt-1 flex items-center space-x-2">
+<div class="relative group cursor-pointer inline-block border border-slate-700/80 bg-black/40 rounded overflow-hidden shadow tap-press" id="sample-thumbnail">
+<img alt="添付サムネイル画像" class="w-20 h-24 object-cover transition-transform duration-200 group-hover:scale-105" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtD7hdSIRj1rxRnATXff04wZ33Xvg16Lsw0lO6luNudELL97IupirmLdUCpSU_a0KljQwtWgbOG2UEhm0E22pH2pGY_JTLw1BA6w19zkKX6SOMpxt5I1COjZzlrFhUXFKsLArhfJOY5-He_01777ZkNw3mj2ss7SIQZ-wj1GhnQym-YIPY6tJ8DHSOySvWh11VIZFtvTunZYdPBZhYOKPPyF2h-sVvqiX6wt34JQAbv9jNiKiOMPVpEw">
+<span class="absolute bottom-1 right-1 bg-black/75 backdrop-blur-xs text-[9px] font-mono px-1 rounded text-slate-200">JPG</span>
+</div>
+<div class="text-[11px] text-slate-400 font-mono">
+<span class="">960×1167</span>
+<span class="block text-slate-500">タップで拡大表示</span>
+</div>
+</div>
+</div>
+</article>
+</div>
+<!-- ChMate Right-Edge Minimalist Scroll Rail & Diamonds Indicator -->
+<aside class="chmate-rail" id="scroll-rail" title="スクロールガイド">
+<!-- Unread diamonds on rail -->
+<div class="unread-gem" style="top: 25%;"></div>
+<div class="unread-gem" style="top: 48%;"></div>
+<div class="unread-gem" style="top: 68%; background-color: #60a5fa;"></div>
+<!-- Active scroll indicator thumb -->
+<div class="rail-thumb" id="rail-thumb" style="top: 645.163px;"></div>
+</aside>
+</main>
+<!-- END: Main Content Area -->
+<!-- BEGIN: Multi-level Anchor Popup Stack (ChMate Popups Container) -->
+<div class="fixed inset-0 bg-black/50 z-40 hidden backdrop-blur-[1px] transition-opacity duration-200 opacity-0" id="popup-backdrop"></div>
+<!-- Popups Container (manages stacking levels 1, 2, etc.) -->
+<div class="fixed inset-x-3 bottom-14 z-50 pointer-events-none flex flex-col items-center space-y-[-18px]" id="popup-stack-container">
+<!-- Dynamically injected popup cards or preset active demo popup -->
+<div class="popup-card enter pointer-events-auto w-full max-w-md bg-[#0b1726] border border-[#1e3452] shadow-2xl rounded-lg overflow-hidden text-slate-200" id="popup-level-1">
+<!-- Popup Header with Breadcrumb / Level Indicator & Close -->
+<div class="flex items-center justify-between px-3 py-1.5 bg-[#0e1d30] border-b border-[#18293f] text-xs">
+<div class="flex items-center space-x-2">
+<span class="text-sky-400 font-semibold font-mono text-[11px] bg-sky-950/80 px-1.5 py-0.5 rounded border border-sky-800/60">ポップアップ &gt;&gt;3</span>
+<span class="text-slate-400 text-[10px]">参照レス: 4件</span>
+</div>
+<div class="flex items-center space-x-1">
+<button class="popup-anchor-jump text-slate-400 hover:text-sky-300 p-1 text-[11px] flex items-center space-x-0.5 tap-press" data-jump="3">
+<span class="">元へ移動</span>
+</button>
+<button aria-label="閉じる" class="popup-close-btn text-slate-400 hover:text-white p-1 tap-press">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</div>
+<!-- Popup Body (Content of Post #3) -->
+<div class="p-3 bg-[#081423]/95 text-xs">
+<div class="flex items-baseline space-x-1.5 text-[11px] mb-1.5 text-slate-400"><span class="font-bold text-sky-400">3</span><span class="text-slate-300 font-medium">名無しさん</span><span class="text-slate-500">2026/09/09(水) 16:39:17.66</span><span class="text-slate-400 font-mono">ID:ac2653541c</span></div>
+<div class="text-[14px] text-slate-100 pl-2 quote-indicator py-0.5">
+        テスと
+      </div>
+<!-- Sub-replies in ChMate style -->
+<div class="mt-2.5 pt-2 border-t border-[#142337] flex items-center justify-between text-[11px]">
+<span class="text-slate-400">返信: 
+          <a class="text-sky-400 font-mono anchor-link ml-1 hover:underline" data-anchor="4" href="javascript:void(0)">&gt;&gt;4</a>, 
+          <a class="text-sky-400 font-mono anchor-link ml-1 hover:underline" data-anchor="5" href="javascript:void(0)">&gt;&gt;5</a>, 
+          <a class="text-sky-400 font-mono anchor-link ml-1 hover:underline" data-anchor="6" href="javascript:void(0)">&gt;&gt;6</a>
+</span>
+<span class="text-[10px] text-slate-500">外側をタップで閉じる</span>
+</div>
+</div>
+</div>
+</div>
+<!-- END: Multi-level Anchor Popup Stack -->
+<!-- BEGIN: Image Modal Preview (ChMate Lightbox) -->
+<div class="fixed inset-0 bg-black/90 z-50 hidden flex-col items-center justify-center p-4 transition-opacity duration-200 select-none" id="image-lightbox">
+<div class="absolute top-4 right-4 flex items-center space-x-3 z-10">
+<a class="text-xs bg-slate-800 text-slate-200 px-2.5 py-1 rounded border border-slate-700" href="#" id="lightbox-source-link" rel="noopener" target="_blank">元リンク開く</a>
+<button class="p-1.5 text-slate-300 hover:text-white bg-slate-800/80 rounded-full" id="lightbox-close">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+<div class="max-w-full max-h-[85vh] overflow-hidden flex items-center justify-center">
+<img alt="拡大プレビュー" class="max-w-full max-h-[85vh] object-contain rounded shadow-2xl transition-transform duration-150" id="lightbox-img" src="">
+</div>
+<div class="mt-3 text-center text-xs text-slate-400">
+<span class="">ピンチまたはダブルタップで拡大 / 背景タップで戻る</span>
+</div>
+</div>
+<!-- END: Image Modal Preview -->
+<!-- BEGIN: ChMate Bottom Action Dock & Post Drawer -->
+<!-- Bottom Sheet Slide-up Writing Drawer -->
+<div class="sheet-closed fixed inset-x-0 bottom-0 z-40 bg-[#0a1626] border-t border-[#1e3450] shadow-2xl rounded-t-xl transition-all duration-300 max-h-[80vh] flex flex-col" id="write-sheet">
+<!-- Sheet Handle & Header -->
+<div class="flex items-center justify-between px-3 py-2 border-b border-[#142337] bg-[#07111e] rounded-t-xl">
+<div class="flex items-center space-x-2">
+<span class="w-2 h-2 rounded-full bg-blue-500"></span>
+<span class="text-xs font-semibold text-slate-200">レスを投稿する</span>
+<span class="text-[11px] font-mono text-sky-400" id="write-reply-target"></span>
+</div>
+<div class="flex items-center space-x-2">
+<button class="text-slate-400 hover:text-white p-1 tap-press" id="write-sheet-close">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+</button>
+</div>
+</div>
+<!-- Writing Controls & Textarea -->
+<div class="p-3 flex-1 flex flex-col space-y-2.5">
+<div class="flex items-center justify-between text-xs text-slate-400">
+<div class="flex items-center space-x-3">
+<label class="inline-flex items-center space-x-1.5 cursor-pointer">
+<input class="w-3.5 h-3.5 rounded bg-[#102033] border-[#1b314e] text-blue-600 focus:ring-0" type="checkbox">
+<span class="text-[11px] font-mono text-slate-300">AA</span>
+</label>
+<label class="inline-flex items-center space-x-1.5 cursor-pointer">
+<input class="w-3.5 h-3.5 rounded bg-[#102033] border-[#1b314e] text-blue-600 focus:ring-0" type="checkbox">
+<span class="text-[11px] text-slate-300">sage</span>
+</label>
+<label class="inline-flex items-center space-x-1.5 cursor-pointer">
+<input class="w-3.5 h-3.5 rounded bg-[#102033] border-[#1b314e] text-blue-600 focus:ring-0" type="checkbox">
+<span class="text-[11px] text-slate-300">画像添付</span>
+</label>
+</div>
+<div class="flex items-center space-x-2">
+<button class="text-[11px] text-sky-400 hover:underline" id="btn-insert-quote" type="button">&gt;&gt;引用</button>
+<button class="text-[11px] text-slate-400 hover:text-slate-200" type="button">定型文</button>
+</div>
+</div>
+<!-- Multi-line input -->
+<textarea class="w-full bg-[#05111f] border border-[#1a2e47] rounded-md p-2.5 text-sm text-slate-100 placeholder-slate-500 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 font-sans resize-none" id="write-textarea" placeholder="本文を入力..." rows="4"></textarea>
+<!-- Bottom Action Row inside Sheet -->
+<div class="flex items-center justify-between pt-1">
+<div class="text-[11px] text-slate-500">
+        E-mail: <input class="w-16 bg-[#061220] border border-[#162940] rounded px-1.5 py-0.5 text-slate-200 text-[11px] focus:outline-none" placeholder="sage" type="text">
+</div>
+<div class="flex items-center space-x-2">
+<button class="px-3 py-1.5 rounded text-xs text-slate-400 hover:text-slate-200 bg-[#101e30] border border-[#192b42]" id="write-cancel-btn" type="button">キャンセル</button>
+<button class="px-4 py-1.5 rounded text-xs font-semibold text-white bg-blue-600 hover:bg-blue-500 shadow-md flex items-center space-x-1.5 tap-press" id="write-submit-btn" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="">書き込む</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<!-- ChMate Persistent Bottom Toolbar / Quick Dock -->
+<footer class="bg-[#071322] border-t border-[#142337] z-30 shrink-0 select-none pb-safe">
+<!-- Minimalist Bottom Dock (ChMate One-hand Style) -->
+<div class="h-12 px-2.5 flex items-center justify-between">
+<!-- Refresh Button (with spin animation on click) -->
+<button aria-label="更新" class="flex items-center space-x-1.5 py-1.5 px-2.5 text-slate-300 active:text-white bg-[#0f1d2e] active:bg-[#16283d] border border-[#182a40] rounded text-xs font-medium tap-press transition-all" id="btn-refresh" type="button">
+<svg class="w-4 h-4 text-sky-400" fill="none" id="refresh-icon" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-[11.5px]">更新</span>
+</button>
+<!-- Center Quick Writing Trigger (Tap opens bottom sheet modal) -->
+<button class="flex-1 mx-2 flex items-center justify-center space-x-1.5 py-2 px-3.5 bg-blue-600 active:bg-blue-700 text-white rounded text-xs font-medium shadow transition-transform active:scale-[0.98] tap-press" id="btn-open-writer" type="button">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+<span class="text-[12.5px] tracking-wide font-normal">書き込む</span>
+</button>
+<!-- Bottom Navigation Utilities (Jump to bottom, menu) -->
+<div class="flex items-center space-x-1">
+<button aria-label="最下部へ" class="p-2 text-slate-400 hover:text-slate-200 active:bg-[#122236] rounded tap-press" id="btn-scroll-bottom" title="最下部へ移動" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M19 13l-7 7-7-7m14-8l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<button aria-label="メニュー" class="p-2 text-slate-400 hover:text-slate-200 active:bg-[#122236] rounded tap-press" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+<path d="M12 5v.01M12 12v.01M12 19v.01" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+</div>
+</div>
+</footer>
+<!-- END: ChMate Bottom Action Dock -->
+<!-- BEGIN: Interactive Vanilla JS (Popups, Extraction Tabs, Lightbox, Bottom Sheet) -->
+<script data-purpose="chmate-interactive-engine">
+  document.addEventListener('DOMContentLoaded', () => {
+    const scrollContainer = document.getElementById('thread-scroll-container');
+    const railThumb = document.getElementById('rail-thumb');
+    const popupBackdrop = document.getElementById('popup-backdrop');
+    const popupCard1 = document.getElementById('popup-level-1');
+    const writeSheet = document.getElementById('write-sheet');
+    const writeTextarea = document.getElementById('write-textarea');
+    const writeReplyTarget = document.getElementById('write-reply-target');
+    const refreshBtn = document.getElementById('btn-refresh');
+    const refreshIcon = document.getElementById('refresh-icon');
+    const quickUnreadBtn = document.getElementById('btn-quick-unread');
+    const unreadDivider = document.getElementById('unread-divider-marker');
+    const sampleThumbnail = document.getElementById('sample-thumbnail');
+    const imageLightbox = document.getElementById('image-lightbox');
+    const lightboxImg = document.getElementById('lightbox-img');
+    const lightboxClose = document.getElementById('lightbox-close');
+
+    // Post content dictionary for instant realistic anchor popups
+    const postsData = {
+      1: { num: 1, name: '名無しさん', date: '2026/09/08(火) 23:51:21.59', id: '0fa1bd213a', body: 'test' },
+      2: { num: 2, name: '名無しさん', date: '2026/09/09(水) 12:20:52.85', id: 'ac2653541c (3)', body: 'テスト' },
+      3: { num: 3, name: '名無しさん', date: '2026/09/09(水) 16:39:17.66', id: 'ac2653541c (3)', body: 'テスと', replies: [4, 5, 6] },
+      4: { num: 4, name: '名無しさん', date: '2026/09/09(水) 16:48:37.91', id: 'ac2653541c (3)', body: '<a href="javascript:void(0)" class="text-sky-400 anchor-link font-mono" data-anchor="3">&gt;&gt;3</a><br>テスト' },
+      5: { num: 5, name: '名無しさん', date: '2026/09/09(水) 20:14:13', id: 'ac2653541c (5)', body: '<a href="javascript:void(0)" class="text-sky-400 anchor-link font-mono" data-anchor="3">&gt;&gt;3</a>' },
+      6: { num: 6, name: '名無しさん', date: '2026/09/09(水) 20:14:26', id: 'ac2653541c (5)', body: '<a href="javascript:void(0)" class="text-sky-400 anchor-link font-mono" data-anchor="3">&gt;&gt;3</a><br>テスト' },
+      7: { num: 7, name: '名無しさん', date: '2026/09/09(水) 20:20:20', id: 'fe60014c19 (3)', body: 'test' },
+      8: { num: 8, name: '名無しさん', date: '2026/09/09(水) 20:25:04', id: 'fe60014c19 (3)', body: 'てｓｔ' },
+      9: { num: 9, name: '名無しさん', date: '2026/09/09(水) 20:28:09', id: 'fe60014c19 (3)', body: 'てｓｔ<br><span class="text-amber-400 break-all font-mono text-[11px]">https://thumb.wikimedia.org/.../Dostoevsky.jpg</span>' },
+    };
+
+    // 1. Initial Scroll position & Rail Tracker
+    function updateRailThumb() {
+      if (!scrollContainer) return;
+      const total = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+      if (total <= 0) return;
+      const progress = scrollContainer.scrollTop / total;
+      const railHeight = scrollContainer.clientHeight - 36;
+      railThumb.style.top = `${progress * railHeight + 4}px`;
+    }
+
+    scrollContainer.addEventListener('scroll', updateRailThumb);
+    // Scroll down toward unread initially
+    setTimeout(() => {
+      if (unreadDivider) {
+        unreadDivider.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      updateRailThumb();
+    }, 150);
+
+    // Jump to unread
+    if (quickUnreadBtn && unreadDivider) {
+      quickUnreadBtn.addEventListener('click', () => {
+        unreadDivider.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    }
+
+    // Scroll to bottom button
+    const scrollBottomBtn = document.getElementById('btn-scroll-bottom');
+    if (scrollBottomBtn) {
+      scrollBottomBtn.addEventListener('click', () => {
+        scrollContainer.scrollTo({ top: scrollContainer.scrollHeight, behavior: 'smooth' });
+      });
+    }
+
+    // 2. Refresh Button Spin Animation
+    if (refreshBtn && refreshIcon) {
+      refreshBtn.addEventListener('click', () => {
+        refreshIcon.classList.add('spin-active');
+        setTimeout(() => {
+          refreshIcon.classList.remove('spin-active');
+        }, 700);
+      });
+    }
+
+    // 3. Anchor Popup System (ChMate Multi-level popup)
+    let popupOpen = false;
+
+    function showPopup(targetNum) {
+      const data = postsData[targetNum] || {
+        num: targetNum,
+        name: '名無しさん',
+        date: '---',
+        id: '---',
+        body: 'レス ' + targetNum + ' の内容'
+      };
+
+      // Populate Level-1 Popup
+      const numBadge = popupCard1.querySelector('.text-sky-400');
+      if (numBadge) numBadge.textContent = `ポップアップ >>${data.num}`;
+      
+      const bodyContainer = popupCard1.querySelector('.quote-indicator');
+      if (bodyContainer) bodyContainer.innerHTML = data.body;
+
+      const jumpBtn = popupCard1.querySelector('.popup-anchor-jump');
+      if (jumpBtn) jumpBtn.setAttribute('data-jump', data.num);
+
+      // Open Backdrop & Card
+      popupBackdrop.classList.remove('hidden');
+      requestAnimationFrame(() => {
+        popupBackdrop.classList.remove('opacity-0');
+        popupBackdrop.classList.add('opacity-100');
+        popupCard1.classList.remove('enter');
+        popupCard1.classList.add('show');
+      });
+      popupOpen = true;
+    }
+
+    function closePopups() {
+      popupCard1.classList.remove('show');
+      popupCard1.classList.add('enter');
+      popupBackdrop.classList.remove('opacity-100');
+      popupBackdrop.classList.add('opacity-0');
+      setTimeout(() => {
+        popupBackdrop.classList.add('hidden');
+      }, 200);
+      popupOpen = false;
+    }
+
+    // Click on >>3, >>4 etc.
+    document.addEventListener('click', (e) => {
+      const anchorEl = e.target.closest('.anchor-link');
+      if (anchorEl) {
+        e.preventDefault();
+        const target = anchorEl.getAttribute('data-anchor');
+        showPopup(target);
+        return;
+      }
+
+      // Close popup button
+      if (e.target.closest('.popup-close-btn') || e.target === popupBackdrop) {
+        closePopups();
+        return;
+      }
+
+      // Jump from popup to post
+      const jumpTrigger = e.target.closest('.popup-anchor-jump');
+      if (jumpTrigger) {
+        const targetNum = jumpTrigger.getAttribute('data-jump');
+        closePopups();
+        const postEl = document.querySelector(`[data-post-number="${targetNum}"]`);
+        if (postEl) {
+          postEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          postEl.classList.add('bg-sky-900/30');
+          setTimeout(() => postEl.classList.remove('bg-sky-900/30'), 1500);
+        }
+        return;
+      }
+
+      // Post number header click
+      const numTrigger = e.target.closest('.anchor-trigger');
+      if (numTrigger) {
+        const target = numTrigger.getAttribute('data-target');
+        showPopup(target);
+      }
+    });
+
+    // 4. Bottom Sheet Post Writer (ChMate slide-up sheet)
+    const openWriterBtn = document.getElementById('btn-open-writer');
+    const closeWriterBtn = document.getElementById('write-sheet-close');
+    const cancelWriterBtn = document.getElementById('write-cancel-btn');
+    const submitWriterBtn = document.getElementById('write-submit-btn');
+
+    function openWriter(targetText = '') {
+      if (targetText) {
+        writeReplyTarget.textContent = `(返信先: >>${targetText})`;
+        writeTextarea.value = `>>${targetText}\n`;
+      } else {
+        writeReplyTarget.textContent = '';
+      }
+      writeSheet.classList.remove('sheet-closed');
+      writeSheet.classList.add('sheet-open');
+      setTimeout(() => writeTextarea.focus(), 150);
+    }
+
+    function closeWriter() {
+      writeSheet.classList.remove('sheet-open');
+      writeSheet.classList.add('sheet-closed');
+      writeTextarea.blur();
+    }
+
+    if (openWriterBtn) openWriterBtn.addEventListener('click', () => openWriter());
+    if (closeWriterBtn) closeWriterBtn.addEventListener('click', closeWriter);
+    if (cancelWriterBtn) cancelWriterBtn.addEventListener('click', closeWriter);
+
+    // Reply button inside individual post header
+    document.querySelectorAll('.inline-reply-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const target = btn.getAttribute('data-target');
+        openWriter(target);
+      });
+    });
+
+    if (submitWriterBtn) {
+      submitWriterBtn.addEventListener('click', () => {
+        if (!writeTextarea.value.trim()) return;
+        submitWriterBtn.textContent = '送信中...';
+        setTimeout(() => {
+          submitWriterBtn.innerHTML = `
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+            <span>完了</span>
+          `;
+          setTimeout(() => {
+            closeWriter();
+            writeTextarea.value = '';
+            submitWriterBtn.innerHTML = `
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path></svg>
+              <span>書き込む</span>
+            `;
+          }, 600);
+        }, 400);
+      });
+    }
+
+    // 5. Image Lightbox Tap Expand
+    if (sampleThumbnail && imageLightbox) {
+      sampleThumbnail.addEventListener('click', () => {
+        const img = sampleThumbnail.querySelector('img');
+        if (img) {
+          lightboxImg.src = img.src;
+          imageLightbox.classList.remove('hidden');
+          imageLightbox.classList.add('flex');
+        }
+      });
+    }
+
+    if (lightboxClose) {
+      lightboxClose.addEventListener('click', () => {
+        imageLightbox.classList.add('hidden');
+        imageLightbox.classList.remove('flex');
+      });
+    }
+    if (imageLightbox) {
+      imageLightbox.addEventListener('click', (e) => {
+        if (e.target === imageLightbox || e.target === lightboxImg) {
+          imageLightbox.classList.add('hidden');
+          imageLightbox.classList.remove('flex');
+        }
+      });
+    }
+
+    // 6. Extraction Tabs Interactivity
+    const filterTabs = document.querySelectorAll('.filter-tab-btn');
+    filterTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        filterTabs.forEach(t => {
+          t.classList.remove('text-sky-400');
+          t.classList.add('text-slate-400');
+          const ind = t.querySelector('.tab-indicator');
+          if (ind) ind.remove();
+        });
+        tab.classList.remove('text-slate-400');
+        tab.classList.add('text-sky-400');
+        
+        const activeBar = document.createElement('span');
+        activeBar.className = 'tab-indicator absolute bottom-0 left-2 right-2 h-[2px] bg-sky-400 rounded-full transition-all';
+        tab.appendChild(activeBar);
+
+        // Simple preview demo: if "images", highlight post 9
+        const filterType = tab.getAttribute('data-filter');
+        if (filterType === 'images') {
+          const p9 = document.querySelector('[data-post-number="9"]');
+          if (p9) p9.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      });
+    });
+
+  });
+</script>
+<!-- END: Interactive Vanilla JS -->
+
+
+</body></html>

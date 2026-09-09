@@ -8,6 +8,7 @@ import * as postRepository from '../repository/postRepository'
 import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
 import { matchesAnyNgWord } from '../utils/ngWords'
+import { hasPermission } from '../utils/permissions'
 import { encodeCursor, decodeCursor, paginationQuerySchema, type PaginationQuery, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
@@ -298,9 +299,10 @@ export async function patchThread(
   if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
 
   // dat落ち状態の手動切り替えは、板ごとに自由に設定できるACLの update 権限とは別に、
-  // システム管理者のみに限定する (モデレーターによる強制dat落ち/解除)
+  // manage_threads 権限を持つロール (または isSysAdmin) のみに限定する
+  // (モデレーターによる強制dat落ち/解除)
   if (input.isArchived !== undefined) {
-    if (!isSysAdmin) throw new Error('FORBIDDEN')
+    if (!(await hasPermission(db, userRoleIds, isSysAdmin, 'manage_threads'))) throw new Error('FORBIDDEN')
     // updateThread() 経由だと updated_at が打ち直されてしまうため、専用関数を使う
     await threadRepository.setThreadArchived(db, threadId, input.isArchived)
   }

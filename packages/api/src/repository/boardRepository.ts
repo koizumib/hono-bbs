@@ -23,6 +23,7 @@ type BoardRow = {
   creator_user_id: string | null
   creator_session_id: string | null
   creator_turnstile_session_id: string | null
+  thread_count: number
 }
 
 function rowToBoard(row: BoardRow): Board {
@@ -44,6 +45,7 @@ function rowToBoard(row: BoardRow): Board {
     defaultPostAcl: JSON.parse(row.default_post_acl) as ResourceAcl,
     ngWords: JSON.parse(row.ng_words) as NgWordRule[],
     category: row.category,
+    threadCount: row.thread_count,
     createdAt: row.created_at,
     adminMeta: {
       creatorUserId: row.creator_user_id,
@@ -53,8 +55,15 @@ function rowToBoard(row: BoardRow): Board {
   }
 }
 
+// 板ごとのスレ数は保存カラムではなく都度この相関サブクエリで数える (更新のたびに
+// カウンタを持ち直す必要がなく、一覧・詳細どちらでも常に正確な値になる)
+const THREAD_COUNT_SUBQUERY = '(SELECT COUNT(*) FROM threads t WHERE t.board_id = b.id) AS thread_count'
+
 export async function findBoardById(db: DbAdapter, id: string): Promise<Board | null> {
-  const row = await db.first<BoardRow>('SELECT * FROM boards WHERE id = ?', [id])
+  const row = await db.first<BoardRow>(
+    `SELECT b.*, ${THREAD_COUNT_SUBQUERY} FROM boards b WHERE b.id = ?`,
+    [id],
+  )
   return row ? rowToBoard(row) : null
 }
 
@@ -67,12 +76,12 @@ export async function findBoardsPage(
   opts: { limit: number; cursor: BoardCursor | null },
 ): Promise<{ items: Board[]; nextCursorRaw: BoardCursor | null }> {
   const params: unknown[] = []
-  let sql = 'SELECT * FROM boards'
+  let sql = `SELECT b.*, ${THREAD_COUNT_SUBQUERY} FROM boards b`
   if (opts.cursor) {
-    sql += ' WHERE (created_at < ? OR (created_at = ? AND id < ?))'
+    sql += ' WHERE (b.created_at < ? OR (b.created_at = ? AND b.id < ?))'
     params.push(opts.cursor.createdAt, opts.cursor.createdAt, opts.cursor.id)
   }
-  sql += ' ORDER BY created_at DESC, id DESC LIMIT ?'
+  sql += ' ORDER BY b.created_at DESC, b.id DESC LIMIT ?'
   params.push(opts.limit + 1)
 
   const result = await db.all<BoardRow>(sql, params)

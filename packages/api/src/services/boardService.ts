@@ -79,6 +79,7 @@ function buildBoardFromInput(
     defaultPostAcl: buildAcl(input.defaultPostAcl, null),
     ngWords: input.ngWords,
     category: input.category ?? '',
+    threadCount: 0, // 新規作成時点では常に0 (insertBoard()はこのフィールドを保存しない)
     createdAt: now,
     adminMeta: { creatorUserId, creatorSessionId, creatorTurnstileSessionId },
   }

@@ -20,6 +20,7 @@ export type User = {
 export type Role = {
   id: string
   name: string
+  permissions: string[]
   createdAt: string
 }
 
@@ -90,6 +91,7 @@ export type Board = {
   defaultPostAcl: ResourceAcl    // 投稿作成時に instantiateAcl() でコピーされるテンプレート
   ngWords: NgWordRule[]
   category: string
+  threadCount: number
   createdAt: string
   adminMeta: AdminMeta
 }

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useBoards } from '../../hooks/useBoards'
+import { useBoardList } from '../../hooks/useBoardList'
 import { useAuthStore } from '../../stores/authStore'
-import { useSettingsStore } from '../../stores/settingsStore'
 import LoginModal from '../auth/LoginModal'
+import BoardListRow from './BoardListRow'
 import { env } from '../../config/env'
 
 function appIconInitials(name: string): string {
@@ -24,13 +24,23 @@ export default function BoardSidebar() {
   const [showLogin, setShowLogin] = useState(false)
   const { boardId } = useParams()
   const navigate = useNavigate()
-  const { data, isLoading } = useBoards()
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn())
   const displayName = useAuthStore((s) => s.displayName)
   const clearSession = useAuthStore((s) => s.clearSession)
-  const hiddenBoardIds = useSettingsStore((s) => s.hiddenBoardIds)
-
-  const boards = (data?.data ?? []).filter((b) => !hiddenBoardIds.includes(b.id))
+  const {
+    isLoading,
+    query,
+    setQuery,
+    tab,
+    setTab,
+    boards,
+    favoriteBoards,
+    categoryGroups,
+    favoriteBoardIds,
+    toggleFavoriteBoard,
+    collapsedCategories,
+    toggleCategoryCollapsed,
+  } = useBoardList()
 
   async function handleLogout() {
     clearSession()
@@ -79,39 +89,120 @@ export default function BoardSidebar() {
         </div>
 
         {/* 板一覧 */}
-        <nav className="flex-1 overflow-y-auto custom-scrollbar py-4">
-          {!collapsed && (
-            <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-              板一覧
+        {collapsed ? (
+          // 折りたたみ時はアイコンのみのシンプルな一覧のまま
+          <nav className="flex-1 overflow-y-auto custom-scrollbar py-4">
+            {isLoading ? (
+              <div className="px-5 py-3 text-slate-500 text-sm">読み込み中...</div>
+            ) : (
+              <ul className="space-y-1">
+                {boards.map((board) => (
+                  <li key={board.id}>
+                    <button
+                      onClick={() => navigate(`/${board.id}`)}
+                      className={`w-full flex items-center px-5 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
+                        boardId === board.id ? 'active-board text-slate-900 dark:text-white' : ''
+                      }`}
+                      title={board.name}
+                    >
+                      <span className="material-symbols-outlined text-xl flex-shrink-0">terminal</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </nav>
+        ) : (
+          <nav className="flex-1 flex flex-col min-h-0">
+            {/* 検索 */}
+            <div className="p-3 flex-shrink-0">
+              <input
+                type="text"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="板名・キーワード絞り込み..."
+                className="w-full bg-c-surface2 border border-c-border rounded-lg px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-c-accent/50"
+              />
             </div>
-          )}
-          {isLoading ? (
-            <div className="px-5 py-3 text-slate-500 text-sm">読み込み中...</div>
-          ) : (
-            <ul className="space-y-1">
-              {boards.map((board) => (
-                <li key={board.id}>
-                  <button
-                    onClick={() => navigate(`/${board.id}`)}
-                    className={`w-full flex items-center px-5 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
-                      boardId === board.id ? 'active-board text-slate-900 dark:text-white' : ''
-                    }`}
-                    title={board.name}
-                  >
-                    <span className="material-symbols-outlined text-xl flex-shrink-0">
-                      terminal
-                    </span>
-                    {!collapsed && (
-                      <span className="ml-3 text-sm font-medium whitespace-nowrap truncate">
-                        {board.name}
-                      </span>
-                    )}
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </nav>
+
+            {/* タブ */}
+            <div className="flex border-b border-c-border flex-shrink-0 text-sm">
+              <button
+                onClick={() => setTab('favorites')}
+                className={`flex-1 py-2 font-medium border-b-2 transition-colors ${
+                  tab === 'favorites'
+                    ? 'border-c-accent text-c-accent'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                お気に入り ({favoriteBoardIds.length})
+              </button>
+              <button
+                onClick={() => setTab('all')}
+                className={`flex-1 py-2 font-medium border-b-2 transition-colors ${
+                  tab === 'all'
+                    ? 'border-c-accent text-c-accent'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                }`}
+              >
+                全板一覧 ({boards.length})
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
+              {isLoading ? (
+                <div className="px-5 py-3 text-slate-500 text-sm">読み込み中...</div>
+              ) : tab === 'favorites' ? (
+                favoriteBoards.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-slate-500 text-xs">
+                    お気に入りの板はありません
+                  </div>
+                ) : (
+                  favoriteBoards.map((board) => (
+                    <BoardListRow
+                      key={board.id}
+                      board={board}
+                      isActive={boardId === board.id}
+                      isFavorite
+                      onToggleFavorite={() => toggleFavoriteBoard(board.id)}
+                      onClick={() => navigate(`/${board.id}`)}
+                    />
+                  ))
+                )
+              ) : (
+                categoryGroups.map((group) => {
+                  const isCollapsed = collapsedCategories.includes(group.category)
+                  return (
+                    <div key={group.category}>
+                      <button
+                        onClick={() => toggleCategoryCollapsed(group.category)}
+                        className="w-full flex items-center justify-between px-4 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                      >
+                        <span>{group.category} ({group.boards.length})</span>
+                        <span
+                          className="material-symbols-outlined text-sm transition-transform"
+                          style={{ transform: isCollapsed ? 'rotate(-90deg)' : undefined }}
+                        >
+                          expand_more
+                        </span>
+                      </button>
+                      {!isCollapsed && group.boards.map((board) => (
+                        <BoardListRow
+                          key={board.id}
+                          board={board}
+                          isActive={boardId === board.id}
+                          isFavorite={favoriteBoardIds.includes(board.id)}
+                          onToggleFavorite={() => toggleFavoriteBoard(board.id)}
+                          onClick={() => navigate(`/${board.id}`)}
+                        />
+                      ))}
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </nav>
+        )}
 
         {/* フッター */}
         <div className="border-t border-c-border p-2 space-y-1">

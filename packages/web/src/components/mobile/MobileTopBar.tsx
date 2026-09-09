@@ -25,13 +25,13 @@ export default function MobileTopBar({
   onTitleClick,
 }: MobileTopBarProps) {
   return (
-    <header className="h-14 flex-shrink-0 flex items-center px-2 gap-1 bg-c-surface border-b border-c-border">
+    <header className="h-12 flex-shrink-0 flex items-center px-1.5 gap-0.5 bg-c-surface border-b border-c-border">
       {/* 左ボタン */}
       <button
-        className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex-shrink-0"
+        className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors flex-shrink-0"
         onClick={onBack ?? onMenuClick}
       >
-        <span className="material-symbols-outlined text-2xl">
+        <span className="material-symbols-outlined text-xl">
           {onBack ? 'arrow_back' : 'menu'}
         </span>
       </button>

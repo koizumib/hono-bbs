@@ -25,6 +25,9 @@ DROP TABLE IF EXISTS reports;
 CREATE TABLE roles (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,
+  -- 個別の管理権限 (JSON配列)。isSysAdmin(admin-role)は常に全権限を持つのでここには依らない。
+  -- 例: ["manage_threads"]
+  permissions TEXT NOT NULL DEFAULT '[]',
   created_at TEXT NOT NULL
 );
 
