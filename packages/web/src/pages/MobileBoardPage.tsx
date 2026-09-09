@@ -17,6 +17,7 @@ import Minimap from '../components/post/Minimap'
 import ReplyForm from '../components/post/ReplyForm'
 import MobileTopBar from '../components/mobile/MobileTopBar'
 import MobileBoardDrawer from '../components/mobile/MobileBoardDrawer'
+import SwipeHintOverlay from '../components/mobile/SwipeHintOverlay'
 
 // プルリフレッシュ インジケーターの「離した瞬間」「自動収納」用トランジション。
 // ドラッグ中(touchmove)はこれを適用せず指に1:1追従させ、指を離した後の
@@ -333,9 +334,10 @@ function MobileReplyPanel({ boardId, threadId, insertAnchor, onClose, onPosted }
     setTimeout(onClose, 250)
   }
 
-  // スワイプ右で閉じる
+  // スワイプ右で閉じる（ジェスチャー中は画面を動かさず、指を離してから遷移する）
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const isDraggingRef = useRef(false)
+  const [showBackLabel, setShowBackLabel] = useState(false)
 
   function handleTouchStart(e: React.TouchEvent) {
     e.stopPropagation()
@@ -350,30 +352,21 @@ function MobileReplyPanel({ boardId, threadId, insertAnchor, onClose, onPosted }
     const dy = e.touches[0].clientY - touchStartRef.current.y
     if (!isDraggingRef.current) {
       if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
-      if (dx > 8) isDraggingRef.current = true
+      if (dx > 8) { isDraggingRef.current = true; setShowBackLabel(true) }
     }
-    if (!isDraggingRef.current || dx <= 0) return
-    const panel = panelRef.current
-    if (panel) { panel.style.transform = `translateX(${dx}px)`; panel.style.transition = 'none' }
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
     e.stopPropagation()
+    setShowBackLabel(false)
     if (!touchStartRef.current || !isDraggingRef.current) {
       touchStartRef.current = null; isDraggingRef.current = false; return
     }
     const dx = e.changedTouches[0].clientX - touchStartRef.current.x
     const dt = Math.max(1, Date.now() - touchStartRef.current.time)
     touchStartRef.current = null; isDraggingRef.current = false
-    const panel = panelRef.current
-    if (!panel) return
     if (dx > window.innerWidth * 0.4 || (dx > 60 && dx / dt > 0.5)) {
-      panel.style.transition = 'transform 250ms ease'
-      panel.style.transform = 'translateX(100%)'
-      setTimeout(onClose, 250)
-    } else {
-      panel.style.transition = 'transform 200ms ease'
-      panel.style.transform = 'translateX(0)'
+      handleClose()
     }
   }
 
@@ -386,6 +379,7 @@ function MobileReplyPanel({ boardId, threadId, insertAnchor, onClose, onPosted }
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
+      <SwipeHintOverlay label={showBackLabel ? '戻る' : null} />
       <MobileTopBar title="書き込む" onBack={handleClose} />
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <ReplyForm
@@ -875,7 +869,11 @@ export default function MobileBoardPage() {
   const panelBRef = useRef<HTMLDivElement>(null)
   const skipNextSlideInRef = useRef(false)
 
-  // Panel A 左スワイプ → Panel B 指連動
+  // Panel A/B間のスワイプ中に画面中央へ出す「戻る」「進む」ラベル
+  // (ジェスチャー中は画面自体を動かさず、指を離してから遷移アニメーションを始める)
+  const [swipeLabel, setSwipeLabel] = useState<'back' | 'forward' | null>(null)
+
+  // Panel A 左スワイプ → Panel B へ進む
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
   const panelATouchRef = useRef<{ x: number; y: number; time: number; threadId: string } | null>(null)
   const isPanelADraggingRef = useRef(false)
@@ -903,15 +901,15 @@ export default function MobileBoardPage() {
     const dy = e.touches[0].clientY - panelATouchRef.current.y
     if (!isPanelADraggingRef.current) {
       if (Math.abs(dy) > Math.abs(dx) + 5) { panelATouchRef.current = null; setPendingThreadId(null); return }
-      if (dx < -8) isPanelADraggingRef.current = true
-      else if (dx > 8) return  // 右スワイプ: 視覚フィードバックなしで追跡のみ
+      if (dx < -8) {
+        isPanelADraggingRef.current = true
+        // 直前に見ていたスレッドが無ければ何も起きないジェスチャーなのでラベルも出さない
+        if (panelATouchRef.current.threadId) setSwipeLabel('forward')
+      } else if (dx > 8) {
+        return  // 右スワイプ: ドロワーを開く判定用に追跡のみ（視覚フィードバックなし）
+      }
     }
-    if (!isPanelADraggingRef.current || dx >= 0) return
-    const panel = panelBRef.current
-    if (panel && panelATouchRef.current.threadId) {
-      panel.style.transform = `translateX(${window.innerWidth + dx}px)`
-      panel.style.transition = 'none'
-    }
+    // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
   }
 
   function handlePanelATouchEnd(e: React.TouchEvent) {
@@ -920,6 +918,7 @@ export default function MobileBoardPage() {
     const dt = Math.max(1, Date.now() - panelATouchRef.current.time)
     const targetThreadId = panelATouchRef.current.threadId
     panelATouchRef.current = null
+    setSwipeLabel(null)
     if (!isPanelADraggingRef.current) {
       isPanelADraggingRef.current = false
       setPendingThreadId(null)
@@ -928,15 +927,15 @@ export default function MobileBoardPage() {
       return
     }
     isPanelADraggingRef.current = false
-    const panel = panelBRef.current
     const velocityOk = dx < -60 && Math.abs(dx) / dt > 0.4
     if ((dx < -window.innerWidth * 0.35 || velocityOk) && targetThreadId) {
+      const panel = panelBRef.current
       if (panel) { panel.style.transition = 'transform 200ms cubic-bezier(0.32, 0.72, 0, 1)'; panel.style.transform = 'translateX(0)' }
       skipNextSlideInRef.current = true
       setTimeout(() => { if (boardId) navigate(`/${boardId}/${targetThreadId}`) }, 200)
     } else {
-      if (panel) { panel.style.transition = 'transform 200ms ease'; panel.style.transform = 'translateX(100%)' }
-      setTimeout(() => setPendingThreadId(null), 200)
+      // 画面はまだ動いていないので、そのまま空パネルを片付けるだけでよい
+      setPendingThreadId(null)
     }
   }
 
@@ -1026,15 +1025,14 @@ export default function MobileBoardPage() {
     const dy = t.clientY - touchStartRef.current.y
     if (!isDraggingRef.current) {
       if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
-      if (dx > 8) isDraggingRef.current = true
+      if (dx > 8) { isDraggingRef.current = true; setSwipeLabel('back') }
     }
-    if (!isDraggingRef.current || dx <= 0) return
-    const panel = panelBRef.current
-    if (panel) { panel.style.transform = `translateX(${dx}px)`; panel.style.transition = 'none' }
+    // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
   }
 
   function handlePanelTouchEnd(e: React.TouchEvent) {
     if (replySheetOpen) return
+    setSwipeLabel(null)
     if (!touchStartRef.current || !isDraggingRef.current) {
       touchStartRef.current = null; isDraggingRef.current = false; return
     }
@@ -1042,16 +1040,10 @@ export default function MobileBoardPage() {
     const dx = t.clientX - touchStartRef.current.x
     const dt = Math.max(1, Date.now() - touchStartRef.current.time)
     touchStartRef.current = null; isDraggingRef.current = false
-    const panel = panelBRef.current
-    if (!panel) return
     if (dx > window.innerWidth * 0.4 || (dx > 60 && dx / dt > 0.5)) {
-      panel.style.transition = 'transform 250ms ease'
-      panel.style.transform = 'translateX(100%)'
-      setTimeout(() => navigate(boardId ? `/${boardId}` : '/'), 250)
-    } else {
-      panel.style.transition = 'transform 200ms ease'
-      panel.style.transform = 'translateX(0)'
+      goBack()
     }
+    // 閾値未満の場合、画面はまだ動いていないので何もしなくてよい
   }
 
   return (
@@ -1114,6 +1106,9 @@ export default function MobileBoardPage() {
           )}
         </div>
       )}
+
+      {/* スワイプ中の「戻る」「進む」ラベル */}
+      <SwipeHintOverlay label={swipeLabel === 'back' ? '戻る' : swipeLabel === 'forward' ? '進む' : null} />
 
       {/* 板ドロワー */}
       <MobileBoardDrawer
