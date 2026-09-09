@@ -17,3 +17,6 @@ npm-debug.log*
 
 # claude (project-specific instructions, not for OSS repo)
 CLAUDE.md
+
+# design directory
+example_design/

@@ -7,9 +7,10 @@ import { useTurnstileStore } from '../../stores/turnstileStore'
 interface ImageUploadButtonProps {
   onUploaded: (url: string) => void
   className?: string
+  size?: 'sm' | 'md'
 }
 
-export default function ImageUploadButton({ onUploaded, className }: ImageUploadButtonProps) {
+export default function ImageUploadButton({ onUploaded, className, size = 'sm' }: ImageUploadButtonProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -76,9 +77,13 @@ export default function ImageUploadButton({ onUploaded, className }: ImageUpload
         }}
         disabled={isUploading}
         title="画像をアップロード"
-        className="flex items-center gap-1 text-xs text-slate-400 hover:text-slate-700 dark:hover:text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className={`flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
+          size === 'md'
+            ? 'text-sm px-3.5 py-2 rounded-lg border border-c-border bg-c-surface2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-white'
+            : 'text-xs text-slate-400 hover:text-slate-700 dark:hover:text-white'
+        }`}
       >
-        <span className="material-symbols-outlined text-sm">
+        <span className={`material-symbols-outlined ${size === 'md' ? 'text-lg' : 'text-sm'}`}>
           {isUploading ? 'hourglass_empty' : 'image'}
         </span>
         {isUploading ? 'アップロード中...' : '画像'}

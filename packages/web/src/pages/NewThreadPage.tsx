@@ -125,23 +125,23 @@ export default function NewThreadPage() {
   return (
     <div className="relative flex h-screen min-h-screen w-full flex-col overflow-x-hidden bg-c-base text-slate-700 dark:text-slate-200">
       {/* ナビゲーションヘッダー */}
-      <header className="flex items-center justify-between border-b border-c-border bg-c-surface/80 backdrop-blur-md px-6 py-4 sticky top-0 z-20">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-c-accent text-[var(--c-accent-text)] shadow-lg">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-c-border bg-c-surface/80 backdrop-blur-md px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-20">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-c-accent text-[var(--c-accent-text)] shadow-lg flex-shrink-0">
             <span className="material-symbols-outlined">edit_square</span>
           </div>
-          <div className="flex flex-col">
-            <h2 className="text-slate-900 dark:text-white text-xl font-bold leading-tight tracking-tight">
+          <div className="flex flex-col min-w-0">
+            <h2 className="text-slate-900 dark:text-white text-lg sm:text-xl font-bold leading-tight tracking-tight truncate">
               新規スレッド作成
             </h2>
-            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">
+            <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest truncate">
               {board ? `${board.name}板` : boardId}
             </p>
           </div>
         </div>
-        <div className="flex flex-col items-end gap-1.5">
+        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
           {!tosAgreed && (
-            <p className="text-[10px] text-slate-400">
+            <p className="text-[10px] text-slate-400 hidden sm:block">
               投稿することで
               <button
                 type="button"
@@ -153,11 +153,11 @@ export default function NewThreadPage() {
               に同意したことになります
             </p>
           )}
-          <div className="flex gap-3">
+          <div className="flex gap-2 sm:gap-3">
             <button
               type="button"
               onClick={() => navigate(`/${boardId}`)}
-              className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-xl h-10 px-6 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm font-bold"
+              className="flex flex-shrink-0 whitespace-nowrap cursor-pointer items-center justify-center rounded-xl h-10 px-4 sm:px-6 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors text-sm font-bold"
             >
               キャンセル
             </button>
@@ -165,7 +165,7 @@ export default function NewThreadPage() {
               type="button"
               onClick={handleSubmit}
               disabled={mutation.isPending || !title.trim() || !content.trim()}
-              className="flex min-w-[84px] cursor-pointer items-center justify-center rounded-xl h-10 px-6 bg-c-accent text-[var(--c-accent-text)] hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-bold shadow-lg"
+              className="flex flex-shrink-0 whitespace-nowrap cursor-pointer items-center justify-center rounded-xl h-10 px-4 sm:px-6 bg-c-accent text-[var(--c-accent-text)] hover:opacity-90 disabled:opacity-50 transition-colors text-sm font-bold shadow-lg"
             >
               {mutation.isPending ? '投稿中...' : '投稿する'}
             </button>
@@ -235,7 +235,7 @@ export default function NewThreadPage() {
                 <span className="material-symbols-outlined text-sm">info</span>
                 <span>画像は外部サービスのURLを貼り付けると自動的に展開されます</span>
               </div>
-              <ImageUploadButton onUploaded={handleImageUploaded} />
+              <ImageUploadButton onUploaded={handleImageUploaded} size="md" />
             </div>
           </div>
 

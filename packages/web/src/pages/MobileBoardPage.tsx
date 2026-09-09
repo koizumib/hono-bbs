@@ -253,12 +253,12 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
       </div>
 
       {boardId && (
-        <footer className="flex items-center gap-1 px-1.5 py-1.5 border-t border-c-border bg-c-surface flex-shrink-0">
+        <footer className="flex items-center gap-1.5 px-2 py-2 border-t border-c-border bg-c-surface flex-shrink-0">
           {/* 未読フィルタ */}
           <button
             type="button"
             onClick={() => setShowUnread((s) => !s)}
-            className={`w-14 py-2 flex items-center justify-center text-[10px] font-bold rounded-lg transition-colors ${
+            className={`w-14 py-2.5 flex items-center justify-center text-xs font-bold rounded-lg transition-colors ${
               showUnread
                 ? 'bg-c-accent text-[var(--c-accent-text)]'
                 : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
@@ -266,19 +266,20 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
           >
             未読
           </button>
-          {/* ソートボタン（勢い・新着） */}
+          {/* ソートボタン（勢い・新着、レス抽出タブと同じ下線タブ形式） */}
           {SORT_MODES.map((mode) => (
             <button
               key={mode}
               type="button"
               onClick={() => setSortMode((m) => (m === mode ? null : mode))}
-              className={`w-14 py-2 flex items-center justify-center text-[10px] font-bold rounded-lg transition-colors ${
-                sortMode === mode
-                  ? 'bg-c-accent text-[var(--c-accent-text)]'
-                  : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
+              className={`relative px-3 py-2.5 flex items-center justify-center text-xs font-medium transition-colors ${
+                sortMode === mode ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
               {SORT_LABELS[mode]}
+              {sortMode === mode && (
+                <span className="absolute bottom-0.5 left-1.5 right-1.5 h-[2px] bg-c-accent rounded-full" />
+              )}
             </button>
           ))}
           <div className="flex-1" />
@@ -286,7 +287,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className={`w-9 h-9 flex items-center justify-center rounded-lg border transition-colors ${isRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
+            className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${isRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
           >
             <span className={`material-symbols-outlined text-xl${isRefreshing ? ' animate-spin' : ''}`}>refresh</span>
           </button>
@@ -597,17 +598,17 @@ function MobileThreadViewInner({
       )}
 
       {/* フィルタータブ（下線タブ形式・横スクロール） */}
-      <div className="flex items-center gap-3 px-3 border-b border-c-border bg-c-surface/50 flex-shrink-0 overflow-x-auto no-scrollbar text-xs font-medium">
+      <div className="flex items-center gap-4 px-4 border-b border-c-border bg-c-surface/50 flex-shrink-0 overflow-x-auto no-scrollbar text-sm font-medium">
         <button
           type="button"
           onClick={clearFilters}
-          className={`relative py-2 shrink-0 transition-colors ${
+          className={`relative py-3 px-2 shrink-0 transition-colors ${
             postFilters.size === 0 ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
           }`}
         >
           すべて
           {postFilters.size === 0 && (
-            <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />
+            <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-c-accent rounded-full" />
           )}
         </button>
         {[
@@ -622,14 +623,14 @@ function MobileThreadViewInner({
               key={key}
               type="button"
               onClick={() => toggleFilter(key)}
-              className={`relative py-2 shrink-0 flex items-center gap-1 transition-colors whitespace-nowrap ${
+              className={`relative py-3 px-2 shrink-0 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
                 active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
-              <span className="material-symbols-outlined text-sm leading-none">{icon}</span>
+              <span className="material-symbols-outlined text-base leading-none">{icon}</span>
               {label}
               {active && (
-                <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />
+                <span className="absolute bottom-0 left-0 right-0 h-[3px] bg-c-accent rounded-full" />
               )}
             </button>
           )
@@ -707,10 +708,10 @@ function MobileThreadViewInner({
           type="button"
           onClick={(e) => { e.stopPropagation(); (e.currentTarget as HTMLButtonElement).blur(); doRefresh() }}
           disabled={isViewRefreshing}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded border transition-colors text-xs font-medium flex-shrink-0 ${isViewRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-500 dark:text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
+          className={`flex items-center gap-1 px-2.5 py-[7px] rounded border transition-colors text-xs font-medium flex-shrink-0 ${isViewRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-500 dark:text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
         >
           <span className={`material-symbols-outlined text-base${isViewRefreshing ? ' animate-spin' : ''}`}>refresh</span>
-          {isViewRefreshing ? '更新中' : '更新'}
+          更新
         </button>
         <button
           type="button"
