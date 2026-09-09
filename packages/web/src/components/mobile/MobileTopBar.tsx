@@ -25,7 +25,7 @@ export default function MobileTopBar({
   onTitleClick,
 }: MobileTopBarProps) {
   return (
-    <header className="h-12 flex-shrink-0 flex items-center px-1.5 gap-0.5 bg-c-surface border-b border-c-border">
+    <header className="h-[58px] flex-shrink-0 flex items-center px-1.5 gap-0.5 bg-c-surface border-b border-c-border">
       {/* 左ボタン */}
       <button
         className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors flex-shrink-0"

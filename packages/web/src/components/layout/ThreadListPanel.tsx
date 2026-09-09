@@ -180,15 +180,6 @@ export default function ThreadListPanel() {
             </div>
           )}
         </div>
-        {boardId && (
-          <button
-            onClick={() => navigate(`/new-thread/${boardId}`)}
-            className="w-full bg-c-accent hover:opacity-90 text-[var(--c-accent-text)] font-medium py-2 px-4 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
-          >
-            <span className="material-symbols-outlined text-sm">add_comment</span>
-            新規スレッド作成
-          </button>
-        )}
       </div>
 
       <div className="flex gap-1 px-3 py-2 border-b border-c-border bg-c-surface/50">
@@ -259,6 +250,18 @@ export default function ThreadListPanel() {
           ))
         )}
       </div>
+
+      {boardId && (
+        <div className="p-3 border-t border-c-border flex-shrink-0">
+          <button
+            onClick={() => navigate(`/new-thread/${boardId}`)}
+            className="w-full bg-c-accent hover:opacity-90 text-[var(--c-accent-text)] font-medium py-2 px-4 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
+          >
+            <span className="material-symbols-outlined text-sm">add_comment</span>
+            新規スレッド作成
+          </button>
+        </div>
+      )}
     </section>
   )
 }

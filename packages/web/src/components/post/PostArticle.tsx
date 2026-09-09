@@ -7,6 +7,7 @@ import { heatClass } from '../../utils/heatColor'
 import { env } from '../../config/env'
 import { canDo } from '../../utils/permissions'
 import { useAuthStore } from '../../stores/authStore'
+import { downloadImageUrl } from '../../utils/downloadImage'
 import AACanvas from './AACanvas'
 
 export interface PostHandlers {
@@ -40,6 +41,16 @@ const LINK_COLORS = {
   url:     'text-c-link-url hover:text-c-link-url-hover',
 } as const
 
+function filenameFromUrl(url: string, fallback: string): string {
+  try {
+    const path = new URL(url, window.location.origin).pathname
+    const name = path.split('/').pop()
+    return name && name.includes('.') ? name : fallback
+  } catch {
+    return fallback
+  }
+}
+
 function idColorClass(count: number): string {
   if (count >= 7) return 'text-c-id-very-hot font-bold'
   if (count >= 5) return 'text-c-id-hot font-bold'
@@ -63,7 +74,9 @@ export default function PostArticle({
   const [lightboxImages, setLightboxImages] = useState<string[]>([])
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const lbTouchStartXRef = useRef<number | null>(null)
+  const lightboxOverlayRef = useRef<HTMLDivElement>(null)
   const [aaLightboxOpen, setAaLightboxOpen] = useState(false)
+  const aaLightboxOverlayRef = useRef<HTMLDivElement>(null)
 
   const lbNext = () =>
     setLightboxIndex((prev) =>
@@ -85,6 +98,31 @@ export default function PostArticle({
     return () => window.removeEventListener('keydown', onKey)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lightboxIndex, lightboxImages.length])
+
+  // スレッド表示画面のスワイプナビゲーション(戻る/書き込む)は、Panel Bの実DOMノードに
+  // addEventListenerで直接張ったネイティブのtouchmoveリスナーで実装されている。
+  // ネイティブのバブリングは、そのリスナーがReactの合成イベント(ルートに委譲され、
+  // ネイティブのバブリングが完了してから発火する)より先に届いてしまうため、
+  // ライトボックス側でReactのonTouchMoveにstopPropagationを書いても間に合わない。
+  // ライトボックス自身のDOMノードにネイティブリスナーを張って、Panel Bへ届く前に
+  // 止める必要がある。
+  useEffect(() => {
+    if (lightboxIndex === null) return
+    const el = lightboxOverlayRef.current
+    if (!el) return
+    const stop = (e: TouchEvent) => e.stopPropagation()
+    el.addEventListener('touchmove', stop, { passive: true })
+    return () => el.removeEventListener('touchmove', stop)
+  }, [lightboxIndex])
+
+  useEffect(() => {
+    if (!aaLightboxOpen) return
+    const el = aaLightboxOverlayRef.current
+    if (!el) return
+    const stop = (e: TouchEvent) => e.stopPropagation()
+    el.addEventListener('touchmove', stop, { passive: true })
+    return () => el.removeEventListener('touchmove', stop)
+  }, [aaLightboxOpen])
 
   // 半角スペース・タブ・全角スペースが5文字以上連続していればAAと判定
   const isAAContent = /[ \t\u3000]{5,}/i.test(post.content)
@@ -275,7 +313,7 @@ export default function PostArticle({
             className="mt-1 flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
           >
             <span className="material-symbols-outlined text-sm leading-none">open_in_full</span>
-            AAを崩れずに表示
+            AAを画像で表示
           </button>
         )}
 
@@ -377,13 +415,13 @@ export default function PostArticle({
       {/* ライトボックス */}
       {lightboxIndex !== null && lightboxImages.length > 0 && (
         <div
+          ref={lightboxOverlayRef}
           className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center"
           onClick={() => setLightboxIndex(null)}
           onTouchStart={(e) => {
             e.stopPropagation()
             lbTouchStartXRef.current = e.touches[0].clientX
           }}
-          onTouchMove={(e) => e.stopPropagation()}
           onTouchEnd={(e) => {
             e.stopPropagation()
             e.preventDefault()
@@ -402,6 +440,20 @@ export default function PostArticle({
             e.deltaY > 0 ? lbNext() : lbPrev()
           }}
         >
+          <button
+            type="button"
+            className="absolute top-4 right-16 text-white hover:text-slate-300 z-10"
+            onClick={(e) => {
+              e.stopPropagation()
+              void downloadImageUrl(
+                lightboxImages[lightboxIndex],
+                filenameFromUrl(lightboxImages[lightboxIndex], `image-${post.postNumber}.jpg`),
+              )
+            }}
+            title="画像をダウンロード"
+          >
+            <span className="material-symbols-outlined text-3xl">download</span>
+          </button>
           <button
             type="button"
             className="absolute top-4 right-4 text-white hover:text-slate-300 z-10"
@@ -427,9 +479,9 @@ export default function PostArticle({
       {/* AA拡大表示（Canvasに自前描画して端末依存のフォントズレを避ける） */}
       {aaLightboxOpen && (
         <div
+          ref={aaLightboxOverlayRef}
           className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4"
           onClick={() => setAaLightboxOpen(false)}
-          onTouchMove={(e) => e.stopPropagation()}
         >
           <button
             type="button"
@@ -443,7 +495,7 @@ export default function PostArticle({
             className="max-w-full max-h-full overflow-auto bg-c-surface rounded-lg p-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <AACanvas content={displayContent} />
+            <AACanvas content={displayContent} downloadFilename={`aa-${post.postNumber}.png`} />
           </div>
         </div>
       )}

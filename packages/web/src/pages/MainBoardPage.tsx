@@ -527,36 +527,43 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
   )
 
   const filterBar = (
-    <div className="flex gap-1.5 px-4 py-2 border-b border-c-border bg-c-surface/50 flex-shrink-0">
+    <div className="flex items-center gap-4 px-4 border-b border-c-border bg-c-surface/50 flex-shrink-0 overflow-x-auto no-scrollbar text-sm font-medium">
+      <button
+        type="button"
+        onClick={() => setPostFilters(new Set())}
+        className={`relative py-2.5 shrink-0 transition-colors ${
+          postFilters.size === 0 ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
+        }`}
+      >
+        すべて
+        {postFilters.size === 0 && (
+          <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />
+        )}
+      </button>
       {[
         { key: 'popular', label: '人気レス', icon: 'local_fire_department' },
         { key: 'image', label: '画像', icon: 'image' },
         { key: 'video', label: '動画', icon: 'play_circle' },
         { key: 'link', label: 'リンク', icon: 'link' },
-      ].map(({ key, label, icon }) => (
-        <button
-          key={key}
-          type="button"
-          onClick={() => toggleFilter(key)}
-          className={`flex items-center gap-1 px-2.5 py-1 text-[10px] font-bold rounded-lg transition-colors ${
-            postFilters.has(key)
-              ? 'bg-c-accent text-[var(--c-accent-text)]'
-              : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-800'
-          }`}
-        >
-          <span className="material-symbols-outlined text-sm leading-none">{icon}</span>
-          {label}
-        </button>
-      ))}
-      {postFilters.size > 0 && (
-        <button
-          type="button"
-          onClick={() => setPostFilters(new Set())}
-          className="ml-auto text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-        >
-          クリア
-        </button>
-      )}
+      ].map(({ key, label, icon }) => {
+        const active = postFilters.has(key)
+        return (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggleFilter(key)}
+            className={`relative py-2.5 shrink-0 flex items-center gap-1 transition-colors whitespace-nowrap ${
+              active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
+            }`}
+          >
+            <span className="material-symbols-outlined text-base leading-none">{icon}</span>
+            {label}
+            {active && (
+              <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />
+            )}
+          </button>
+        )
+      })}
     </div>
   )
 
