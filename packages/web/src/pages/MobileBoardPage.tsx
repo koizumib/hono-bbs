@@ -646,7 +646,7 @@ function MobileThreadViewInner({
           onTouchStart={handleViewTouchStart}
           onTouchMove={handleViewTouchMove}
           onTouchEnd={handleViewTouchEnd}
-          className="flex-1 overflow-y-auto custom-scrollbar px-3 py-1 space-y-2 [&::-webkit-scrollbar]:w-[4px]"
+          className="flex-1 overflow-y-auto custom-scrollbar px-1.5 py-1 space-y-2 [&::-webkit-scrollbar]:w-[4px]"
           style={{ overscrollBehaviorY: 'contain' }}
         >
         {/* 上プルインジケーター（スクロール内に配置してコンテンツを押し下げる） */}

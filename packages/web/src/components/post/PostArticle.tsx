@@ -7,6 +7,7 @@ import { heatClass } from '../../utils/heatColor'
 import { env } from '../../config/env'
 import { canDo } from '../../utils/permissions'
 import { useAuthStore } from '../../stores/authStore'
+import AACanvas from './AACanvas'
 
 export interface PostHandlers {
   onAnchorClick: (numbers: number[], triggerY: number) => void
@@ -62,6 +63,7 @@ export default function PostArticle({
   const [lightboxImages, setLightboxImages] = useState<string[]>([])
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
   const lbTouchStartXRef = useRef<number | null>(null)
+  const [aaLightboxOpen, setAaLightboxOpen] = useState(false)
 
   const lbNext = () =>
     setLightboxIndex((prev) =>
@@ -265,6 +267,18 @@ export default function PostArticle({
           className={`text-sm text-black dark:text-white ${isAAContent ? 'aa-font whitespace-pre' : 'whitespace-pre-wrap break-words leading-relaxed'}`}
         >{renderedContent}</p>
 
+        {/* AAを崩れなく見るためのCanvas拡大表示ボタン（インライン/ポップアップ共通） */}
+        {isAAContent && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setAaLightboxOpen(true) }}
+            className="mt-1 flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+          >
+            <span className="material-symbols-outlined text-sm leading-none">open_in_full</span>
+            AAを崩れずに表示
+          </button>
+        )}
+
         {/* サムネイル */}
         {(imageUrls.length > 0 || youtubeItems.length > 0) && (
           <div className="mt-3 flex flex-wrap gap-2">
@@ -369,6 +383,7 @@ export default function PostArticle({
             e.stopPropagation()
             lbTouchStartXRef.current = e.touches[0].clientX
           }}
+          onTouchMove={(e) => e.stopPropagation()}
           onTouchEnd={(e) => {
             e.stopPropagation()
             e.preventDefault()
@@ -405,6 +420,30 @@ export default function PostArticle({
               alt="expanded"
               className="max-w-[100vw] max-h-[100vh] object-contain block"
             />
+          </div>
+        </div>
+      )}
+
+      {/* AA拡大表示（Canvasに自前描画して端末依存のフォントズレを避ける） */}
+      {aaLightboxOpen && (
+        <div
+          className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center p-4"
+          onClick={() => setAaLightboxOpen(false)}
+          onTouchMove={(e) => e.stopPropagation()}
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 text-white hover:text-slate-300 z-10"
+            onClick={() => setAaLightboxOpen(false)}
+          >
+            <span className="material-symbols-outlined text-3xl">close</span>
+          </button>
+
+          <div
+            className="max-w-full max-h-full overflow-auto bg-c-surface rounded-lg p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <AACanvas content={displayContent} />
           </div>
         </div>
       )}
