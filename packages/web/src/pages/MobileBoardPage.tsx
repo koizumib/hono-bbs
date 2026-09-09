@@ -599,11 +599,11 @@ function MobileThreadViewInner({
       )}
 
       {/* フィルタータブ（下線タブ形式・横スクロール） */}
-      <div className="flex items-center gap-4 px-4 border-b border-c-border bg-c-surface/50 flex-shrink-0 overflow-x-auto no-scrollbar text-sm font-medium">
+      <div className="flex items-center gap-2 px-2.5 border-b border-c-border bg-c-surface/50 flex-shrink-0 overflow-x-auto no-scrollbar text-sm font-medium">
         <button
           type="button"
           onClick={clearFilters}
-          className={`relative py-3 px-2 shrink-0 transition-colors ${
+          className={`relative py-3 px-1.5 shrink-0 transition-colors ${
             postFilters.size === 0 ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
           }`}
         >
@@ -624,7 +624,7 @@ function MobileThreadViewInner({
               key={key}
               type="button"
               onClick={() => toggleFilter(key)}
-              className={`relative py-3 px-2 shrink-0 flex items-center gap-1.5 transition-colors whitespace-nowrap ${
+              className={`relative py-3 px-1.5 shrink-0 flex items-center gap-1 transition-colors whitespace-nowrap ${
                 active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
               }`}
             >
@@ -876,9 +876,9 @@ export default function MobileBoardPage() {
   const panelBRef = useRef<HTMLDivElement>(null)
   const skipNextSlideInRef = useRef(false)
 
-  // Panel A/B間のスワイプ中に画面中央へ出す「戻る」「進む」ラベル
+  // Panel A/B間のスワイプ中に画面中央へ出す「戻る」「進む」「書き込む」ラベル
   // (ジェスチャー中は画面自体を動かさず、指を離してから遷移アニメーションを始める)
-  const [swipeLabel, setSwipeLabel] = useState<'back' | 'forward' | null>(null)
+  const [swipeLabel, setSwipeLabel] = useState<'back' | 'forward' | 'write' | null>(null)
 
   // Panel A 左スワイプ → Panel B へ進む
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
@@ -1024,8 +1024,10 @@ export default function MobileBoardPage() {
   }
 
   // Panel B のスワイプ（返信パネルが開いているときは無効化）
+  // 右スワイプ = 戻る（一覧へ）、左スワイプ = 書き込みパネルを開く
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const isDraggingRef = useRef(false)
+  const dragDirRef = useRef<'back' | 'write' | null>(null)
   const cleanupPanelBMoveRef = useRef<(() => void) | null>(null)
 
   function handlePanelTouchStart(e: React.TouchEvent<HTMLDivElement>) {
@@ -1033,6 +1035,7 @@ export default function MobileBoardPage() {
     const t = e.touches[0]
     touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() }
     isDraggingRef.current = false
+    dragDirRef.current = null
 
     // touchmove は React の合成イベントだと passive 指定されて preventDefault が効かないため、
     // ネイティブリスナーを直接張って横スワイプ確定後は縦スクロールを止められるようにする。
@@ -1044,7 +1047,15 @@ export default function MobileBoardPage() {
       const dy = t2.clientY - touchStartRef.current.y
       if (!isDraggingRef.current) {
         if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
-        if (dx > 8) { isDraggingRef.current = true; setSwipeLabel('back') }
+        if (dx > 8) {
+          isDraggingRef.current = true
+          dragDirRef.current = 'back'
+          setSwipeLabel('back')
+        } else if (dx < -8) {
+          isDraggingRef.current = true
+          dragDirRef.current = 'write'
+          setSwipeLabel('write')
+        }
       }
       // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
       // 横スワイプ確定後は、指が多少上下にぶれても縦スクロールが起きないようにする。
@@ -1060,14 +1071,17 @@ export default function MobileBoardPage() {
     if (replySheetOpen) return
     setSwipeLabel(null)
     if (!touchStartRef.current || !isDraggingRef.current) {
-      touchStartRef.current = null; isDraggingRef.current = false; return
+      touchStartRef.current = null; isDraggingRef.current = false; dragDirRef.current = null; return
     }
     const t = e.changedTouches[0]
     const dx = t.clientX - touchStartRef.current.x
     const dt = Math.max(1, Date.now() - touchStartRef.current.time)
-    touchStartRef.current = null; isDraggingRef.current = false
-    if (dx > window.innerWidth * 0.4 || (dx > 60 && dx / dt > 0.5)) {
+    const dir = dragDirRef.current
+    touchStartRef.current = null; isDraggingRef.current = false; dragDirRef.current = null
+    if (dir === 'back' && (dx > window.innerWidth * 0.4 || (dx > 60 && dx / dt > 0.5))) {
       goBack()
+    } else if (dir === 'write' && (dx < -window.innerWidth * 0.4 || (dx < -60 && Math.abs(dx) / dt > 0.5))) {
+      handleOpenReply()
     }
     // 閾値未満の場合、画面はまだ動いていないので何もしなくてよい
   }
@@ -1132,7 +1146,7 @@ export default function MobileBoardPage() {
       )}
 
       {/* スワイプ中の「戻る」「進む」ラベル */}
-      <SwipeHintOverlay label={swipeLabel === 'back' ? '戻る' : swipeLabel === 'forward' ? '進む' : null} />
+      <SwipeHintOverlay label={swipeLabel === 'back' ? '戻る' : swipeLabel === 'forward' ? '進む' : swipeLabel === 'write' ? '書き込む' : null} />
 
       {/* 板ドロワー */}
       <MobileBoardDrawer

@@ -1,6 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
+/* AA(アスキーアート)用: 全角:半角=2:1の等幅フォント。OS依存のMS Pゴシック/Monaはスマホには
+   入っておらずAAが崩れるため、Webフォントで全端末に同じ等幅フォントを配ってしまう */
+@import url('https://fonts.googleapis.com/css2?family=M+PLUS+1+Code:wght@400&display=swap');
 @import './theme/theme.css';
 
 @tailwind base;
@@ -98,9 +101,13 @@ input[type="range"] {
   }
 }
 
-/* AAアスキーアート用フォント */
+/* AAアスキーアート用フォント
+ * 'MS Pゴシック'/Mona系はOSにインストールされていないと使われず(特にスマホは確実に無い)、
+ * その場合は最後の sans-serif まで落ちて全角:半角比が崩れAAが乱れる。
+ * 'M PLUS 1 Code' はWebフォントとして全端末に配信され、全角:半角=2:1の等幅フォントなので
+ * 代替フォントとして優先度高めに挟んでおく。 */
 .aa-font {
-  font-family: 'ＭＳ Ｐゴシック','MS PGothic',RobotoJAA,Monapo,'IPA モナー Pゴシック',IPAMonaPGothic,Mona,'梅Pゴシック',Textar,aahub_light,sans-serif !important;
+  font-family: 'ＭＳ Ｐゴシック','MS PGothic','M PLUS 1 Code',RobotoJAA,Monapo,'IPA モナー Pゴシック',IPAMonaPGothic,Mona,'梅Pゴシック',Textar,aahub_light,sans-serif !important;
   line-height: 1.15 !important;
   letter-spacing: 0 !important;
 }

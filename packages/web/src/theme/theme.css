@@ -90,6 +90,30 @@ html.dark {
 
   /* 投稿者名（ダーク時は暗い緑） */
   --c-poster-name: #166534;         /* green-800 */
+
+  /* ---- ハイライト色を少し抑える -------------------------------
+   * ライトテーマと共通の彩度の高い色をそのまま流用していたが、暗い背景の上だと
+   * ちらつき（ぎらつき）を感じやすいため、背景色を混ぜて彩度・明度を落とす。
+   * gray/dark-gray テーマも html 要素に dark クラスが付くため、ここが適用される。 */
+  --c-link-image: color-mix(in srgb, #fb923c 72%, var(--c-base));
+  --c-link-image-hover: color-mix(in srgb, #fdba74 78%, var(--c-base));
+  --c-link-twitter: color-mix(in srgb, #38bdf8 72%, var(--c-base));
+  --c-link-twitter-hover: color-mix(in srgb, #7dd3fc 78%, var(--c-base));
+  --c-link-youtube: color-mix(in srgb, #f87171 72%, var(--c-base));
+  --c-link-youtube-hover: color-mix(in srgb, #fca5a5 78%, var(--c-base));
+  --c-link-url: color-mix(in srgb, #60a5fa 72%, var(--c-base));
+  --c-link-url-hover: color-mix(in srgb, #93c5fd 78%, var(--c-base));
+
+  --c-anchor: color-mix(in srgb, #60a5fa 72%, var(--c-base));
+  --c-anchor-hover: color-mix(in srgb, #93c5fd 78%, var(--c-base));
+
+  --c-id-warm: color-mix(in srgb, #f59e0b 72%, var(--c-base));
+  --c-id-hot: color-mix(in srgb, #f97316 72%, var(--c-base));
+  --c-id-very-hot: color-mix(in srgb, #ef4444 72%, var(--c-base));
+
+  --c-heat-warm: color-mix(in srgb, #f59e0b 72%, var(--c-base));
+  --c-heat-hot: color-mix(in srgb, #f97316 72%, var(--c-base));
+  --c-heat-very-hot: color-mix(in srgb, #ef4444 72%, var(--c-base));
 }
 
 /* ------------------------------------------------------------

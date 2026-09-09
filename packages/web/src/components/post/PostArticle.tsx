@@ -241,36 +241,14 @@ export default function PostArticle({
           </button>
         )}
 
-        {/* 返信ボタン */}
+        {/* 返信ボタン（レス右上） */}
         <button
           type="button"
-          className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors`}
+          className={`ml-auto flex-shrink-0 ${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors`}
           onClick={() => handlers.onReply(post.postNumber)}
         >
           返信
         </button>
-
-        <div className="ml-auto flex items-center gap-1.5">
-          {/* 通報ボタン (誰でも押せる) */}
-          <button
-            type="button"
-            className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors`}
-            onClick={() => handlers.onReport(post.postNumber)}
-          >
-            通報
-          </button>
-
-          {/* 削除ボタン (権限がある場合のみ。モバイル版など handlers.onDelete 未提供の画面では出さない) */}
-          {canDelete && (
-            <button
-              type="button"
-              className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors`}
-              onClick={() => handlers.onDelete?.(post.postNumber)}
-            >
-              削除
-            </button>
-          )}
-        </div>
       </div>
 
       {/* 本文 */}
@@ -284,7 +262,7 @@ export default function PostArticle({
       >
         <p
           ref={isAAContent ? aaRef : null}
-          className={`text-sm ${isAAContent ? 'aa-font whitespace-pre' : 'whitespace-pre-wrap break-words leading-relaxed'}`}
+          className={`text-sm text-black dark:text-white ${isAAContent ? 'aa-font whitespace-pre' : 'whitespace-pre-wrap break-words leading-relaxed'}`}
         >{renderedContent}</p>
 
         {/* サムネイル */}
@@ -356,6 +334,29 @@ export default function PostArticle({
               )
             })}
           </div>
+        )}
+      </div>
+
+      {/* 通報・削除ボタン（レス右下） */}
+      <div className="mt-1 flex items-center justify-end gap-1.5">
+        {/* 通報ボタン (誰でも押せる。目立たせすぎないようにあえて背景無し) */}
+        <button
+          type="button"
+          className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-400 dark:text-slate-600 px-1 py-0.5 hover:text-slate-600 dark:hover:text-slate-400 transition-colors`}
+          onClick={() => handlers.onReport(post.postNumber)}
+        >
+          通報
+        </button>
+
+        {/* 削除ボタン (権限がある場合のみ。モバイル版など handlers.onDelete 未提供の画面では出さない) */}
+        {canDelete && (
+          <button
+            type="button"
+            className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors`}
+            onClick={() => handlers.onDelete?.(post.postNumber)}
+          >
+            削除
+          </button>
         )}
       </div>
 
