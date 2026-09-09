@@ -253,7 +253,7 @@ export default function PostArticle({
 
       {/* 本文 */}
       <div
-        className={`ml-1 ${
+        className={`${
           isOwnPost ? 'pl-[13px] border-l-[3px] border-c-accent'
           : isReplyToOwn ? 'pl-[13px] border-l-[3px] border-[var(--c-reply-line)]'
           : 'pl-4 border-l-2 border-c-border'

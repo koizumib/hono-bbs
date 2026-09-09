@@ -110,4 +110,9 @@ input[type="range"] {
   font-family: 'ＭＳ Ｐゴシック','MS PGothic','M PLUS 1 Code',RobotoJAA,Monapo,'IPA モナー Pゴシック',IPAMonaPGothic,Mona,'梅Pゴシック',Textar,aahub_light,sans-serif !important;
   line-height: 1.15 !important;
   letter-spacing: 0 !important;
+  /* Android Chrome実機はビューポート幅から「読みやすいように」行の一部だけを自動拡大する
+   * ことがあり(PCのdevtoolsモバイルエミュレーションでは再現されない)、等幅グリッドが
+   * 崩れてAAが乱れる原因になる。AAだけはこの自動拡大を無効化して等幅を保証する。 */
+  -webkit-text-size-adjust: 100% !important;
+  text-size-adjust: 100% !important;
 }
