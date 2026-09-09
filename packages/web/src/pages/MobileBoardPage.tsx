@@ -338,26 +338,34 @@ function MobileReplyPanel({ boardId, threadId, insertAnchor, onClose, onPosted }
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const isDraggingRef = useRef(false)
   const [showBackLabel, setShowBackLabel] = useState(false)
+  const cleanupMoveRef = useRef<(() => void) | null>(null)
 
-  function handleTouchStart(e: React.TouchEvent) {
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     e.stopPropagation()
     touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() }
     isDraggingRef.current = false
-  }
 
-  function handleTouchMove(e: React.TouchEvent) {
-    e.stopPropagation()
-    if (!touchStartRef.current) return
-    const dx = e.touches[0].clientX - touchStartRef.current.x
-    const dy = e.touches[0].clientY - touchStartRef.current.y
-    if (!isDraggingRef.current) {
-      if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
-      if (dx > 8) { isDraggingRef.current = true; setShowBackLabel(true) }
+    // touchmove は React の合成イベントだと passive 指定されて preventDefault が効かないため、
+    // ネイティブリスナーを直接張って横スワイプ確定後は縦スクロールを止められるようにする。
+    const target = e.currentTarget
+    function onMove(ev: TouchEvent) {
+      if (!touchStartRef.current) return
+      const dx = ev.touches[0].clientX - touchStartRef.current.x
+      const dy = ev.touches[0].clientY - touchStartRef.current.y
+      if (!isDraggingRef.current) {
+        if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
+        if (dx > 8) { isDraggingRef.current = true; setShowBackLabel(true) }
+      }
+      if (isDraggingRef.current) ev.preventDefault()
     }
+    target.addEventListener('touchmove', onMove, { passive: false })
+    cleanupMoveRef.current = () => target.removeEventListener('touchmove', onMove)
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
     e.stopPropagation()
+    cleanupMoveRef.current?.()
+    cleanupMoveRef.current = null
     setShowBackLabel(false)
     if (!touchStartRef.current || !isDraggingRef.current) {
       touchStartRef.current = null; isDraggingRef.current = false; return
@@ -376,7 +384,6 @@ function MobileReplyPanel({ boardId, threadId, insertAnchor, onClose, onPosted }
       className="absolute inset-0 bg-c-base flex flex-col z-20"
       style={{ willChange: 'transform' }}
       onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
     >
       <SwipeHintOverlay label={showBackLabel ? '戻る' : null} />
@@ -877,8 +884,9 @@ export default function MobileBoardPage() {
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
   const panelATouchRef = useRef<{ x: number; y: number; time: number; threadId: string } | null>(null)
   const isPanelADraggingRef = useRef(false)
+  const cleanupPanelAMoveRef = useRef<(() => void) | null>(null)
 
-  function handlePanelATouchStart(e: React.TouchEvent) {
+  function handlePanelATouchStart(e: React.TouchEvent<HTMLDivElement>) {
     if (threadId) return  // Panel B は開いているときは無効
     const startX = e.touches[0].clientX
     const startY = e.touches[0].clientY
@@ -893,26 +901,35 @@ export default function MobileBoardPage() {
         queryFn: () => getThreadPosts(boardId, lastEntry.threadId),
       })
     }
-  }
 
-  function handlePanelATouchMove(e: React.TouchEvent) {
-    if (!panelATouchRef.current) return
-    const dx = e.touches[0].clientX - panelATouchRef.current.x
-    const dy = e.touches[0].clientY - panelATouchRef.current.y
-    if (!isPanelADraggingRef.current) {
-      if (Math.abs(dy) > Math.abs(dx) + 5) { panelATouchRef.current = null; setPendingThreadId(null); return }
-      if (dx < -8) {
-        isPanelADraggingRef.current = true
-        // 直前に見ていたスレッドが無ければ何も起きないジェスチャーなのでラベルも出さない
-        if (panelATouchRef.current.threadId) setSwipeLabel('forward')
-      } else if (dx > 8) {
-        return  // 右スワイプ: ドロワーを開く判定用に追跡のみ（視覚フィードバックなし）
+    // touchmove は React の合成イベントだと passive 指定されて preventDefault が効かないため、
+    // ネイティブリスナーを直接張って横スワイプ確定後は縦スクロールを止められるようにする。
+    const target = e.currentTarget
+    function onMove(ev: TouchEvent) {
+      if (!panelATouchRef.current) return
+      const dx = ev.touches[0].clientX - panelATouchRef.current.x
+      const dy = ev.touches[0].clientY - panelATouchRef.current.y
+      if (!isPanelADraggingRef.current) {
+        if (Math.abs(dy) > Math.abs(dx) + 5) { panelATouchRef.current = null; setPendingThreadId(null); return }
+        if (dx < -8) {
+          isPanelADraggingRef.current = true
+          // 直前に見ていたスレッドが無ければ何も起きないジェスチャーなのでラベルも出さない
+          if (panelATouchRef.current.threadId) setSwipeLabel('forward')
+        } else if (dx > 8) {
+          return  // 右スワイプ: ドロワーを開く判定用に追跡のみ（視覚フィードバックなし・縦スクロールも止めない）
+        }
       }
+      // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
+      // 横スワイプ確定後は、指が多少上下にぶれても縦スクロールが起きないようにする。
+      if (isPanelADraggingRef.current) ev.preventDefault()
     }
-    // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
+    target.addEventListener('touchmove', onMove, { passive: false })
+    cleanupPanelAMoveRef.current = () => target.removeEventListener('touchmove', onMove)
   }
 
   function handlePanelATouchEnd(e: React.TouchEvent) {
+    cleanupPanelAMoveRef.current?.()
+    cleanupPanelAMoveRef.current = null
     if (!panelATouchRef.current) return
     const dx = e.changedTouches[0].clientX - panelATouchRef.current.x
     const dt = Math.max(1, Date.now() - panelATouchRef.current.time)
@@ -1009,28 +1026,37 @@ export default function MobileBoardPage() {
   // Panel B のスワイプ（返信パネルが開いているときは無効化）
   const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
   const isDraggingRef = useRef(false)
+  const cleanupPanelBMoveRef = useRef<(() => void) | null>(null)
 
-  function handlePanelTouchStart(e: React.TouchEvent) {
+  function handlePanelTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     if (replySheetOpen) return  // 返信パネル開中はスワイプ無効
     const t = e.touches[0]
     touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() }
     isDraggingRef.current = false
-  }
 
-  function handlePanelTouchMove(e: React.TouchEvent) {
-    if (replySheetOpen) return
-    if (!touchStartRef.current) return
-    const t = e.touches[0]
-    const dx = t.clientX - touchStartRef.current.x
-    const dy = t.clientY - touchStartRef.current.y
-    if (!isDraggingRef.current) {
-      if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
-      if (dx > 8) { isDraggingRef.current = true; setSwipeLabel('back') }
+    // touchmove は React の合成イベントだと passive 指定されて preventDefault が効かないため、
+    // ネイティブリスナーを直接張って横スワイプ確定後は縦スクロールを止められるようにする。
+    const target = e.currentTarget
+    function onMove(ev: TouchEvent) {
+      if (!touchStartRef.current) return
+      const t2 = ev.touches[0]
+      const dx = t2.clientX - touchStartRef.current.x
+      const dy = t2.clientY - touchStartRef.current.y
+      if (!isDraggingRef.current) {
+        if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
+        if (dx > 8) { isDraggingRef.current = true; setSwipeLabel('back') }
+      }
+      // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
+      // 横スワイプ確定後は、指が多少上下にぶれても縦スクロールが起きないようにする。
+      if (isDraggingRef.current) ev.preventDefault()
     }
-    // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
+    target.addEventListener('touchmove', onMove, { passive: false })
+    cleanupPanelBMoveRef.current = () => target.removeEventListener('touchmove', onMove)
   }
 
   function handlePanelTouchEnd(e: React.TouchEvent) {
+    cleanupPanelBMoveRef.current?.()
+    cleanupPanelBMoveRef.current = null
     if (replySheetOpen) return
     setSwipeLabel(null)
     if (!touchStartRef.current || !isDraggingRef.current) {
@@ -1048,11 +1074,10 @@ export default function MobileBoardPage() {
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-c-base text-slate-700 dark:text-slate-200">
-      {/* Panel A: スレッド一覧（左スワイプで Panel B を指連動） */}
+      {/* Panel A: スレッド一覧（左スワイプで Panel B へ進む） */}
       <div
         className="absolute inset-0"
         onTouchStart={handlePanelATouchStart}
-        onTouchMove={handlePanelATouchMove}
         onTouchEnd={handlePanelATouchEnd}
       >
         <MobileThreadListPanel
@@ -1075,7 +1100,6 @@ export default function MobileBoardPage() {
             zIndex: 10,
           }}
           onTouchStart={handlePanelTouchStart}
-          onTouchMove={handlePanelTouchMove}
           onTouchEnd={handlePanelTouchEnd}
         >
           {threadId ? (

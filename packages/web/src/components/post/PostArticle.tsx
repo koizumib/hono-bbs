@@ -197,7 +197,7 @@ export default function PostArticle({
 
   return (
     <article
-      className={`w-full ${showTopDivider ? 'border-t border-c-border pt-2' : ''} ${(isOwnPost || isReplyToOwn) ? 'px-2 py-1' : ''}`}
+      className={`w-full px-2 py-1 ${showTopDivider ? 'border-t border-c-border pt-2' : ''}`}
       style={articleBg ? { background: articleBg } : undefined}
       id={isInPopup ? undefined : `post-${post.postNumber}`}
     >
