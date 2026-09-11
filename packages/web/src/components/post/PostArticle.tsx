@@ -38,7 +38,8 @@ interface PostArticleProps {
 }
 
 const LINK_COLORS = {
-  image:   'text-c-link-image hover:opacity-80',
+  // 画像URLの色はMinimapの画像マーカーと同じ--c-text-mutedに合わせる(マーカー側が基準)
+  image:   'text-c-text-muted hover:opacity-80',
   twitter: 'text-c-link-twitter hover:opacity-80',
   youtube: 'text-c-link-youtube hover:opacity-80',
   url:     'text-c-link hover:opacity-80',

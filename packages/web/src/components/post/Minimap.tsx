@@ -259,15 +259,15 @@ export default function Minimap({ posts, scrollAreaRef, anchorCountMap, ownPostN
       ))}
 
       {/* メディアマーカー: 形(画像=四角、動画=三角)で種別を区別する。
-          画像マーカーの色は本文中の画像URLリンクと同じ--c-link-imageにして
-          「画像がある」という意味を色でも一致させる */}
+          色は--c-text-mutedで統一し、本文中の画像URLリンクの色をこちらに
+          合わせる(マーカー側が基準)。 */}
       {mediaMarkers.map((m) =>
         m.type === 'image' ? (
           <button
             key={`media-${m.postNumber}`}
             onClick={() => scrollToPost(m.postNumber)}
             className="absolute left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-[1px] hover:scale-150 transition-transform z-[10]"
-            style={{ top: `${m.percent}%`, background: 'var(--c-link-image)' }}
+            style={{ top: `${m.percent}%`, background: 'var(--c-text-muted)' }}
             title={`${m.postNumber}: 画像あり`}
           />
         ) : (

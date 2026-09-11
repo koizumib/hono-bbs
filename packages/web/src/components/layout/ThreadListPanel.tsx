@@ -74,7 +74,7 @@ export default function ThreadListPanel() {
   // (再表示のたびにほぼ全件が誤って光るバグの原因だった)。サーバーから
   // 取得した生データ(rawThreads)を渡し、UI操作では変化しない基準にする。
   // (useNewIdsFlash内部でids配列をjoinして安定した依存値にしているので、ここではメモ化不要)
-  const newThreadIds = useNewIdsFlash(rawThreads.map((t) => t.id))
+  const newThreadIds = useNewIdsFlash(rawThreads.map((t) => t.id), boardId)
 
   // F5 / Ctrl+R でスレッド一覧を更新（5秒クールダウン）
   const handleRefresh = useCallback(async () => {

@@ -111,7 +111,7 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
   // 「表示から一時的に消えていただけ」のスレッドまで新着扱いされてしまう
   // (再表示のたびにほぼ全件が誤って光るバグの原因だった)。サーバーから
   // 取得した生データ(rawThreads)を渡し、UI操作では変化しない基準にする。
-  const newThreadIds = useNewIdsFlash(useMemo(() => rawThreads.map((t) => t.id), [rawThreads]))
+  const newThreadIds = useNewIdsFlash(useMemo(() => rawThreads.map((t) => t.id), [rawThreads]), boardId)
 
   // プルリフレッシュ側が実際の完了タイミングを待てるように、refetchのPromiseを返す
   const handleRefresh = useCallback(async () => {

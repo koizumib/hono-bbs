@@ -30,11 +30,10 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
   const history = getHistory()
   const readEntry = history.find(e => e.threadId === thread.id)
   const unreadCount = readEntry && readEntry.lastReadCount < thread.postCount ? thread.postCount - readEntry.lastReadCount : 0
-  // 一度も開いたことがない = 新着スレの目印(ドット)を出す。
-  // 「新着ではないが未読(以前読んだが新しいレスがある)」もタイトルの強調表示は行うが、
-  // ドットは新着スレ専用にして役割を分ける。
-  const neverOpened = !readEntry
-  const hasUnread = neverOpened || readEntry.lastReadCount < thread.postCount
+  // ドットは「一覧更新で完全に新しく立てられたスレッド」専用の目印(isNew)。
+  // 未読(既読だが新しいレスがある/一度も開いていない)かどうかとは別の概念で、
+  // タイトルの強調表示(白+太字)は引き続き未読状態を見る。
+  const hasUnread = !readEntry || readEntry.lastReadCount < thread.postCount
 
   const media = thread.firstPost ? extractMedia(thread.firstPost.content) : []
   const imageItem = media.find((m) => m.type === 'image')
@@ -60,10 +59,12 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
     >
       {/* タイトル行: 新着ドット + 画像 + スレタイ + 新着レス数バッジ */}
       <div className="flex items-center gap-2.5 min-w-0">
-        <span
-          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-          style={{ background: 'var(--c-accent)', visibility: neverOpened ? 'visible' : 'hidden' }}
-        />
+        {isNew && (
+          <span
+            className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+            style={{ background: 'var(--c-accent)' }}
+          />
+        )}
         {hasThumbnail && (
           <div
             className={`${compact ? 'w-12 h-12' : 'w-16 h-16'} rounded flex-shrink-0 overflow-hidden flex items-center justify-center`}
