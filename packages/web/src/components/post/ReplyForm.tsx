@@ -80,10 +80,21 @@ export default function ReplyForm({
     }
   }, [boardId, threadId])
 
-  // 下書き自動保存
+  // 下書き自動保存/削除。
+  // 空にした場合に何もしないと、以前保存した下書きが残り続けて次回開いたときに
+  // 復元されてしまう(消したはずの内容が残る不具合)ので、空になったら明示的に消す。
+  // ただし初回マウント時は「復元前の空文字」で走ってしまい、復元しようとしている
+  // 下書きを消してしまうため、最初の1回だけスキップする。
+  const isFirstDraftEffectRef = useRef(true)
   useEffect(() => {
+    if (isFirstDraftEffectRef.current) {
+      isFirstDraftEffectRef.current = false
+      return
+    }
     if (content.trim()) {
       savePostDraft(boardId, threadId, content, env.postCacheGen)
+    } else {
+      clearPostDraft(boardId, threadId)
     }
   }, [content, boardId, threadId])
 
@@ -158,8 +169,9 @@ export default function ReplyForm({
 
   const mutation = useMutation({
     mutationFn: () =>
+      // 先頭・末尾の空白/改行を除去してから送信する（本文中の空白/改行はそのまま残す）
       createPost(boardId, threadId, {
-        content,
+        content: content.trim(),
         ...(posterName.trim() ? { posterName: posterName.trim() } : {}),
         ...(subInfo.trim() ? { posterOptionInfo: subInfo.trim() } : {}),
       }),
@@ -383,11 +395,13 @@ export default function ReplyForm({
   }
 
   // sheet layout (モバイル用ボトムシート内)
+  // テキストエリアはflex-1で「他の要素を除いた残り全部」を確実に埋めるようにする
+  // (dvh基準の固定計算だと、キーボード表示時に実際の残りスペースより小さくなりがちだった)。
   if (layout === 'sheet') {
     return (
-      <div className="flex flex-col px-4 pb-safe gap-3">
+      <div className="flex flex-col h-full px-4 pb-safe gap-3">
         {errorNode}
-        <div className="flex items-center gap-3 pt-1">
+        <div className="flex items-center gap-3 pt-1 flex-shrink-0">
           {aaCheckbox}
           <ImageUploadButton onUploaded={handleImageUploaded} />
           <button
@@ -402,7 +416,7 @@ export default function ReplyForm({
           </button>
         </div>
         {showOptions && (
-          <div className="space-y-2">
+          <div className="space-y-2 flex-shrink-0">
             <input
               type="text"
               value={posterName}
@@ -424,11 +438,9 @@ export default function ReplyForm({
           ref={textareaRef}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          onInput={handleInput}
           onKeyDown={handleKeyDown}
           autoFocus
-          style={{ minHeight: 'calc(100dvh / 3)' }}
-          className={`w-full bg-transparent border border-c-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-c-accent/50 focus:outline-none text-slate-700 dark:text-slate-200 placeholder-slate-400 resize-none custom-scrollbar text-sm ${isAA ? 'aa-font' : ''}`}
+          className={`flex-1 min-h-[80px] w-full bg-transparent border border-c-border rounded-xl px-3 py-2.5 focus:ring-2 focus:ring-c-accent/50 focus:outline-none text-slate-700 dark:text-slate-200 placeholder-slate-400 resize-none custom-scrollbar text-sm ${isAA ? 'aa-font' : ''}`}
           placeholder="返信を書き込む..."
         />
         {tosNotice}
@@ -436,7 +448,7 @@ export default function ReplyForm({
           type="button"
           onClick={handleSubmit}
           disabled={mutation.isPending || !content.trim() || cooldownSec > 0}
-          className="w-full bg-c-accent hover:opacity-90 disabled:opacity-50 text-white py-3 rounded-xl font-bold text-sm transition-all"
+          className="w-full flex-shrink-0 bg-c-accent hover:opacity-90 disabled:opacity-50 text-white py-3 rounded-xl font-bold text-sm transition-all"
         >
           {mutation.isPending ? '送信中...' : cooldownSec > 0 ? `連投制限中 (${cooldownSec}s)` : '書き込む'}
         </button>

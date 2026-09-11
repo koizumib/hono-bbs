@@ -19,6 +19,9 @@ import { fuzzyMatch } from '../utils/fuzzySearch'
 import { getPostHistory } from '../utils/postHistory'
 import { softDeletePost, reportPost } from '../api/posts'
 import { deleteThread, reportThread } from '../api/threads'
+import { useWheelPullRefresh } from '../hooks/useWheelPullRefresh'
+import PullSpinner from '../components/ui/PullSpinner'
+import { PULL_HIDDEN_Y } from '../utils/pullRefresh'
 
 interface ThreadViewProps {
   replyLayout: 'bottom' | 'right'
@@ -27,16 +30,13 @@ interface ThreadViewProps {
 function ThreadView({ replyLayout }: ThreadViewProps) {
   const { boardId, threadId } = useParams()
   const navigate = useNavigate()
-  const { data, isLoading, refetch } = usePosts(boardId, threadId)
+  const { data, isLoading, isFetching, isError, refetch } = usePosts(boardId, threadId)
   const userId = useAuthStore((s) => s.userId)
   const ngRules = useSettingsStore((s) => s.ngRules)
   const historyMaxGenerations = useSettingsStore((s) => s.historyMaxGenerations)
   const setReplyLayout = useSettingsStore((s) => s.setReplyLayout)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
-  const pcTopPullRef = useRef<HTMLDivElement>(null)
-  const pcBottomPullRef = useRef<HTMLDivElement>(null)
   const lastRefreshRef = useRef(0)
-  const REFRESH_IND_H = 40
   const [popups, setPopups] = useState<PopupEntry[]>([])
   const [containerRect, setContainerRect] = useState<DOMRect | null>(null)
   const insertSeqRef = useRef(0)
@@ -61,9 +61,23 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     const entry = getHistory().find((e) => e.threadId === threadId && e.boardId === boardId)
     return entry?.lastScrollTop ?? null
   })
+  // スレッドを開いた時点の保存済みスクロール進捗（前回どこまで読んでいたかの判定に使う）
+  const [initialScrollProgress] = useState<number | null>(() => {
+    if (!boardId || !threadId) return null
+    const entry = getHistory().find((e) => e.threadId === threadId && e.boardId === boardId)
+    return entry?.scrollProgress ?? null
+  })
 
   const [searchQuery, setSearchQuery] = useState('')
   const [shouldScrollNew, setShouldScrollNew] = useState(false)
+
+  // 初回表示位置(スクロール復元/未読ジャンプ)が決まるまでコンテンツを覆っておくための
+  // フラグ。これが立つ前にコンテンツをそのまま出すと、先頭が一瞬映ってから
+  // 目的の位置へジャンプする「チラつき」が起きてしまう。
+  const [positioned, setPositioned] = useState(false)
+  // 未読レスを表示するタイミングを、位置決め完了より少し遅らせるためのフラグ。
+  // 「まずスレッドを表示 → その後に新着レスを表示」という順序にするため。
+  const [newPostsVisible, setNewPostsVisible] = useState(false)
 
   function toggleFilter(f: string) {
     setPostFilters(prev => {
@@ -179,15 +193,17 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     return new Set(rawPosts.slice(readCountBeforeRefresh).map(p => p.id))
   }, [rawPosts, readCountBeforeRefresh])
 
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     const now = Date.now()
-    // クールダウン関係なく常にダイバー位置をリセット
-    setReadCountBeforeRefresh(rawPosts.length)
+    // クールダウン中(実際には何も取得しない)場合はここで抜ける。ここで無条件に
+    // ダイバー位置をリセットすると、実データは何も変わっていないのに「ここから未読」が
+    // 消えてしまう(まだ読んでいない新着表示を誤って既読扱いしてしまう)バグになる。
     if (now - lastRefreshRef.current < 5000) return
     lastRefreshRef.current = now
+    setReadCountBeforeRefresh(rawPosts.length)
     const atBottom = scrollProgressRef.current >= 0.95
     if (atBottom) setShouldScrollNew(true)
-    void refetch()
+    await refetch()
   }, [rawPosts.length, refetch])
 
   const handlePosted = useCallback(() => {
@@ -223,32 +239,92 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     return () => clearTimeout(id)
   }, [rawPosts, shouldScrollNew, readCountBeforeRefresh])
 
-  // 初回ロード時：スクロール位置を復元、または未読レスへジャンプ
+  // 初回ロード時：スクロール位置を復元、または未読レスへジャンプ。
+  // usePosts は refetchOnMount:'always' なので、キャッシュ済みスレッドを開いた直後は
+  // 「古いレス数のキャッシュ」がまず見え、その裏で最新確認のフェッチが走る。ここで
+  // isLoading (=初回データなし)だけを見て判定すると、その古いキャッシュの時点の
+  // レス数で「新着なし」と誤判定し、以後ずっとその判定のままになってしまう。その
+  // ため isFetching (今まさに取得中かどうか)が終わるのを待ってから判定する。何らかの
+  // 理由でフェッチが長引いても画面が永久に固まらないよう、SAFETY_MSを超えたら
+  // その時点のデータで確定させる。
   useEffect(() => {
     if (didInitialScrollRef.current) return
-    if (rawPosts.length === 0) return
-    didInitialScrollRef.current = true
-    const hasNewPosts =
-      initialReadCount !== null && initialReadCount > 0 && initialReadCount < rawPosts.length
-    if (hasNewPosts) setReadCountBeforeRefresh(initialReadCount)
-    const id = setTimeout(() => {
-      const el = scrollAreaRef.current
-      if (!el) return
-      if (initialScrollTop !== null && initialScrollTop > 0) {
-        el.scrollTop = initialScrollTop
-        scrollTopRef.current = el.scrollTop
-      } else if (hasNewPosts) {
-        const target = rawPosts[initialReadCount!]
-        if (target) {
-          document
-            .getElementById(`post-${target.postNumber}`)
-            ?.scrollIntoView({ behavior: 'instant', block: 'start' })
-        }
+
+    function scrollLastReadToBottom() {
+      // 前回読んだ最後のレスが画面下端に来るようにする
+      // (新着レスはまだ非表示なので、その手前=既読部分を表示した状態にする)
+      const lastReadPost = rawPosts[initialReadCount! - 1]
+      const target = lastReadPost ?? rawPosts[initialReadCount!]
+      if (target) {
+        document
+          .getElementById(`post-${target.postNumber}`)
+          ?.scrollIntoView({ behavior: 'instant', block: lastReadPost ? 'end' : 'start' })
       }
-    }, 150)
-    return () => clearTimeout(id)
+    }
+
+    // 「ここから未読」の区切りを画面中央付近に置く。ただし、新着レスの量が
+    // 少なくスレッドがそこで終わっている場合、そのまま中央寄せしようとすると
+    // 実際のコンテンツより下に空白ができてしまう(scrollIntoViewのblock:'center'は
+    // 環境によってはこの空白を防いでくれない)ため、実コンテンツの末尾を超えて
+    // スクロールしないよう手動でクランプする。
+    function centerDividerClamped(el: HTMLDivElement, dividerEl: HTMLElement) {
+      const elRect = el.getBoundingClientRect()
+      const dividerRect = dividerEl.getBoundingClientRect()
+      const dividerOffsetInContent = dividerRect.top - elRect.top + el.scrollTop
+      const desired = dividerOffsetInContent - el.clientHeight / 2
+      const maxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
+      el.scrollTop = Math.max(0, Math.min(desired, maxScrollTop))
+    }
+
+    function commit() {
+      if (didInitialScrollRef.current) return
+      didInitialScrollRef.current = true
+      const hasNewPosts =
+        initialReadCount !== null && initialReadCount > 0 && initialReadCount < rawPosts.length
+      if (hasNewPosts) setReadCountBeforeRefresh(initialReadCount)
+      setTimeout(() => {
+        const el = scrollAreaRef.current
+        if (el) {
+          // 前回、保存済みスクロール位置がない(=短いスレッドで最後まで表示されていた)
+          // か、ほぼ最下部まで読んでいた場合は「読み終えていた」とみなす。
+          const wasCaughtUp =
+            initialScrollTop === null || (initialScrollProgress ?? 0) >= 0.9
+          if (hasNewPosts && wasCaughtUp) {
+            // 前回読み終えていたところに新着レスが増えている場合: 新着レスが実際に
+            // 見えて発光アニメーションにも気づけるよう、「ここから未読」の区切りが
+            // 画面中央付近(＝新着レスが画面下半分を占めるイメージ)に来るようにする
+            const dividerEl = document.getElementById('unread-divider')
+            if (dividerEl) {
+              centerDividerClamped(el, dividerEl)
+            } else {
+              scrollLastReadToBottom()
+            }
+          } else if (initialScrollTop !== null && initialScrollTop > 0) {
+            // 前回閉じたときのスクロール位置を復元(まだ読み終えていない箇所から再開)
+            el.scrollTop = initialScrollTop
+          } else if (hasNewPosts) {
+            scrollLastReadToBottom()
+          }
+          scrollTopRef.current = el.scrollTop
+        }
+        setPositioned(true)
+        if (hasNewPosts) {
+          setTimeout(() => setNewPostsVisible(true), 400)
+        } else {
+          setNewPostsVisible(true)
+        }
+      }, 150)
+    }
+
+    if (!isFetching) {
+      commit()
+      return
+    }
+    const SAFETY_MS = 6000
+    const safety = setTimeout(commit, SAFETY_MS)
+    return () => clearTimeout(safety)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawPosts])
+  }, [isFetching, rawPosts])
 
   // スクロール位置を ref で追跡（onScroll で直接更新）
   const handleScroll = useCallback(() => {
@@ -259,26 +335,34 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     scrollProgressRef.current = max > 0 ? el.scrollTop / max : 0
   }, [])
 
-  function showPcRefreshIndicator(dir: 'top' | 'bottom') {
-    const ind = dir === 'top' ? pcTopPullRef.current : pcBottomPullRef.current
-    if (!ind) return
-    const currentH = parseInt(ind.style.height) || 0
-    if (currentH > 0) return
-    ind.style.height = `${REFRESH_IND_H}px`
-    ind.style.opacity = '0.9'
-    setTimeout(() => { ind.style.height = '0'; ind.style.opacity = '0' }, 500)
-  }
+  // ホイールオーバースクロールで更新（上端: 上スクロール / 下端: 下スクロール）。
+  // スマホのタッチ版と同じ丸矢印アニメーション・最小回転時間を共有し、
+  // 1回のホイールイベントでは発火せず、閾値まで累積させる。
+  const {
+    indicatorRef: topPullIndicatorRef,
+    iconRef: topPullIconRef,
+    pull: topPull,
+    reset: topPullReset,
+  } = useWheelPullRefresh({ onRefresh: handleRefresh, sign: 1 })
+  const {
+    indicatorRef: bottomPullIndicatorRef,
+    iconRef: bottomPullIconRef,
+    pull: bottomPull,
+    reset: bottomPullReset,
+  } = useWheelPullRefresh({ onRefresh: handleRefresh, sign: -1 })
 
-  // ホイールオーバースクロールで更新（上端: 上スクロール / 下端: 下スクロール）
   function handleWheelRefresh(e: React.WheelEvent<HTMLDivElement>) {
     const el = scrollAreaRef.current
     if (!el) return
     if (e.deltaY < 0 && el.scrollTop < 1) {
-      showPcRefreshIndicator('top')
-      handleRefresh()
+      topPull(-e.deltaY)
+      bottomPullReset()
     } else if (e.deltaY > 0 && el.scrollTop + el.clientHeight >= el.scrollHeight - 5) {
-      showPcRefreshIndicator('bottom')
-      handleRefresh()
+      bottomPull(e.deltaY)
+      topPullReset()
+    } else {
+      topPullReset()
+      bottomPullReset()
     }
   }
 
@@ -410,59 +494,87 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     : -1
 
   const postsArea = (
+    <div className="flex-1 relative overflow-hidden">
+      {/* 上部更新インジケーター（コンテンツの高さを変えず独立して降りてくる） */}
+      <div
+        className="absolute left-0 right-0 top-0 flex justify-center pointer-events-none z-10"
+        style={{ opacity: 0, transform: `translateY(${PULL_HIDDEN_Y}px)` }}
+        ref={topPullIndicatorRef}
+      >
+        <PullSpinner iconRef={topPullIconRef} />
+      </div>
+      {/* 下部更新インジケーター */}
+      <div
+        className="absolute left-0 right-0 bottom-0 flex justify-center pointer-events-none z-10"
+        style={{ opacity: 0, transform: `translateY(${-PULL_HIDDEN_Y}px)` }}
+        ref={bottomPullIndicatorRef}
+      >
+        <PullSpinner iconRef={bottomPullIconRef} />
+      </div>
     <div
       ref={scrollAreaRef}
       onScroll={handleScroll}
       onWheel={handleWheelRefresh}
-      className="flex-1 overflow-y-auto custom-scrollbar p-6 space-y-3"
+      className="h-full overflow-y-auto custom-scrollbar p-6 space-y-3"
     >
-      {/* 上部更新インジケーター */}
-      <div
-        ref={pcTopPullRef}
-        className="flex items-center justify-center text-xs text-slate-400 select-none pointer-events-none overflow-hidden"
-        style={{ height: 0, opacity: 0 }}
-      >
-        更新中...
-      </div>
-      {isLoading ? (
+      {isError && !thread ? (
+        <div className="text-slate-500 text-sm">データが取得できませんでした</div>
+      ) : isLoading ? (
         <div className="text-slate-500 text-sm">読み込み中...</div>
       ) : filteredPosts.length === 0 ? (
         <div className="text-slate-500 text-sm">投稿がありません</div>
       ) : (
-        filteredPosts.map((post, i) => (
-          <Fragment key={post.id}>
-            {i === firstNewIndex && (
-              <div
-                className="flex items-center gap-3 py-1 select-none"
-                style={{ color: 'var(--c-accent)', opacity: 0.6 }}
-              >
-                <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
-                <span className="text-[10px] font-bold tracking-widest whitespace-nowrap">
-                  ここから未読
-                </span>
-                <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+        filteredPosts.map((post, i) => {
+          const content = (
+            <>
+              {i === firstNewIndex && (
+                <div
+                  id="unread-divider"
+                  className="flex items-center gap-3 py-1 select-none"
+                  style={{ color: 'var(--c-accent)', opacity: 0.6 }}
+                >
+                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                  <span className="text-[10px] font-bold tracking-widest whitespace-nowrap">
+                    ここから未読
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                </div>
+              )}
+              <PostArticle
+                post={post}
+                anchorCount={anchorCountMap.get(post.postNumber) ?? 0}
+                idCount={idCountMap.get(post.authorId) ?? 1}
+                handlers={handlers}
+                isOwnPost={ownPostNumbers.has(post.postNumber)}
+                isReplyToOwn={replyToOwnNumbers.has(post.postNumber)}
+                showTopDivider={i > 0 && i !== firstNewIndex}
+                // newPostsVisible が false の間(初回表示のフェードイン待ち)は
+                // まだ画面上で不可視のため、ここでisNewを立てて光らせても意味が
+                // ないばかりか、見えるようになる頃にはアニメーションが終わって
+                // しまう。実際に見える(newPostsVisible=true)タイミングに合わせて
+                // 発火させる。
+                isNew={newPostsVisible && newPostIds.has(post.id)}
+              />
+            </>
+          )
+          // 未読レスはスレッド表示位置が決まった後、少し遅れてフェードインさせる
+          if (firstNewIndex !== -1 && i >= firstNewIndex) {
+            return (
+              <div key={post.id} className={`transition-opacity duration-300 ${newPostsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                {content}
               </div>
-            )}
-            <PostArticle
-              post={post}
-              anchorCount={anchorCountMap.get(post.postNumber) ?? 0}
-              idCount={idCountMap.get(post.authorId) ?? 1}
-              handlers={handlers}
-              isOwnPost={ownPostNumbers.has(post.postNumber)}
-              isReplyToOwn={replyToOwnNumbers.has(post.postNumber)}
-              showTopDivider={i > 0 && i !== firstNewIndex}
-            />
-          </Fragment>
-        ))
+            )
+          }
+          return <Fragment key={post.id}>{content}</Fragment>
+        })
       )}
-      {/* 下部更新インジケーター */}
-      <div
-        ref={pcBottomPullRef}
-        className="flex items-center justify-center text-xs text-slate-400 select-none pointer-events-none overflow-hidden"
-        style={{ height: 0, opacity: 0 }}
-      >
-        更新中...
+    </div>
+    {/* 表示位置(スクロール復元/未読ジャンプ)が決まるまでコンテンツを覆う */}
+    {!positioned && (
+      <div className="absolute inset-0 z-20 flex items-center justify-center bg-c-base">
+        <span className="material-symbols-outlined text-3xl text-slate-400 animate-spin">progress_activity</span>
       </div>
+    )}
     </div>
   )
 

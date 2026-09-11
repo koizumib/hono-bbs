@@ -2,6 +2,7 @@ import type { Thread } from '../../api/types'
 import { relativeTime } from '../../utils/formatDate'
 import { extractMedia, getYouTubeVideoId } from '../../utils/urlExtract'
 import { getHistory } from '../../utils/threadHistory'
+import { calculateMomentum } from '../../utils/momentum'
 
 interface ThreadCardProps {
   thread: Thread
@@ -9,20 +10,31 @@ interface ThreadCardProps {
   isSelected: boolean
   onClick: (e: React.MouseEvent) => void
   compact?: boolean
+  /** 更新で新しく取得できたスレッドの場合、描画時に一瞬光らせる */
+  isNew?: boolean
 }
 
-export default function ThreadCard({ thread, isActive, isSelected, onClick, compact = false }: ThreadCardProps) {
-  // 勢い = レス数 / 経過時間(時間)
-  const momentum = thread.postCount / Math.max(0.01, (Date.now() - new Date(thread.firstPost?.createdAt ?? thread.createdAt).getTime()) / 3_600_000)
-  const isTrending = momentum > 50
+export default function ThreadCard({ thread, isActive, isSelected, onClick, compact = false, isNew = false }: ThreadCardProps) {
+  const momentum = calculateMomentum(thread)
 
-  // Momentum level: 0=very low, 1=low, 2=medium, 3=high
+  // 勢いレベル: 0=muted → 1=heat-warm → 2=heat-hot(fill) → 3=heat-very-hot(fill)
   const momentumLevel: 0 | 1 | 2 | 3 =
     momentum > 50 ? 3 : momentum > 10 ? 2 : momentum > 1 ? 1 : 0
+  const momentumColorClass =
+    momentumLevel === 3 ? 'text-c-heat-very-hot'
+    : momentumLevel === 2 ? 'text-c-heat-hot'
+    : momentumLevel === 1 ? 'text-c-heat-warm'
+    : 'text-c-text-muted'
+  const momentumFilled = momentumLevel >= 2
 
   const history = getHistory()
   const readEntry = history.find(e => e.threadId === thread.id)
   const unreadCount = readEntry && readEntry.lastReadCount < thread.postCount ? thread.postCount - readEntry.lastReadCount : 0
+  // 一度も開いたことがない = 新着スレの目印(ドット)を出す。
+  // 「新着ではないが未読(以前読んだが新しいレスがある)」もタイトルの強調表示は行うが、
+  // ドットは新着スレ専用にして役割を分ける。
+  const neverOpened = !readEntry
+  const hasUnread = neverOpened || readEntry.lastReadCount < thread.postCount
 
   const media = thread.firstPost ? extractMedia(thread.firstPost.content) : []
   const imageItem = media.find((m) => m.type === 'image')
@@ -35,47 +47,23 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
 
   const creatorId = thread.firstPost?.authorId ?? null
 
-  const momentumClass =
-    momentumLevel === 3
-      ? 'text-c-accent opacity-100'
-      : momentumLevel === 2
-      ? 'text-c-accent opacity-70'
-      : momentumLevel === 1
-      ? 'text-c-accent opacity-40'
-      : 'text-slate-400'
+  const selected = isSelected || isActive
 
   return (
     <div
       onClick={onClick}
-      className={`${compact ? 'px-3 py-2' : 'px-4 py-3'} border-b border-c-border cursor-pointer transition-colors relative ${
-        isSelected
-          ? 'bg-c-accent/15'
-          : isActive
-          ? 'bg-slate-100 dark:bg-slate-800/30'
-          : 'hover:bg-slate-50 dark:hover:bg-slate-800/20'
+      className={`${compact ? 'px-3 py-2' : 'px-4 py-3'} cursor-pointer transition-colors relative border rounded-[var(--card-radius)] ${isNew ? 'flash-new' : ''} ${
+        selected
+          ? 'bg-[var(--card-selected-bg)] border-[var(--card-selected-border-color)]'
+          : 'bg-[var(--card-bg)] border-[var(--card-border-color)] hover:bg-c-surface2'
       }`}
     >
-      {isSelected
-        ? <div className="absolute left-0 top-0 bottom-0 w-1" style={{ background: 'var(--c-accent)', opacity: 0.7 }} />
-        : isActive
-        ? <div className="absolute left-0 top-0 bottom-0 w-1 bg-c-accent" />
-        : readEntry
-        ? <div className="absolute left-0 top-0 bottom-0 w-1 bg-slate-400/40" />
-        : null
-      }
-
-      <div className="flex justify-between items-start mb-1">
-        {isTrending ? (
-          <span className="text-[10px] font-bold text-c-accent uppercase tracking-tighter">
-            🔥 トレンド
-          </span>
-        ) : (
-          <span className="text-[10px] text-slate-500" />
-        )}
-        <span className="text-[10px] text-slate-500">{relativeTime(thread.updatedAt)}</span>
-      </div>
-
-      <div className="flex gap-3">
+      {/* タイトル行: 新着ドット + 画像 + スレタイ + 新着レス数バッジ */}
+      <div className="flex items-center gap-2.5 min-w-0">
+        <span
+          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+          style={{ background: 'var(--c-accent)', visibility: neverOpened ? 'visible' : 'hidden' }}
+        />
         {hasThumbnail && (
           <div
             className={`${compact ? 'w-12 h-12' : 'w-16 h-16'} rounded flex-shrink-0 overflow-hidden flex items-center justify-center`}
@@ -109,38 +97,30 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
             ) : null}
           </div>
         )}
-        <div className="flex-1 min-w-0">
-          <h3
-            className={`text-sm leading-tight mb-1 line-clamp-2 ${
-              isActive ? 'font-bold text-slate-900 dark:text-white' : 'font-medium text-slate-700 dark:text-slate-200'
-            }`}
+        <h3
+          className={`flex-1 min-w-0 text-sm leading-tight line-clamp-2 ${hasUnread ? 'font-bold' : 'font-medium text-c-text-body'}`}
+          style={hasUnread ? { color: 'var(--c-text-emphasis)' } : undefined}
+        >
+          {thread.title}
+        </h3>
+        {unreadCount > 0 && (
+          <span
+            className="flex-shrink-0 font-bold text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap"
+            style={{ background: 'var(--c-accent)', color: 'var(--c-accent-text)' }}
           >
-            {thread.title}
-          </h3>
-          <div className="flex items-center text-[10px] gap-3">
-            <div className="flex items-center gap-1 text-slate-400">
-              <span className="font-bold">レス:</span>
-              <span>{thread.postCount}</span>
-            </div>
-            <div className={`flex items-center gap-1 ${momentumClass}`}>
-              <span className="font-bold">勢い:</span>
-              <span>
-                {momentum > 1000 ? `${(momentum / 1000).toFixed(1)}k` : Math.round(momentum)}
-              </span>
-            </div>
-            <div className="ml-auto flex flex-col items-end gap-0.5">
-              {unreadCount > 0 && (
-                <span
-                  className="font-bold text-[9px] px-1.5 py-0.5 rounded"
-                  style={{ background: 'var(--c-accent)', color: 'var(--c-accent-text)' }}
-                >
-                  +{unreadCount}
-                </span>
-              )}
-              {creatorId && <span className="text-slate-400 font-mono truncate">ID:{creatorId}</span>}
-            </div>
-          </div>
+            +{unreadCount}
+          </span>
+        )}
+      </div>
+
+      {/* メタ行: 時間 → 勢いアイコン＋レス数 → (右端)ID */}
+      <div className="flex items-center gap-3 mt-1.5 text-[10px] text-c-text-muted">
+        <span className="select-none whitespace-nowrap">{relativeTime(thread.updatedAt)}</span>
+        <div className={`flex items-center gap-1 ${momentumColorClass}`} title={`勢い：${Math.round(momentum)}`}>
+          <span className={`material-symbols-outlined text-sm leading-none ${momentumFilled ? 'fill' : ''}`}>local_fire_department</span>
+          <span>{thread.postCount}</span>
         </div>
+        {creatorId && <span className="ml-auto font-mono truncate">ID:{creatorId}</span>}
       </div>
     </div>
   )

@@ -2,6 +2,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Noto+Color+Emoji&display=swap');
 @import url('https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200');
 @import './theme/theme.css';
+@import './theme/patterns.css';
 
 /* AA(アスキーアート)用フォント。'MS Pゴシック'とほぼ同じ文字送り幅になるよう
    IPA Pゴシック+monapoから作られた自己ホスト済みフォント。OSにインストールされて
@@ -37,6 +38,11 @@ input[type="range"] {
 
   .material-symbols-outlined {
     font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+
+  /* アイコンの「アクティブ」状態(選択中タブ、登録済みのお気に入り、勢いの上位段階等) */
+  .material-symbols-outlined.fill {
+    font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
   }
 }
 
@@ -124,4 +130,26 @@ input[type="range"] {
    * 崩れてAAが乱れる原因になる。AAだけはこの自動拡大を無効化して等幅を保証する。 */
   -webkit-text-size-adjust: 100% !important;
   text-size-adjust: 100% !important;
+}
+
+/* 一覧更新で新しく取得できた要素を描画時に一瞬光らせる演出 */
+@keyframes flash-new {
+  0% { background-color: color-mix(in srgb, var(--c-accent) 35%, transparent); }
+  100% { background-color: transparent; }
+}
+.flash-new {
+  animation: flash-new 1.2s ease-out;
+}
+
+/* 自分の投稿の縦帯。border-leftをそのままカードに付けると角丸との交点で
+ * 線が歪んで見えるため、角に触れない独立した短いバーを::beforeで描画する。 */
+.bbs-post-own::before {
+  content: '';
+  position: absolute;
+  left: 7px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--c-accent);
 }

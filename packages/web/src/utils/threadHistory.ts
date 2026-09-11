@@ -1,3 +1,6 @@
+import type { QueryClient } from '@tanstack/react-query'
+import { useThreadHistoryVersionStore } from '../stores/threadHistoryVersionStore'
+
 export interface ThreadHistoryEntry {
   threadId: string
   boardId: string
@@ -50,6 +53,8 @@ function saveHistory(entries: ThreadHistoryEntry[]) {
   } catch {
     // localStorage が使えない場合は無視
   }
+  // 板一覧側(別コンポーネント)に既読状態が変わったことを知らせる
+  useThreadHistoryVersionStore.getState().bump()
 }
 
 export function recordThreadView(
@@ -89,9 +94,29 @@ export function getHistory(): ThreadHistoryEntry[] {
 
 export function clearHistory() {
   localStorage.removeItem(STORAGE_KEY)
+  useThreadHistoryVersionStore.getState().bump()
 }
 
 export function removeThreadFromHistory(threadId: string) {
   const history = loadHistory()
   saveHistory(history.filter((e) => e.threadId !== threadId))
+}
+
+/**
+ * 閲覧履歴を削除するのに合わせて、そのスレッドの内容(react-queryのキャッシュ)も
+ * 破棄する。履歴だけ消してキャッシュが残っていると、再度開いたときに古い投稿数の
+ * ままの内容が一瞬表示されてしまう。
+ *
+ * 履歴の削除自体は即座に行うが、キャッシュの削除は少し遅らせる。今まさに表示中の
+ * スレッド(閉じるアニメーション中でまだアンマウントされていない場合など)に対して
+ * removeQueries を呼ぶと、react-query がそのクエリを「新規の空クエリ」とみなして
+ * 即座に再フェッチしてしまい、その結果で recordThreadView が再び走って、たった今
+ * 削除したはずの履歴を復活させてしまう(かつ表示中の画面がチラつく)ことがある。
+ * アンマウントが確実に完了しているであろうタイミングまで遅延させることでこれを防ぐ。
+ */
+export function forgetThread(queryClient: QueryClient, boardId: string, threadId: string): void {
+  removeThreadFromHistory(threadId)
+  setTimeout(() => {
+    queryClient.removeQueries({ queryKey: ['posts', boardId, threadId] })
+  }, 300)
 }

@@ -20,3 +20,6 @@ CLAUDE.md
 
 # design directory
 example_design/
+
+# scratch/output files that shouldn't go to GitHub (Claudeとの検討用の下書き置き場)
+local-output/

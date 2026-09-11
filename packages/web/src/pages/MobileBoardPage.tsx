@@ -1,13 +1,18 @@
-import { Fragment, memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, forwardRef, memo, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useThreads } from '../hooks/useThreads'
 import { useThreadView } from '../hooks/useThreadView'
+import { useSwipeGesture } from '../hooks/useSwipeGesture'
+import { useNewIdsFlash } from '../hooks/useNewIdsFlash'
+import { calculateMomentum } from '../utils/momentum'
+import { useThreadHistoryVersionStore } from '../stores/threadHistoryVersionStore'
+import { cycleSort, type SortState } from '../utils/sortCycle'
 import { useSettingsStore } from '../stores/settingsStore'
 import { filterThreads } from '../utils/filter'
 import NgHiddenNotice from '../components/ui/NgHiddenNotice'
 import { fuzzyMatch } from '../utils/fuzzySearch'
-import { getHistory, removeThreadFromHistory } from '../utils/threadHistory'
+import { getHistory, forgetThread } from '../utils/threadHistory'
 import { getThreadPosts } from '../api/posts'
 import { reportThread } from '../api/threads'
 import ThreadCard from '../components/thread/ThreadCard'
@@ -18,11 +23,15 @@ import ReplyForm from '../components/post/ReplyForm'
 import MobileTopBar from '../components/mobile/MobileTopBar'
 import MobileBoardDrawer from '../components/mobile/MobileBoardDrawer'
 import SwipeHintOverlay from '../components/mobile/SwipeHintOverlay'
-
-// プルリフレッシュ インジケーターの「離した瞬間」「自動収納」用トランジション。
-// ドラッグ中(touchmove)はこれを適用せず指に1:1追従させ、指を離した後の
-// 確定/収納だけをアニメーションさせることで、スナップ感(がくつき)をなくす。
-const PULL_SETTLE_TRANSITION = 'height 0.25s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease-out'
+import PullSpinner from '../components/ui/PullSpinner'
+import {
+  PULL_SNAP_TRANSITION,
+  PULL_SETTLE_TRANSITION,
+  PULL_HIDDEN_Y,
+  PULL_REVEAL_Y,
+  MIN_SPIN_MS,
+  dampedPullY,
+} from '../utils/pullRefresh'
 
 // ─── スレッド一覧パネル ────────────────────────────────────────────────────────
 
@@ -35,23 +44,30 @@ interface MobileThreadListPanelProps {
   onSelectThread: (threadId: string) => void
 }
 
-const MobileThreadListPanel = memo(function MobileThreadListPanel({
+export interface MobileThreadListPanelHandle {
+  scrollToTop: () => void
+  scrollToBottom: () => void
+}
+
+const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, MobileThreadListPanelProps>(function MobileThreadListPanel({
   boardId,
   currentThreadId,
   onMenuClick,
   onSelectThread,
-}: MobileThreadListPanelProps) {
+}, ref) {
   const navigate = useNavigate()
-  const { data, isLoading, refetch } = useThreads(boardId)
+  const { data, isLoading, isError, refetch } = useThreads(boardId)
   const ngRules = useSettingsStore((s) => s.ngRules)
   const lastRefreshRef = useRef(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
-  const [sortMode, setSortMode] = useState<SortMode | null>(null)
+  const [sortState, setSortState] = useState<SortState<SortMode> | null>(null)
   const [showUnread, setShowUnread] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [showSearch, setShowSearch] = useState(false)
-  const [historyVersion, setHistoryVersion] = useState(0)
+  // スレッド表示画面で新着レスを取得した際にも自動で再計算されるよう、
+  // ローカルstateではなく共有ストアの更新カウンタを使う
+  const historyVersion = useThreadHistoryVersionStore((s) => s.version)
 
   const board = data?.data.board
   const rawThreads = useMemo(() => data?.data.threads ?? [], [data])
@@ -64,17 +80,18 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
   // メインスレッドが詰まり、更新アイコンのspinアニメーションがガクつく原因になっていた。
   const threads = useMemo(() => {
     let result = [...baseThreads]
-    if (sortMode === 'momentum') {
-      result = result.slice().sort((a, b) => {
-        const ma = a.postCount / Math.max(1, (Date.now() - new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()) / 86400000)
-        const mb = b.postCount / Math.max(1, (Date.now() - new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()) / 86400000)
-        return mb - ma
-      })
-    } else if (sortMode === 'newest') {
+    if (sortState?.mode === 'momentum') {
+      const sign = sortState.dir === 'asc' ? 1 : -1
+      // ThreadCardの炎アイコンと同じ計算式(calculateMomentum)を使う。以前は独自の
+      // (1日未満は1日として丸める)計算だったため、24時間以内のスレッド同士で
+      // アイコンの色とソート順が食い違うことがあった。
+      result = result.slice().sort((a, b) => (calculateMomentum(a) - calculateMomentum(b)) * sign)
+    } else if (sortState?.mode === 'newest') {
+      const sign = sortState.dir === 'asc' ? 1 : -1
       result = result.slice().sort((a, b) => {
         const da = new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()
         const db = new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()
-        return db - da
+        return (da - db) * sign
       })
     }
     if (showUnread) {
@@ -87,24 +104,48 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
       result = result.filter((t) => fuzzyMatch(t.title, searchQuery))
     }
     return result
-  }, [baseThreads, sortMode, showUnread, history, searchQuery, boardId])
+  }, [baseThreads, sortState, showUnread, history, searchQuery, boardId])
 
-  const handleRefresh = useCallback(() => {
+  // 更新で新しく取得できたスレッドを描画時に一瞬光らせる。
+  // フィルタ/ソート後のthreadsを渡すと、未読フィルタのON/OFFや並び替えで
+  // 「表示から一時的に消えていただけ」のスレッドまで新着扱いされてしまう
+  // (再表示のたびにほぼ全件が誤って光るバグの原因だった)。サーバーから
+  // 取得した生データ(rawThreads)を渡し、UI操作では変化しない基準にする。
+  const newThreadIds = useNewIdsFlash(useMemo(() => rawThreads.map((t) => t.id), [rawThreads]))
+
+  // プルリフレッシュ側が実際の完了タイミングを待てるように、refetchのPromiseを返す
+  const handleRefresh = useCallback(async () => {
     const now = Date.now()
     if (now - lastRefreshRef.current < 500) return
     lastRefreshRef.current = now
     setIsRefreshing(true)
-    void refetch()
-    setTimeout(() => setIsRefreshing(false), 500)
+    try {
+      await refetch()
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [refetch])
 
   // プルリフレッシュ＋カスタムスクロールバー（スクロールdivのみ）
   const listScrollRef = useRef<HTMLDivElement>(null)
   const listThumbRef = useRef<HTMLDivElement>(null)
-  const listPullStartRef = useRef<{ y: number } | null>(null)
+  const listPullStartRef = useRef<{ x: number; y: number } | null>(null)
   const listPullIndicatorRef = useRef<HTMLDivElement>(null)
+  const listPullIconRef = useRef<HTMLSpanElement>(null)
   const LIST_PULL_THRESHOLD = 70
-  const LIST_REFRESH_IND_H = 40
+
+  // →↑/→↓ ジェスチャーから一覧を最下部/最上部へ移動できるように公開する。
+  // ジェスチャー用なのでアニメーションなしで即座に移動する（ヘッダータップとは区別する）。
+  useImperativeHandle(ref, () => ({
+    scrollToTop: () => {
+      const el = listScrollRef.current
+      if (el) el.scrollTop = 0
+    },
+    scrollToBottom: () => {
+      const el = listScrollRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    },
+  }), [])
 
   function handleListScroll() {
     const el = listScrollRef.current
@@ -120,7 +161,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
   function handleListTouchStart(e: React.TouchEvent) {
     const el = listScrollRef.current
     if (el && el.scrollTop <= 0) {
-      listPullStartRef.current = { y: e.touches[0].clientY }
+      listPullStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
       // ドラッグ中は指に追従させるため、前回の設定アニメーションを解除しておく
       const ind = listPullIndicatorRef.current
       if (ind) ind.style.transition = 'none'
@@ -129,15 +170,19 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
 
   function handleListTouchMove(e: React.TouchEvent) {
     if (!listPullStartRef.current) return
+    const dx = e.touches[0].clientX - listPullStartRef.current.x
     const dy = e.touches[0].clientY - listPullStartRef.current.y
+    // 横方向が優位なら、これは板一覧の左右スワイプジェスチャー。プルリフレッシュ扱いにしない。
+    if (Math.abs(dx) > Math.abs(dy) + 5) { listPullStartRef.current = null; return }
     if (dy <= 0) { listPullStartRef.current = null; return }
     const ind = listPullIndicatorRef.current
+    // 位置はゴムひものように徐々に速度が落ちながら追従、回転は閾値でちょうど1周する
+    const rotateProgress = Math.min(1, dy / LIST_PULL_THRESHOLD)
     if (ind) {
-      const progress = Math.min(1, dy / LIST_PULL_THRESHOLD)
-      ind.style.height = `${Math.min(dy * 0.4, LIST_REFRESH_IND_H)}px`
-      ind.style.opacity = String(progress)
-      ind.textContent = progress >= 1 ? '↑ 放すと更新' : '↓ 引いて更新'
+      ind.style.transform = `translateY(${dampedPullY(dy, LIST_PULL_THRESHOLD)}px)`
+      ind.style.opacity = String(Math.min(1, rotateProgress + 0.15))
     }
+    if (listPullIconRef.current) listPullIconRef.current.style.transform = `rotate(${rotateProgress * 360}deg)`
   }
 
   function handleListTouchEnd(e: React.TouchEvent) {
@@ -145,17 +190,22 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
     const dy = e.changedTouches[0].clientY - listPullStartRef.current.y
     listPullStartRef.current = null
     const ind = listPullIndicatorRef.current
-    if (ind) ind.style.transition = PULL_SETTLE_TRANSITION
+    const icon = listPullIconRef.current
     if (dy >= LIST_PULL_THRESHOLD) {
-      if (ind) {
-        ind.style.height = `${LIST_REFRESH_IND_H}px`
-        ind.style.opacity = '0.9'
-        ind.textContent = '更新中...'
-        setTimeout(() => { ind.style.height = '0'; ind.style.opacity = '0' }, 500)
-      }
-      handleRefresh()
+      // 指を離した瞬間、確定位置まで素早くスナップしてそこで回り続ける
+      if (ind) { ind.style.transition = PULL_SNAP_TRANSITION; ind.style.transform = `translateY(${PULL_REVEAL_Y}px)`; ind.style.opacity = '1' }
+      if (icon) { icon.style.transform = ''; icon.classList.add('animate-spin') }
+      const spinStart = Date.now()
+      void (async () => {
+        await handleRefresh()
+        const elapsed = Date.now() - spinStart
+        if (elapsed < MIN_SPIN_MS) await new Promise((r) => setTimeout(r, MIN_SPIN_MS - elapsed))
+        if (ind) { ind.style.transition = PULL_SETTLE_TRANSITION; ind.style.transform = `translateY(${PULL_HIDDEN_Y}px)`; ind.style.opacity = '0' }
+        if (icon) icon.classList.remove('animate-spin')
+      })()
     } else {
-      if (ind) { ind.style.opacity = '0'; ind.style.height = '0'; ind.textContent = '↓ 引いて更新' }
+      if (ind) { ind.style.transition = PULL_SETTLE_TRANSITION; ind.style.opacity = '0'; ind.style.transform = `translateY(${PULL_HIDDEN_Y}px)` }
+      if (icon) icon.style.transform = ''
     }
   }
 
@@ -168,6 +218,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
     >
       <MobileTopBar
         title={board?.name ?? (boardId ? '読み込み中...' : '板を選択')}
+        centerTitle
         onMenuClick={onMenuClick}
         rightContent={
           boardId ? (
@@ -205,6 +256,14 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
       <NgHiddenNotice count={rawThreads.length - baseThreads.length} />
 
       <div className="flex-1 relative overflow-hidden">
+        {/* プルリフレッシュの丸矢印。コンテンツを押し下げず、独立してヘッダー下から降りてくる */}
+        <div
+          ref={listPullIndicatorRef}
+          className="absolute left-0 right-0 top-0 flex justify-center select-none pointer-events-none z-20"
+          style={{ opacity: 0, transform: `translateY(${PULL_HIDDEN_Y}px)` }}
+        >
+          <PullSpinner iconRef={listPullIconRef} />
+        </div>
         <div
           ref={listScrollRef}
           className="h-full overflow-y-auto select-none"
@@ -214,33 +273,28 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
           onTouchMove={handleListTouchMove}
           onTouchEnd={handleListTouchEnd}
         >
-          <div
-            ref={listPullIndicatorRef}
-            className="flex items-center justify-center text-[10px] text-slate-400 select-none pointer-events-none overflow-hidden"
-            style={{ opacity: 0, height: 0 }}
-          >
-            ↓ 引いて更新
-          </div>
           {!boardId ? (
             <div className="p-6 text-center text-slate-500 text-sm">メニューから板を選択してください</div>
+          ) : isError && !board ? (
+            <div className="p-6 text-center text-slate-500 text-sm">データが取得できませんでした</div>
           ) : isLoading ? (
             <div className="p-6 text-center text-slate-500 text-sm">読み込み中...</div>
           ) : threads.length === 0 ? (
             <div className="p-6 text-center text-slate-500 text-sm">スレッドがありません</div>
           ) : (
-            threads.map((thread) => (
+            <div className="p-1.5 flex flex-col gap-1.5">
+            {threads.map((thread) => (
               <ThreadCard
                 key={thread.id}
                 thread={thread}
                 isActive={currentThreadId === thread.id}
                 isSelected={false}
                 compact
-                onClick={() => {
-                  setHistoryVersion((v) => v + 1)
-                  onSelectThread(thread.id)
-                }}
+                isNew={newThreadIds.has(thread.id)}
+                onClick={() => onSelectThread(thread.id)}
               />
-            ))
+            ))}
+            </div>
           )}
         </div>
         {/* カスタムスクロールバー */}
@@ -254,41 +308,47 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
       </div>
 
       {boardId && (
-        <footer className="flex items-center gap-1.5 px-2 py-2 border-t border-c-border bg-c-surface flex-shrink-0">
-          {/* 未読フィルタ */}
+        <footer className="flex items-center gap-3 px-6 py-2 border-t border-c-border bg-c-surface flex-shrink-0 text-xs font-medium">
+          {/* 未読フィルタ（PCと同じ下線タブ形式。ソートボタンと幅を揃える） */}
           <button
             type="button"
             onClick={() => setShowUnread((s) => !s)}
-            className={`w-14 py-2.5 flex items-center justify-center text-xs font-bold rounded-lg transition-colors ${
-              showUnread
-                ? 'bg-c-accent text-[var(--c-accent-text)]'
-                : 'text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800'
+            className={`relative px-3 py-2.5 flex items-center justify-center gap-0.5 min-w-[68px] text-xs font-medium transition-colors ${
+              showUnread ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             未読
+            <span className="material-symbols-outlined text-sm leading-none invisible">arrow_upward</span>
+            {showUnread && <span className="absolute bottom-0.5 left-1.5 right-1.5 h-[2px] bg-c-accent rounded-full" />}
           </button>
-          {/* ソートボタン（勢い・新着、レス抽出タブと同じ下線タブ形式） */}
-          {SORT_MODES.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setSortMode((m) => (m === mode ? null : mode))}
-              className={`relative px-3 py-2.5 flex items-center justify-center text-xs font-medium transition-colors ${
-                sortMode === mode ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
-              }`}
-            >
-              {SORT_LABELS[mode]}
-              {sortMode === mode && (
-                <span className="absolute bottom-0.5 left-1.5 right-1.5 h-[2px] bg-c-accent rounded-full" />
-              )}
-            </button>
-          ))}
+          {/* ソートボタン（勢い・新着、レス抽出タブと同じ下線タブ形式。クリックで昇順→降順→オフを巡回） */}
+          {SORT_MODES.map((mode) => {
+            const active = sortState?.mode === mode
+            return (
+              <button
+                key={mode}
+                type="button"
+                onClick={() => setSortState((s) => cycleSort(s, mode))}
+                className={`relative px-3 py-2.5 flex items-center justify-center gap-0.5 min-w-[68px] text-xs font-medium transition-colors ${
+                  active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
+                }`}
+              >
+                {SORT_LABELS[mode]}
+                <span className={`material-symbols-outlined text-sm leading-none ${active ? '' : 'invisible'}`}>
+                  {active && sortState.dir === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                </span>
+                {active && (
+                  <span className="absolute bottom-0.5 left-1.5 right-1.5 h-[2px] bg-c-accent rounded-full" />
+                )}
+              </button>
+            )
+          })}
           <div className="flex-1" />
           <button
             type="button"
             onClick={handleRefresh}
             disabled={isRefreshing}
-            className={`w-10 h-10 flex items-center justify-center rounded-lg border transition-colors ${isRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
+            className={`w-10 h-10 flex items-center justify-center rounded-lg transition-colors ${isRefreshing ? 'text-c-accent bg-c-accent/10' : 'text-slate-400 bg-c-surface2 active:bg-slate-100 dark:active:bg-slate-800'}`}
           >
             <span className={`material-symbols-outlined text-xl${isRefreshing ? ' animate-spin' : ''}`}>refresh</span>
           </button>
@@ -296,7 +356,7 @@ const MobileThreadListPanel = memo(function MobileThreadListPanel({
       )}
     </div>
   )
-})
+}))
 
 // ─── 書き込みパネル（右からスライド）────────────────────────────────────────
 
@@ -335,47 +395,18 @@ function MobileReplyPanel({ boardId, threadId, insertAnchor, onClose, onPosted }
   }
 
   // スワイプ右で閉じる（ジェスチャー中は画面を動かさず、指を離してから遷移する）
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
-  const isDraggingRef = useRef(false)
-  const [showBackLabel, setShowBackLabel] = useState(false)
-  const cleanupMoveRef = useRef<(() => void) | null>(null)
+  const swipe = useSwipeGesture({
+    right: { label: '戻る', onCommit: handleClose },
+  })
 
   function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     e.stopPropagation()
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, time: Date.now() }
-    isDraggingRef.current = false
-
-    // touchmove は React の合成イベントだと passive 指定されて preventDefault が効かないため、
-    // ネイティブリスナーを直接張って横スワイプ確定後は縦スクロールを止められるようにする。
-    const target = e.currentTarget
-    function onMove(ev: TouchEvent) {
-      if (!touchStartRef.current) return
-      const dx = ev.touches[0].clientX - touchStartRef.current.x
-      const dy = ev.touches[0].clientY - touchStartRef.current.y
-      if (!isDraggingRef.current) {
-        if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
-        if (dx > 8) { isDraggingRef.current = true; setShowBackLabel(true) }
-      }
-      if (isDraggingRef.current) ev.preventDefault()
-    }
-    target.addEventListener('touchmove', onMove, { passive: false })
-    cleanupMoveRef.current = () => target.removeEventListener('touchmove', onMove)
+    swipe.onTouchStart(e)
   }
 
   function handleTouchEnd(e: React.TouchEvent) {
     e.stopPropagation()
-    cleanupMoveRef.current?.()
-    cleanupMoveRef.current = null
-    setShowBackLabel(false)
-    if (!touchStartRef.current || !isDraggingRef.current) {
-      touchStartRef.current = null; isDraggingRef.current = false; return
-    }
-    const dx = e.changedTouches[0].clientX - touchStartRef.current.x
-    const dt = Math.max(1, Date.now() - touchStartRef.current.time)
-    touchStartRef.current = null; isDraggingRef.current = false
-    if (dx > window.innerWidth * 0.4 || (dx > 60 && dx / dt > 0.5)) {
-      handleClose()
-    }
+    swipe.onTouchEnd(e)
   }
 
   return (
@@ -386,7 +417,7 @@ function MobileReplyPanel({ boardId, threadId, insertAnchor, onClose, onPosted }
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
     >
-      <SwipeHintOverlay label={showBackLabel ? '戻る' : null} />
+      <SwipeHintOverlay label={swipe.label} />
       <MobileTopBar title="書き込む" onBack={handleClose} />
       <div className="flex-1 overflow-y-auto custom-scrollbar">
         <ReplyForm
@@ -411,13 +442,18 @@ interface MobileThreadViewInnerProps {
   handlePostedRef?: React.MutableRefObject<() => void>
 }
 
-function MobileThreadViewInner({
+export interface MobileThreadViewInnerHandle {
+  scrollToTop: () => void
+  scrollToBottom: () => void
+}
+
+const MobileThreadViewInner = forwardRef<MobileThreadViewInnerHandle, MobileThreadViewInnerProps>(function MobileThreadViewInner({
   boardId,
   threadId,
   onBack,
   onOpenReply,
   handlePostedRef,
-}: MobileThreadViewInnerProps) {
+}, ref) {
   // 履歴からタイトルをキャッシュ（API応答前に即座に表示するため）
   const [cachedTitle] = useState(() => {
     const entry = getHistory().find(e => e.boardId === boardId && e.threadId === threadId)
@@ -426,10 +462,12 @@ function MobileThreadViewInner({
 
   // closeAll を onReply コールバック内から参照するための ref
   const closeAllRef = useRef<() => void>(() => {})
+  const queryClient = useQueryClient()
 
   const {
     thread,
     isLoading,
+    isError,
     filteredPosts,
     ngHiddenCount,
     anchorCountMap,
@@ -437,7 +475,9 @@ function MobileThreadViewInner({
     ownPostNumbers,
     replyToOwnNumbers,
     firstNewIndex,
-    newPostIds: _newPostIds,
+    newPostIds,
+    positioned,
+    newPostsVisible,
     scrollAreaRef,
     handleScroll,
     containerRect,
@@ -466,21 +506,26 @@ function MobileThreadViewInner({
   const [showKebab, setShowKebab] = useState(false)
   const [showThreadInfo, setShowThreadInfo] = useState(false)
 
-  function doRefresh() {
+  // プルリフレッシュ側が実際の完了タイミングを待てるように、Promiseを返す
+  async function doRefresh() {
     const now = Date.now()
     if (now - lastViewRefreshRef.current < 500) return
     lastViewRefreshRef.current = now
     setIsViewRefreshing(true)
-    handleRefresh()
-    setTimeout(() => setIsViewRefreshing(false), 500)
+    try {
+      await handleRefresh()
+    } finally {
+      setIsViewRefreshing(false)
+    }
   }
 
   // プルリフレッシュ
-  const viewPullStartRef = useRef<{ y: number; atBottom: boolean } | null>(null)
+  const viewPullStartRef = useRef<{ x: number; y: number; atBottom: boolean } | null>(null)
   const viewTopPullRef = useRef<HTMLDivElement>(null)
   const viewBottomPullRef = useRef<HTMLDivElement>(null)
+  const viewTopPullIconRef = useRef<HTMLSpanElement>(null)
+  const viewBottomPullIconRef = useRef<HTMLSpanElement>(null)
   const VIEW_PULL_THRESHOLD = 70
-  const REFRESH_IND_H = 40
 
   function handleViewTouchStart(e: React.TouchEvent) {
     const el = scrollAreaRef.current
@@ -489,7 +534,7 @@ function MobileThreadViewInner({
     const atBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - 10
     if (!atTop && !atBottom) return
     // コンテンツが短い場合は atTop を優先（下に引いて更新できるように）
-    viewPullStartRef.current = { y: e.touches[0].clientY, atBottom: !atTop && atBottom }
+    viewPullStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, atBottom: !atTop && atBottom }
     // ドラッグ中は指に追従させるため、前回の設定アニメーションを解除しておく
     if (viewTopPullRef.current) viewTopPullRef.current.style.transition = 'none'
     if (viewBottomPullRef.current) viewBottomPullRef.current.style.transition = 'none'
@@ -497,26 +542,24 @@ function MobileThreadViewInner({
 
   function handleViewTouchMove(e: React.TouchEvent) {
     if (!viewPullStartRef.current) return
+    const dx = e.touches[0].clientX - viewPullStartRef.current.x
     const raw = e.touches[0].clientY - viewPullStartRef.current.y
-    const dy = viewPullStartRef.current.atBottom ? -raw : raw
+    // 横方向が優位なら、これはスレッド表示の左右スワイプジェスチャー。プルリフレッシュ扱いにしない。
+    if (Math.abs(dx) > Math.abs(raw) + 5) { viewPullStartRef.current = null; return }
+    const atBottom = viewPullStartRef.current.atBottom
+    const dy = atBottom ? -raw : raw
     if (dy <= 0) return
-    const progress = Math.min(1, dy / VIEW_PULL_THRESHOLD)
-    const h = Math.min(dy * 0.4, REFRESH_IND_H)
-    if (viewPullStartRef.current.atBottom) {
-      const ind = viewBottomPullRef.current
-      if (ind) {
-        ind.style.height = `${h}px`
-        ind.style.opacity = String(progress * 0.9)
-        ind.textContent = progress >= 1 ? '↓ 放すと更新' : '↑ 引いて更新'
-      }
-    } else {
-      const ind = viewTopPullRef.current
-      if (ind) {
-        ind.style.height = `${h}px`
-        ind.style.opacity = String(progress * 0.9)
-        ind.textContent = progress >= 1 ? '↑ 放すと更新' : '↓ 引いて更新'
-      }
+    // 位置はゴムひものように徐々に速度が落ちながら追従、回転は閾値でちょうど1周する
+    const rotateProgress = Math.min(1, dy / VIEW_PULL_THRESHOLD)
+    const ind = atBottom ? viewBottomPullRef.current : viewTopPullRef.current
+    const icon = atBottom ? viewBottomPullIconRef.current : viewTopPullIconRef.current
+    // 下側は逆向き(下に隠れていて上に上がってくる)なので符号を反転させる
+    const sign = atBottom ? -1 : 1
+    if (ind) {
+      ind.style.transform = `translateY(${sign * dampedPullY(dy, VIEW_PULL_THRESHOLD)}px)`
+      ind.style.opacity = String(Math.min(1, rotateProgress + 0.15))
     }
+    if (icon) icon.style.transform = `rotate(${rotateProgress * 360}deg)`
   }
 
   function handleViewTouchEnd(e: React.TouchEvent) {
@@ -525,38 +568,59 @@ function MobileThreadViewInner({
     const atBottom = viewPullStartRef.current.atBottom
     const dy = atBottom ? -raw : raw
     viewPullStartRef.current = null
-    const topInd = viewTopPullRef.current
-    const botInd = viewBottomPullRef.current
-    const activeInd = atBottom ? botInd : topInd
-    const inactiveInd = atBottom ? topInd : botInd
+    const sign = atBottom ? -1 : 1
+    const inactiveSign = atBottom ? 1 : -1
+    const activeInd = atBottom ? viewBottomPullRef.current : viewTopPullRef.current
+    const inactiveInd = atBottom ? viewTopPullRef.current : viewBottomPullRef.current
+    const activeIcon = atBottom ? viewBottomPullIconRef.current : viewTopPullIconRef.current
+    const inactiveIcon = atBottom ? viewTopPullIconRef.current : viewBottomPullIconRef.current
     if (inactiveInd) {
       inactiveInd.style.transition = PULL_SETTLE_TRANSITION
-      inactiveInd.style.height = '0'
+      inactiveInd.style.transform = `translateY(${inactiveSign * PULL_HIDDEN_Y}px)`
       inactiveInd.style.opacity = '0'
     }
-    if (activeInd) activeInd.style.transition = PULL_SETTLE_TRANSITION
+    if (inactiveIcon) inactiveIcon.style.transform = ''
     if (dy >= VIEW_PULL_THRESHOLD) {
-      if (activeInd) {
-        activeInd.style.height = `${REFRESH_IND_H}px`
-        activeInd.style.opacity = '0.9'
-        activeInd.textContent = '更新中...'
-        setTimeout(() => { activeInd.style.height = '0'; activeInd.style.opacity = '0' }, 500)
-      }
-      doRefresh()
+      // 指を離した瞬間、確定位置まで素早くスナップしてそこで回り続ける
+      if (activeInd) { activeInd.style.transition = PULL_SNAP_TRANSITION; activeInd.style.transform = `translateY(${sign * PULL_REVEAL_Y}px)`; activeInd.style.opacity = '1' }
+      if (activeIcon) { activeIcon.style.transform = ''; activeIcon.classList.add('animate-spin') }
+      const spinStart = Date.now()
+      void (async () => {
+        await doRefresh()
+        const elapsed = Date.now() - spinStart
+        if (elapsed < MIN_SPIN_MS) await new Promise((r) => setTimeout(r, MIN_SPIN_MS - elapsed))
+        if (activeInd) { activeInd.style.transition = PULL_SETTLE_TRANSITION; activeInd.style.transform = `translateY(${sign * PULL_HIDDEN_Y}px)`; activeInd.style.opacity = '0' }
+        if (activeIcon) activeIcon.classList.remove('animate-spin')
+      })()
     } else {
-      if (activeInd) { activeInd.style.height = '0'; activeInd.style.opacity = '0' }
+      if (activeInd) { activeInd.style.transition = PULL_SETTLE_TRANSITION; activeInd.style.transform = `translateY(${sign * PULL_HIDDEN_Y}px)`; activeInd.style.opacity = '0' }
+      if (activeIcon) activeIcon.style.transform = ''
     }
   }
 
+  // ヘッダー(タイトル)タップはアニメーション付きでスクロール
   const scrollToTop = useCallback(() => {
     const el = scrollAreaRef.current
-    if (el) el.scrollTop = 0
+    if (el) el.scrollTo({ top: 0, behavior: 'smooth' })
   }, [scrollAreaRef])
 
   const scrollToBottom = useCallback(() => {
     const el = scrollAreaRef.current
-    if (el) el.scrollTop = el.scrollHeight
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
   }, [scrollAreaRef])
+
+  // →↑/→↓ ジェスチャーからスレッドの投稿一覧を最下部/最上部へ移動できるように公開する。
+  // こちらはジェスチャー用なのでアニメーションなしで即座に移動する。
+  useImperativeHandle(ref, () => ({
+    scrollToTop: () => {
+      const el = scrollAreaRef.current
+      if (el) el.scrollTop = 0
+    },
+    scrollToBottom: () => {
+      const el = scrollAreaRef.current
+      if (el) el.scrollTop = el.scrollHeight
+    },
+  }), [scrollAreaRef])
 
   return (
     <div className="flex flex-col h-full relative">
@@ -640,6 +704,21 @@ function MobileThreadViewInner({
 
       {/* 投稿リスト */}
       <div className="flex-1 flex overflow-hidden relative">
+        {/* プルリフレッシュの丸矢印。コンテンツを押し下げず、独立してヘッダー下から降りてくる/フッター下から上がってくる */}
+        <div
+          ref={viewTopPullRef}
+          className="absolute left-0 right-0 top-0 flex justify-center select-none pointer-events-none z-20"
+          style={{ opacity: 0, transform: `translateY(${PULL_HIDDEN_Y}px)` }}
+        >
+          <PullSpinner iconRef={viewTopPullIconRef} />
+        </div>
+        <div
+          ref={viewBottomPullRef}
+          className="absolute left-0 right-0 bottom-0 flex justify-center select-none pointer-events-none z-20"
+          style={{ opacity: 0, transform: `translateY(${-PULL_HIDDEN_Y}px)` }}
+        >
+          <PullSpinner iconRef={viewBottomPullIconRef} />
+        </div>
         <div
           ref={scrollAreaRef}
           onScroll={handleScroll}
@@ -649,46 +728,58 @@ function MobileThreadViewInner({
           className="flex-1 overflow-y-auto custom-scrollbar px-1.5 py-1 space-y-2 [&::-webkit-scrollbar]:w-[4px]"
           style={{ overscrollBehaviorY: 'contain' }}
         >
-        {/* 上プルインジケーター（スクロール内に配置してコンテンツを押し下げる） */}
-        <div
-          ref={viewTopPullRef}
-          className="flex items-center justify-center text-[10px] text-slate-400 select-none pointer-events-none overflow-hidden"
-          style={{ height: 0, opacity: 0 }}
-        />
-        {isLoading ? (
+        {isError && !thread ? (
+          <div className="text-slate-500 text-sm p-4">データが取得できませんでした</div>
+        ) : isLoading ? (
           <div className="text-slate-500 text-sm p-4">読み込み中...</div>
         ) : filteredPosts.length === 0 ? (
           <div className="text-slate-500 text-sm p-4">投稿がありません</div>
         ) : (
-          filteredPosts.map((post, i) => (
-            <Fragment key={post.id}>
-              {i === firstNewIndex && (
-                <div className="flex items-center gap-2 py-0.5 select-none" style={{ color: 'var(--c-accent)', opacity: 0.6 }}>
-                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
-                  <span className="text-[9px] font-bold tracking-widest whitespace-nowrap">ここから未読</span>
-                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+          filteredPosts.map((post, i) => {
+            const content = (
+              <>
+                {i === firstNewIndex && (
+                  <div id="unread-divider" className="flex items-center gap-2 py-0.5 select-none" style={{ color: 'var(--c-accent)', opacity: 0.6 }}>
+                    <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                    <span className="text-[9px] font-bold tracking-widest whitespace-nowrap">ここから未読</span>
+                    <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                  </div>
+                )}
+                <PostArticle
+                  post={post}
+                  anchorCount={anchorCountMap.get(post.postNumber) ?? 0}
+                  idCount={idCountMap.get(post.authorId) ?? 1}
+                  handlers={handlers}
+                  isOwnPost={ownPostNumbers.has(post.postNumber)}
+                  isReplyToOwn={replyToOwnNumbers.has(post.postNumber)}
+                  compact
+                  showTopDivider={i > 0 && i !== firstNewIndex}
+                  // newPostsVisible=falseの間(初回表示のフェードイン待ち)はまだ
+                  // 不可視なので、見える(newPostsVisible=true)タイミングに合わせて
+                  // flash-newアニメーションを発火させる
+                  isNew={newPostsVisible && newPostIds.has(post.id)}
+                />
+              </>
+            )
+            // 未読レスはスレッド表示位置が決まった後、少し遅れてフェードインさせる
+            // (「まずスレッドを表示→その後に新着レスを表示」という順序にするため)
+            if (firstNewIndex !== -1 && i >= firstNewIndex) {
+              return (
+                <div key={post.id} className={`transition-opacity duration-300 ${newPostsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                  {content}
                 </div>
-              )}
-              <PostArticle
-                post={post}
-                anchorCount={anchorCountMap.get(post.postNumber) ?? 0}
-                idCount={idCountMap.get(post.authorId) ?? 1}
-                handlers={handlers}
-                isOwnPost={ownPostNumbers.has(post.postNumber)}
-                isReplyToOwn={replyToOwnNumbers.has(post.postNumber)}
-                compact
-                showTopDivider={i > 0 && i !== firstNewIndex}
-              />
-            </Fragment>
-          ))
+              )
+            }
+            return <Fragment key={post.id}>{content}</Fragment>
+          })
         )}
-        {/* 下プルインジケーター */}
-        <div
-          ref={viewBottomPullRef}
-          className="flex items-center justify-center text-[10px] text-slate-400 select-none pointer-events-none overflow-hidden"
-          style={{ height: 0, opacity: 0 }}
-        />
         </div>
+        {/* 表示位置(スクロール復元/未読ジャンプ)が決まるまでコンテンツを覆う */}
+        {!positioned && (
+          <div className="absolute inset-0 z-30 flex items-center justify-center bg-c-base">
+            <span className="material-symbols-outlined text-3xl text-slate-400 animate-spin">progress_activity</span>
+          </div>
+        )}
         {filteredPosts.length > 0 && (
           <Minimap
             posts={filteredPosts}
@@ -702,14 +793,14 @@ function MobileThreadViewInner({
 
       {/* フッター: タップで最下部へ・書き込む・更新 */}
       <footer
-        className="flex items-center gap-2 px-2.5 py-2 border-t border-c-border bg-c-surface flex-shrink-0"
+        className="flex items-center gap-2 px-7 py-2 border-t border-c-border bg-c-surface flex-shrink-0"
         onClick={scrollToBottom}
       >
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); (e.currentTarget as HTMLButtonElement).blur(); doRefresh() }}
           disabled={isViewRefreshing}
-          className={`flex items-center gap-1 px-2.5 py-[7px] rounded border transition-colors text-xs font-medium flex-shrink-0 ${isViewRefreshing ? 'text-c-accent border-c-accent/30 bg-c-accent/10' : 'text-slate-500 dark:text-slate-400 bg-c-surface2 border-c-border active:bg-slate-100 dark:active:bg-slate-800'}`}
+          className={`flex items-center gap-1 px-2.5 py-[7px] rounded transition-colors text-xs font-medium flex-shrink-0 ${isViewRefreshing ? 'text-c-accent bg-c-accent/10' : 'text-slate-500 dark:text-slate-400 bg-c-surface2 active:bg-slate-100 dark:active:bg-slate-800'}`}
         >
           <span className={`material-symbols-outlined text-base${isViewRefreshing ? ' animate-spin' : ''}`}>refresh</span>
           更新
@@ -779,7 +870,7 @@ function MobileThreadViewInner({
             <button
               type="button"
               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-500 hover:bg-red-500/10 transition-colors"
-              onClick={() => { setShowKebab(false); removeThreadFromHistory(threadId); onBack() }}
+              onClick={() => { setShowKebab(false); forgetThread(queryClient, boardId, threadId); onBack() }}
             >
               <span className="material-symbols-outlined text-lg">delete</span>
               閲覧履歴を削除
@@ -857,7 +948,7 @@ function MobileThreadViewInner({
       )}
     </div>
   )
-}
+})
 
 // ─── メインページ ─────────────────────────────────────────────────────────────
 
@@ -876,23 +967,45 @@ export default function MobileBoardPage() {
   const panelBRef = useRef<HTMLDivElement>(null)
   const skipNextSlideInRef = useRef(false)
 
-  // Panel A/B間のスワイプ中に画面中央へ出す「戻る」「進む」「書き込む」ラベル
-  // (ジェスチャー中は画面自体を動かさず、指を離してから遷移アニメーションを始める)
-  const [swipeLabel, setSwipeLabel] = useState<'back' | 'forward' | 'write' | null>(null)
-
-  // Panel A 左スワイプ → Panel B へ進む
+  // Panel A 左スワイプ → Panel B へ進む、右スワイプ → ドロワーを開く
+  // →↑/→↓ の複合ジェスチャーで一覧を最下部/最上部へ移動する
   const [pendingThreadId, setPendingThreadId] = useState<string | null>(null)
-  const panelATouchRef = useRef<{ x: number; y: number; time: number; threadId: string } | null>(null)
-  const isPanelADraggingRef = useRef(false)
-  const cleanupPanelAMoveRef = useRef<(() => void) | null>(null)
+  const lastViewedThreadIdRef = useRef('')
+  const panelACommittedRef = useRef(false)
+  const threadListPanelRef = useRef<MobileThreadListPanelHandle>(null)
+
+  const panelASwipe = useSwipeGesture({
+    left: {
+      label: '進む',
+      onCommit: () => {
+        const targetThreadId = lastViewedThreadIdRef.current
+        if (!targetThreadId || !boardId) return
+        panelACommittedRef.current = true
+        const panel = panelBRef.current
+        if (panel) { panel.style.transition = 'transform 200ms cubic-bezier(0.32, 0.72, 0, 1)'; panel.style.transform = 'translateX(0)' }
+        skipNextSlideInRef.current = true
+        setTimeout(() => navigate(`/${boardId}/${targetThreadId}`), 200)
+      },
+    },
+    right: {
+      // ドロワーを開くジェスチャーは視覚フィードバックなし（ラベル非表示）で追跡のみ
+      onCommit: () => setDrawerOpen(true),
+    },
+    'right,up': {
+      label: '最下部へ',
+      onCommit: () => threadListPanelRef.current?.scrollToBottom(),
+    },
+    'right,down': {
+      label: '最上部へ',
+      onCommit: () => threadListPanelRef.current?.scrollToTop(),
+    },
+  })
 
   function handlePanelATouchStart(e: React.TouchEvent<HTMLDivElement>) {
     if (threadId) return  // Panel B は開いているときは無効
-    const startX = e.touches[0].clientX
-    const startY = e.touches[0].clientY
+    panelACommittedRef.current = false
     const lastEntry = boardId ? getHistory().find((entry) => entry.boardId === boardId) : null
-    panelATouchRef.current = { x: startX, y: startY, time: Date.now(), threadId: lastEntry?.threadId ?? '' }
-    isPanelADraggingRef.current = false
+    lastViewedThreadIdRef.current = lastEntry?.threadId ?? ''
     if (boardId && lastEntry) {
       // Panel B をプリマウント（空パネル）＆データをプリフェッチ
       setPendingThreadId(lastEntry.threadId)
@@ -901,59 +1014,13 @@ export default function MobileBoardPage() {
         queryFn: () => getThreadPosts(boardId, lastEntry.threadId),
       })
     }
-
-    // touchmove は React の合成イベントだと passive 指定されて preventDefault が効かないため、
-    // ネイティブリスナーを直接張って横スワイプ確定後は縦スクロールを止められるようにする。
-    const target = e.currentTarget
-    function onMove(ev: TouchEvent) {
-      if (!panelATouchRef.current) return
-      const dx = ev.touches[0].clientX - panelATouchRef.current.x
-      const dy = ev.touches[0].clientY - panelATouchRef.current.y
-      if (!isPanelADraggingRef.current) {
-        if (Math.abs(dy) > Math.abs(dx) + 5) { panelATouchRef.current = null; setPendingThreadId(null); return }
-        if (dx < -8) {
-          isPanelADraggingRef.current = true
-          // 直前に見ていたスレッドが無ければ何も起きないジェスチャーなのでラベルも出さない
-          if (panelATouchRef.current.threadId) setSwipeLabel('forward')
-        } else if (dx > 8) {
-          return  // 右スワイプ: ドロワーを開く判定用に追跡のみ（視覚フィードバックなし・縦スクロールも止めない）
-        }
-      }
-      // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
-      // 横スワイプ確定後は、指が多少上下にぶれても縦スクロールが起きないようにする。
-      if (isPanelADraggingRef.current) ev.preventDefault()
-    }
-    target.addEventListener('touchmove', onMove, { passive: false })
-    cleanupPanelAMoveRef.current = () => target.removeEventListener('touchmove', onMove)
+    panelASwipe.onTouchStart(e)
   }
 
   function handlePanelATouchEnd(e: React.TouchEvent) {
-    cleanupPanelAMoveRef.current?.()
-    cleanupPanelAMoveRef.current = null
-    if (!panelATouchRef.current) return
-    const dx = e.changedTouches[0].clientX - panelATouchRef.current.x
-    const dt = Math.max(1, Date.now() - panelATouchRef.current.time)
-    const targetThreadId = panelATouchRef.current.threadId
-    panelATouchRef.current = null
-    setSwipeLabel(null)
-    if (!isPanelADraggingRef.current) {
-      isPanelADraggingRef.current = false
-      setPendingThreadId(null)
-      // 右スワイプ → ドロワーを開く
-      if (dx > 60 && dx / dt > 0.3) setDrawerOpen(true)
-      return
-    }
-    isPanelADraggingRef.current = false
-    const velocityOk = dx < -60 && Math.abs(dx) / dt > 0.4
-    if ((dx < -window.innerWidth * 0.35 || velocityOk) && targetThreadId) {
-      const panel = panelBRef.current
-      if (panel) { panel.style.transition = 'transform 200ms cubic-bezier(0.32, 0.72, 0, 1)'; panel.style.transform = 'translateX(0)' }
-      skipNextSlideInRef.current = true
-      setTimeout(() => { if (boardId) navigate(`/${boardId}/${targetThreadId}`) }, 200)
-    } else {
-      // 画面はまだ動いていないので、そのまま空パネルを片付けるだけでよい
-      setPendingThreadId(null)
-    }
+    panelASwipe.onTouchEnd(e)
+    // 進むジェスチャーが確定しなかった場合、プリマウントした空パネルを片付ける
+    if (!panelACommittedRef.current) setPendingThreadId(null)
   }
 
   // スレッドタップ → 即座に空パネル描画してからナビゲート
@@ -1025,65 +1092,37 @@ export default function MobileBoardPage() {
 
   // Panel B のスワイプ（返信パネルが開いているときは無効化）
   // 右スワイプ = 戻る（一覧へ）、左スワイプ = 書き込みパネルを開く
-  const touchStartRef = useRef<{ x: number; y: number; time: number } | null>(null)
-  const isDraggingRef = useRef(false)
-  const dragDirRef = useRef<'back' | 'write' | null>(null)
-  const cleanupPanelBMoveRef = useRef<(() => void) | null>(null)
+  // ←↑ の複合ジェスチャーで、スレッドを閉じてその閲覧履歴も削除する
+  // →↑/→↓ の複合ジェスチャーで、スレッドの投稿一覧を最下部/最上部へ移動する
+  const threadViewRef = useRef<MobileThreadViewInnerHandle>(null)
+  const panelBSwipe = useSwipeGesture({
+    right: { label: '戻る', onCommit: goBack },
+    left: { label: '書き込む', onCommit: () => handleOpenReply() },
+    'right,up': {
+      label: '最下部へ',
+      onCommit: () => threadViewRef.current?.scrollToBottom(),
+    },
+    'right,down': {
+      label: '最上部へ',
+      onCommit: () => threadViewRef.current?.scrollToTop(),
+    },
+    'left,up': {
+      label: '履歴を削除して閉じる',
+      onCommit: () => {
+        if (threadId && boardId) forgetThread(queryClient, boardId, threadId)
+        goBack()
+      },
+    },
+  })
 
   function handlePanelTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     if (replySheetOpen) return  // 返信パネル開中はスワイプ無効
-    const t = e.touches[0]
-    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() }
-    isDraggingRef.current = false
-    dragDirRef.current = null
-
-    // touchmove は React の合成イベントだと passive 指定されて preventDefault が効かないため、
-    // ネイティブリスナーを直接張って横スワイプ確定後は縦スクロールを止められるようにする。
-    const target = e.currentTarget
-    function onMove(ev: TouchEvent) {
-      if (!touchStartRef.current) return
-      const t2 = ev.touches[0]
-      const dx = t2.clientX - touchStartRef.current.x
-      const dy = t2.clientY - touchStartRef.current.y
-      if (!isDraggingRef.current) {
-        if (Math.abs(dy) > Math.abs(dx) + 5) { touchStartRef.current = null; return }
-        if (dx > 8) {
-          isDraggingRef.current = true
-          dragDirRef.current = 'back'
-          setSwipeLabel('back')
-        } else if (dx < -8) {
-          isDraggingRef.current = true
-          dragDirRef.current = 'write'
-          setSwipeLabel('write')
-        }
-      }
-      // 画面自体は指に追従させない。指を離した後にまとめてアニメーションする。
-      // 横スワイプ確定後は、指が多少上下にぶれても縦スクロールが起きないようにする。
-      if (isDraggingRef.current) ev.preventDefault()
-    }
-    target.addEventListener('touchmove', onMove, { passive: false })
-    cleanupPanelBMoveRef.current = () => target.removeEventListener('touchmove', onMove)
+    panelBSwipe.onTouchStart(e)
   }
 
   function handlePanelTouchEnd(e: React.TouchEvent) {
-    cleanupPanelBMoveRef.current?.()
-    cleanupPanelBMoveRef.current = null
     if (replySheetOpen) return
-    setSwipeLabel(null)
-    if (!touchStartRef.current || !isDraggingRef.current) {
-      touchStartRef.current = null; isDraggingRef.current = false; dragDirRef.current = null; return
-    }
-    const t = e.changedTouches[0]
-    const dx = t.clientX - touchStartRef.current.x
-    const dt = Math.max(1, Date.now() - touchStartRef.current.time)
-    const dir = dragDirRef.current
-    touchStartRef.current = null; isDraggingRef.current = false; dragDirRef.current = null
-    if (dir === 'back' && (dx > window.innerWidth * 0.4 || (dx > 60 && dx / dt > 0.5))) {
-      goBack()
-    } else if (dir === 'write' && (dx < -window.innerWidth * 0.4 || (dx < -60 && Math.abs(dx) / dt > 0.5))) {
-      handleOpenReply()
-    }
-    // 閾値未満の場合、画面はまだ動いていないので何もしなくてよい
+    panelBSwipe.onTouchEnd(e)
   }
 
   return (
@@ -1095,6 +1134,7 @@ export default function MobileBoardPage() {
         onTouchEnd={handlePanelATouchEnd}
       >
         <MobileThreadListPanel
+          ref={threadListPanelRef}
           boardId={boardId}
           currentThreadId={threadId}
           onMenuClick={handleMenuClick}
@@ -1119,6 +1159,7 @@ export default function MobileBoardPage() {
           {threadId ? (
             <>
               <MobileThreadViewInner
+                ref={threadViewRef}
                 key={threadId}
                 boardId={boardId}
                 threadId={threadId}
@@ -1146,7 +1187,7 @@ export default function MobileBoardPage() {
       )}
 
       {/* スワイプ中の「戻る」「進む」ラベル */}
-      <SwipeHintOverlay label={swipeLabel === 'back' ? '戻る' : swipeLabel === 'forward' ? '進む' : swipeLabel === 'write' ? '書き込む' : null} />
+      <SwipeHintOverlay label={panelASwipe.label ?? panelBSwipe.label} />
 
       {/* 板ドロワー */}
       <MobileBoardDrawer

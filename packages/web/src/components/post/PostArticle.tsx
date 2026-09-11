@@ -8,6 +8,7 @@ import { env } from '../../config/env'
 import { canDo } from '../../utils/permissions'
 import { useAuthStore } from '../../stores/authStore'
 import { downloadImageUrl } from '../../utils/downloadImage'
+import { useBackGestureClose } from '../../hooks/useBackGestureClose'
 import AACanvas from './AACanvas'
 
 export interface PostHandlers {
@@ -32,14 +33,21 @@ interface PostArticleProps {
   isReplyToOwn?: boolean
   compact?: boolean
   showTopDivider?: boolean
+  /** 更新で新しく取得できたレスの場合、描画時に一瞬光らせる */
+  isNew?: boolean
 }
 
 const LINK_COLORS = {
-  image:   'text-c-link-image hover:text-c-link-image-hover',
-  twitter: 'text-c-link-twitter hover:text-c-link-twitter-hover',
-  youtube: 'text-c-link-youtube hover:text-c-link-youtube-hover',
-  url:     'text-c-link-url hover:text-c-link-url-hover',
+  image:   'text-c-link-image hover:opacity-80',
+  twitter: 'text-c-link-twitter hover:opacity-80',
+  youtube: 'text-c-link-youtube hover:opacity-80',
+  url:     'text-c-link hover:opacity-80',
 } as const
+
+// 長すぎるURLはレス本文内で邪魔になるので、表示だけ省略する（hrefは元のURLのまま）
+function truncateUrlForDisplay(url: string, maxLength = 50): string {
+  return url.length > maxLength ? `${url.slice(0, maxLength)}…` : url
+}
 
 function filenameFromUrl(url: string, fallback: string): string {
   try {
@@ -51,13 +59,7 @@ function filenameFromUrl(url: string, fallback: string): string {
   }
 }
 
-function idColorClass(count: number): string {
-  if (count >= 7) return 'text-c-id-very-hot font-bold'
-  if (count >= 5) return 'text-c-id-hot font-bold'
-  if (count >= 3) return 'text-c-id-warm'
-  if (count === 1) return 'text-c-id-first'
-  return 'text-c-id-default'
-}
+// ID(投稿回数)・レスの被アンカー数、どちらも同じ暖色ランプ(heatClass)を共有する
 
 export default function PostArticle({
   post,
@@ -69,6 +71,7 @@ export default function PostArticle({
   isReplyToOwn = false,
   compact = false,
   showTopDivider = false,
+  isNew = false,
 }: PostArticleProps) {
   const userId = useAuthStore((s) => s.userId)
   const [lightboxImages, setLightboxImages] = useState<string[]>([])
@@ -123,6 +126,11 @@ export default function PostArticle({
     el.addEventListener('touchmove', stop, { passive: true })
     return () => el.removeEventListener('touchmove', stop)
   }, [aaLightboxOpen])
+
+  // 画像/AAを直感的に「戻るジェスチャー」で閉じようとすると、モーダルだけでなく
+  // スレッドそのものから抜けてしまう問題への対策（開いている間だけhistoryを1つ消費する）
+  useBackGestureClose(lightboxIndex !== null, () => setLightboxIndex(null))
+  useBackGestureClose(aaLightboxOpen, () => setAaLightboxOpen(false))
 
   // 半角スペース・タブ・全角スペースが5文字以上連続していればAAと判定
   const isAAContent = /[ \t\u3000]{5,}/i.test(post.content)
@@ -186,7 +194,7 @@ export default function PostArticle({
   }
 
   const parts = tokenizeContent(displayContent)
-  const bodyTextClass = !isDeleted && anchorCount >= 3 ? numHeat : isDeleted ? 'text-slate-500 italic' : 'text-slate-700 dark:text-slate-300'
+  const bodyTextClass = !isDeleted && anchorCount >= 3 ? numHeat : isDeleted ? 'text-c-text-muted italic' : 'text-c-text-body'
 
   const renderedContent = parts.map((part, i) => {
     if (part.type === 'anchor') {
@@ -194,7 +202,7 @@ export default function PostArticle({
         <button
           key={i}
           type="button"
-          className="text-c-anchor hover:text-c-anchor-hover hover:underline text-sm"
+          className="text-c-link hover:opacity-80 hover:underline text-sm"
           onClick={(e) => handleAnchorClick(part.numbers, e)}
         >
           {part.raw}
@@ -210,8 +218,9 @@ export default function PostArticle({
           rel="noopener noreferrer"
           className={`text-sm break-all hover:underline ${LINK_COLORS[part.linkType]}`}
           onClick={(e) => e.stopPropagation()}
+          title={part.url}
         >
-          {part.url}
+          {truncateUrlForDisplay(part.url)}
         </a>
       )
     }
@@ -229,16 +238,9 @@ export default function PostArticle({
     )
   })
 
-  const articleBg = isOwnPost
-    ? 'var(--c-own-tint)'
-    : isReplyToOwn
-      ? 'var(--c-reply-tint)'
-      : undefined
-
   return (
     <article
-      className={`w-full px-2 py-1 ${showTopDivider ? 'border-t border-c-border pt-2' : ''}`}
-      style={articleBg ? { background: articleBg } : undefined}
+      className={`w-full px-2 py-1 ${showTopDivider ? 'border-t border-c-border pt-2' : ''} ${isNew ? 'flash-new' : ''}`}
       id={isInPopup ? undefined : `post-${post.postNumber}`}
     >
       {/* ヘッダー */}
@@ -246,34 +248,34 @@ export default function PostArticle({
         {/* レス番号バッジ */}
         <button
           type="button"
-          className={`font-bold ${compact ? 'text-xs' : 'text-sm'} flex items-center gap-1 ${numHeat || 'text-blue-400'} ${anchorCount > 0 ? 'hover:opacity-80' : 'cursor-default'}`}
+          className={`font-bold ${compact ? 'text-xs' : 'text-sm'} flex items-center gap-1 ${numHeat || 'text-c-text-muted'} ${anchorCount > 0 ? 'hover:opacity-80' : 'cursor-default'}`}
           onClick={anchorCount > 0 ? (e) => handlers.onBadgeClick(post.postNumber, getTriggerY(e)) : undefined}
         >
           <span>{post.postNumber}</span>
           {anchorCount > 0 && (
-            <span className={`text-xs ${numHeat || 'text-slate-500'}`}>({anchorCount})</span>
+            <span className={`text-xs ${numHeat || 'text-c-text-muted'}`}>({anchorCount})</span>
           )}
         </button>
 
         {/* 投稿者名 */}
         <button
           type="button"
-          className={`font-bold text-c-poster-name ${compact ? 'text-[10px]' : 'text-xs'} hover:text-c-poster-name-hover`}
+          className={`font-bold text-c-poster-name ${compact ? 'text-[10px]' : 'text-xs'} hover:opacity-80`}
           onClick={(e) => handlers.onNameClick(post.posterName, getTriggerY(e))}
         >
           {displayName}
         </button>
 
         {post.posterOptionInfo && (
-          <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500`}>{post.posterOptionInfo}</span>
+          <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted`}>{post.posterOptionInfo}</span>
         )}
-        <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500`}>{fullDateTime(post.createdAt, compact)}</span>
+        <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted`}>{fullDateTime(post.createdAt, compact)}</span>
 
         {/* ID */}
         {displayAuthorId && (
           <button
             type="button"
-            className={`${compact ? 'text-[10px]' : 'text-xs'} font-mono flex items-center gap-0.5 hover:opacity-80 ${idColorClass(idCount)}`}
+            className={`${compact ? 'text-[10px]' : 'text-xs'} font-mono flex items-center gap-0.5 hover:opacity-80 ${heatClass(idCount) || 'text-c-text-muted'}`}
             onClick={(e) => handlers.onIdClick(post.authorId, getTriggerY(e))}
           >
             <span>ID:{displayAuthorId}</span>
@@ -281,10 +283,25 @@ export default function PostArticle({
           </button>
         )}
 
+        {/* 自分の投稿へのアンカーがある場合の「→あなた宛」バッジ */}
+        {isReplyToOwn && (
+          <span
+            className={`${compact ? 'text-[9px]' : 'text-[10px]'} font-medium px-2 py-0.5`}
+            style={{
+              color: 'var(--c-accent)',
+              background: 'var(--chip-bg)',
+              border: '1px solid var(--chip-border-color)',
+              borderRadius: 'var(--chip-radius)',
+            }}
+          >
+            →あなた宛
+          </span>
+        )}
+
         {/* 返信ボタン（レス右上） */}
         <button
           type="button"
-          className={`ml-auto flex-shrink-0 ${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-700 dark:hover:text-slate-300 transition-colors`}
+          className={`ml-auto flex-shrink-0 ${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted bg-c-surface2 px-1.5 py-0.5 rounded hover:bg-c-surface3 hover:text-c-text-body transition-colors`}
           onClick={() => handlers.onReply(post.postNumber)}
         >
           返信
@@ -294,15 +311,13 @@ export default function PostArticle({
       {/* 本文 */}
       <div
         className={`${
-          isOwnPost ? 'pl-[13px] border-l-[3px] border-c-accent'
-          : isReplyToOwn ? 'pl-[13px] border-l-[3px] border-[var(--c-reply-line)]'
-          : 'pl-4 border-l-2 border-c-border'
+          isOwnPost ? 'bbs-post-own relative pl-[17px]' : 'pl-4 border-l-2 border-c-border'
         } ${hasConnections ? 'cursor-pointer' : ''}`}
         onClick={handleBodyClick}
       >
         <p
           ref={isAAContent ? aaRef : null}
-          className={`text-sm text-black dark:text-white ${isAAContent ? 'aa-font whitespace-pre' : 'whitespace-pre-wrap break-words leading-relaxed'}`}
+          className={`text-sm text-c-text-strong ${isAAContent ? 'aa-font whitespace-pre' : 'whitespace-pre-wrap break-words leading-relaxed'}`}
         >{renderedContent}</p>
 
         {/* AAを崩れなく見るためのCanvas拡大表示ボタン（インライン/ポップアップ共通） */}
@@ -310,7 +325,7 @@ export default function PostArticle({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setAaLightboxOpen(true) }}
-            className="mt-1 flex items-center gap-1 text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+            className="mt-1 flex items-center gap-1 text-[10px] text-c-text-muted hover:text-c-text-body transition-colors"
           >
             <span className="material-symbols-outlined text-sm leading-none">open_in_full</span>
             AAを画像で表示
@@ -394,7 +409,7 @@ export default function PostArticle({
         {/* 通報ボタン (誰でも押せる。目立たせすぎないようにあえて背景無し) */}
         <button
           type="button"
-          className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-400 dark:text-slate-600 px-1 py-0.5 hover:text-slate-600 dark:hover:text-slate-400 transition-colors`}
+          className={`${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted px-1 py-0.5 hover:text-c-text-body transition-colors`}
           onClick={() => handlers.onReport(post.postNumber)}
         >
           通報
@@ -404,7 +419,7 @@ export default function PostArticle({
         {canDelete && (
           <button
             type="button"
-            className={`${compact ? 'text-[10px]' : 'text-xs'} text-slate-500 dark:text-slate-600 bg-slate-100 dark:bg-slate-800/50 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors`}
+            className={`${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted bg-c-surface2 px-1.5 py-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/40 hover:text-red-600 dark:hover:text-red-400 transition-colors`}
             onClick={() => handlers.onDelete?.(post.postNumber)}
           >
             削除

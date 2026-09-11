@@ -8,6 +8,8 @@ interface MobileTopBarProps {
   /** 右端に表示するコンテンツ */
   rightContent?: React.ReactNode
   onTitleClick?: () => void
+  /** タイトルを中央寄せにする（板名など） */
+  centerTitle?: boolean
 }
 
 /**
@@ -23,9 +25,10 @@ export default function MobileTopBar({
   onBack,
   rightContent,
   onTitleClick,
+  centerTitle,
 }: MobileTopBarProps) {
   return (
-    <header className="h-[58px] flex-shrink-0 flex items-center px-1.5 gap-0.5 bg-c-surface border-b border-c-border">
+    <header className="h-[58px] flex-shrink-0 flex items-center px-2.5 gap-1 bg-c-surface border-b border-c-border">
       {/* 左ボタン */}
       <button
         className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors flex-shrink-0"
@@ -38,15 +41,15 @@ export default function MobileTopBar({
 
       {/* タイトル */}
       <div
-        className="flex-1 min-w-0 px-1"
+        className={`flex-1 min-w-0 px-1 ${centerTitle ? 'text-center' : ''}`}
         onClick={onTitleClick}
         style={onTitleClick ? { cursor: 'pointer' } : undefined}
       >
-        <p className="text-sm font-bold text-slate-900 dark:text-white truncate leading-tight select-none">
+        <p className="text-base font-bold text-slate-900 dark:text-white truncate leading-tight select-none">
           {title}
         </p>
         {subtitle && (
-          <p className="text-[10px] text-slate-500 truncate leading-tight select-none">{subtitle}</p>
+          <p className="text-xs text-slate-500 truncate leading-tight select-none">{subtitle}</p>
         )}
       </div>
 

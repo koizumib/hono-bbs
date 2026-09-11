@@ -25,7 +25,7 @@ export function useThreadView(
   threadId: string | undefined,
   options?: UseThreadViewOptions,
 ) {
-  const { data, isLoading, refetch } = usePosts(boardId, threadId)
+  const { data, isLoading, isFetching, isError, refetch } = usePosts(boardId, threadId)
   const ngRules = useSettingsStore((s) => s.ngRules)
   const historyMaxGenerations = useSettingsStore((s) => s.historyMaxGenerations)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -51,9 +51,24 @@ export function useThreadView(
     const entry = getHistory().find((e) => e.threadId === threadId && e.boardId === boardId)
     return entry?.lastScrollTop ?? null
   })
+  // スレッドを開いた時点の保存済みスクロール進捗（前回どこまで読んでいたかの判定に使う）
+  const [initialScrollProgress] = useState<number | null>(() => {
+    if (!boardId || !threadId) return null
+    const entry = getHistory().find((e) => e.threadId === threadId && e.boardId === boardId)
+    return entry?.scrollProgress ?? null
+  })
 
   const [searchQuery, setSearchQuery] = useState('')
   const [shouldScrollNew, setShouldScrollNew] = useState(false)
+
+  // 初回表示位置(スクロール復元/未読ジャンプ)が決まるまでコンテンツを覆っておくための
+  // フラグ。これが立つ前にコンテンツをそのまま出すと、先頭が一瞬映ってから
+  // 目的の位置へジャンプする「チラつき」が起きてしまう。
+  const [positioned, setPositioned] = useState(false)
+  // 未読レス(前回の続きから新しく増えた分)を表示するタイミングを、位置決め完了より
+  // 少し遅らせるためのフラグ。「まずスレッドを表示 → その後に新着レスを表示」という
+  // 順序にするため。
+  const [newPostsVisible, setNewPostsVisible] = useState(false)
 
   const thread = data?.data.thread
   const rawPosts = data?.data.posts ?? []
@@ -154,15 +169,18 @@ export function useThreadView(
     return new Set(rawPosts.slice(readCountBeforeRefresh).map((p) => p.id))
   }, [rawPosts, readCountBeforeRefresh])
 
+  // 呼び出し側(プルリフレッシュ)が実際の完了タイミングを待てるように、refetchのPromiseを返す
   const handleRefresh = useCallback(() => {
     const now = Date.now()
-    // クールダウン関係なく常にダイバー位置をリセット（「ここから未読」が古い位置に残らないように）
-    setReadCountBeforeRefresh(rawPosts.length)
-    if (now - lastRefreshRef.current < 5000) return
+    // クールダウン中(実際には何も取得しない)場合はここで抜ける。ここで無条件に
+    // ダイバー位置をリセットすると、実データは何も変わっていないのに「ここから未読」が
+    // 消えてしまう(まだ読んでいない新着表示を誤って既読扱いしてしまう)バグになる。
+    if (now - lastRefreshRef.current < 5000) return Promise.resolve()
     lastRefreshRef.current = now
+    setReadCountBeforeRefresh(rawPosts.length)
     const atBottom = scrollProgressRef.current >= 0.95
     if (atBottom) setShouldScrollNew(true)
-    void refetch()
+    return refetch()
   }, [rawPosts.length, refetch])
 
   const handlePosted = useCallback(() => {
@@ -198,37 +216,96 @@ export function useThreadView(
     return () => clearTimeout(id)
   }, [rawPosts, shouldScrollNew, readCountBeforeRefresh])
 
-  // 初回ロード時：スクロール位置を復元、または未読レスへジャンプ
+  // 初回ロード時：スクロール位置を復元、または未読レスへジャンプ。
+  // usePosts は refetchOnMount:'always' なので、キャッシュ済みスレッドを開いた
+  // 直後は「古いレス数のキャッシュ」がまず見え、その裏で最新確認のフェッチが走る。
+  // ここで isLoading (=初回データなし) だけを見て判定すると、その古いキャッシュの
+  // 時点のレス数で「新着なし」と誤判定し、以後ずっとその判定のままになってしまう。
+  // そのため isFetching (今まさに取得中かどうか)が終わるのを待ってから判定する。
+  // 何らかの理由でフェッチが長引いても画面が永久に固まらないよう、SAFETY_MSを
+  // 超えたらその時点のデータで確定させる。
   useEffect(() => {
     if (didInitialScrollRef.current) return
-    if (rawPosts.length === 0) return
-    didInitialScrollRef.current = true
-    const hasNewPosts =
-      initialReadCount !== null &&
-      initialReadCount > 0 &&
-      initialReadCount < rawPosts.length
-    if (hasNewPosts) setReadCountBeforeRefresh(initialReadCount)
-    const id = setTimeout(() => {
-      const el = scrollAreaRef.current
-      if (!el) return
-      if (initialScrollTop !== null && initialScrollTop > 0) {
-        // 前回閉じたときのスクロール位置を復元
-        el.scrollTop = initialScrollTop
-        // scrollTop 直接セットはスクロールイベントを発火しない場合があるため ref も更新
-        scrollTopRef.current = el.scrollTop
-      } else if (hasNewPosts) {
-        // 未読レスの先頭へジャンプ
-        const target = rawPosts[initialReadCount!]
-        if (target) {
-          document
-            .getElementById(`post-${target.postNumber}`)
-            ?.scrollIntoView({ behavior: 'instant', block: 'start' })
-        }
+
+    function scrollLastReadToBottom() {
+      // 前回読んだ最後のレスが画面下端に来るようにする
+      // (新着レスはまだ非表示なので、その手前=既読部分を表示した状態にする)
+      const lastReadPost = rawPosts[initialReadCount! - 1]
+      const target = lastReadPost ?? rawPosts[initialReadCount!]
+      if (target) {
+        document
+          .getElementById(`post-${target.postNumber}`)
+          ?.scrollIntoView({ behavior: 'instant', block: lastReadPost ? 'end' : 'start' })
       }
-    }, 150)
-    return () => clearTimeout(id)
+    }
+
+    // 「ここから未読」の区切りを画面中央付近に置く。ただし、新着レスの量が
+    // 少なくスレッドがそこで終わっている場合、そのまま中央寄せしようとすると
+    // 実際のコンテンツより下に空白ができてしまう(scrollIntoViewのblock:'center'は
+    // 環境によってはこの空白を防いでくれない)ため、実コンテンツの末尾を超えて
+    // スクロールしないよう手動でクランプする。
+    function centerDividerClamped(el: HTMLDivElement, dividerEl: HTMLElement) {
+      const elRect = el.getBoundingClientRect()
+      const dividerRect = dividerEl.getBoundingClientRect()
+      const dividerOffsetInContent = dividerRect.top - elRect.top + el.scrollTop
+      const desired = dividerOffsetInContent - el.clientHeight / 2
+      const maxScrollTop = Math.max(0, el.scrollHeight - el.clientHeight)
+      el.scrollTop = Math.max(0, Math.min(desired, maxScrollTop))
+    }
+
+    function commit() {
+      if (didInitialScrollRef.current) return
+      didInitialScrollRef.current = true
+      const hasNewPosts =
+        initialReadCount !== null &&
+        initialReadCount > 0 &&
+        initialReadCount < rawPosts.length
+      if (hasNewPosts) setReadCountBeforeRefresh(initialReadCount)
+      setTimeout(() => {
+        const el = scrollAreaRef.current
+        if (el) {
+          // 前回、保存済みスクロール位置がない(=短いスレッドで最後まで表示されていた)
+          // か、ほぼ最下部まで読んでいた場合は「読み終えていた」とみなす。
+          const wasCaughtUp =
+            initialScrollTop === null || (initialScrollProgress ?? 0) >= 0.9
+          if (hasNewPosts && wasCaughtUp) {
+            // 前回読み終えていたところに新着レスが増えている場合: 新着レスが実際に
+            // 見えて発光アニメーションにも気づけるよう、「ここから未読」の区切りが
+            // 画面中央付近(＝新着レスが画面下半分を占めるイメージ)に来るようにする
+            const dividerEl = document.getElementById('unread-divider')
+            if (dividerEl) {
+              centerDividerClamped(el, dividerEl)
+            } else {
+              scrollLastReadToBottom()
+            }
+          } else if (initialScrollTop !== null && initialScrollTop > 0) {
+            // 前回閉じたときのスクロール位置を復元(まだ読み終えていない箇所から再開)
+            el.scrollTop = initialScrollTop
+          } else if (hasNewPosts) {
+            scrollLastReadToBottom()
+          }
+          // scrollTop 直接セットや scrollIntoView はスクロールイベントを発火しない
+          // 場合があるため ref も更新しておく
+          scrollTopRef.current = el.scrollTop
+        }
+        setPositioned(true)
+        if (hasNewPosts) {
+          setTimeout(() => setNewPostsVisible(true), 400)
+        } else {
+          setNewPostsVisible(true)
+        }
+      }, 150)
+    }
+
+    if (!isFetching) {
+      commit()
+      return
+    }
+    const SAFETY_MS = 6000
+    const safety = setTimeout(commit, SAFETY_MS)
+    return () => clearTimeout(safety)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rawPosts])
+  }, [isFetching, rawPosts])
 
   // スクロール位置を ref で追跡（onScroll ハンドラを返して消費側で直接アタッチ）
   const handleScroll = useCallback(() => {
@@ -334,6 +411,7 @@ export function useThreadView(
   return {
     thread,
     isLoading,
+    isError,
     filteredPosts,
     ngHiddenCount: rawPosts.length - posts.length,
     anchorCountMap,
@@ -342,6 +420,8 @@ export function useThreadView(
     replyToOwnNumbers,
     firstNewIndex,
     newPostIds,
+    positioned,
+    newPostsVisible,
     scrollAreaRef,
     handleScroll,
     popups,

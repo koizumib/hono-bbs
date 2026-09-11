@@ -5,7 +5,7 @@ import { useQuery, useMutation } from '@tanstack/react-query'
 import { getProfile, updateProfile, deleteProfile } from '../api/profile'
 import { useAuthStore } from '../stores/authStore'
 import { useSettingsStore } from '../stores/settingsStore'
-import type { AccentColor, FontSize } from '../stores/settingsStore'
+import type { ColorScheme, DesignPattern, FontSize } from '../stores/settingsStore'
 import Toggle from '../components/ui/Toggle'
 import NgRuleManager from '../components/settings/NgRuleManager'
 import { useTurnstileStore } from '../stores/turnstileStore'
@@ -39,7 +39,6 @@ export default function SettingsPage() {
   const isLoggedIn = useAuthStore((s) => s.isLoggedIn())
   const clearSession = useAuthStore((s) => s.clearSession)
   const {
-    theme,
     historyMaxGenerations,
     postHistoryMaxGenerations,
     defaultPosterName,
@@ -47,7 +46,6 @@ export default function SettingsPage() {
     threadListAutoRefresh,
     threadListRefreshInterval,
     hiddenBoardIds,
-    setTheme,
     setHistoryMaxGenerations,
     setPostHistoryMaxGenerations,
     setDefaultPosterName,
@@ -57,10 +55,14 @@ export default function SettingsPage() {
     setHiddenBoardIds,
   } = useSettingsStore()
   const { data: boardsData } = useBoards()
-  const accentColor = useSettingsStore((s) => s.accentColor)
+  const scheme = useSettingsStore((s) => s.scheme)
+  const pattern = useSettingsStore((s) => s.pattern)
   const fontSize = useSettingsStore((s) => s.fontSize)
-  const setAccentColor = useSettingsStore((s) => s.setAccentColor)
+  const setScheme = useSettingsStore((s) => s.setScheme)
+  const setPattern = useSettingsStore((s) => s.setPattern)
   const setFontSize = useSettingsStore((s) => s.setFontSize)
+  const gestureSensitivity = useSettingsStore((s) => s.gestureSensitivity)
+  const setGestureSensitivity = useSettingsStore((s) => s.setGestureSensitivity)
   const turnstileSessionId = useTurnstileStore((s) => s.sessionId)
   const setTurnstileSession = useTurnstileStore((s) => s.setSession)
   const clearTurnstileSession = useTurnstileStore((s) => s.clearSession)
@@ -699,32 +701,64 @@ export default function SettingsPage() {
                 <NgRuleManager />
               </section>
 
-              {/* アクセントカラー */}
+              {/* カラースキーム */}
               <section className="space-y-6">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
                   <span className="material-symbols-outlined text-c-accent">palette</span>
-                  アクセントカラー
+                  カラースキーム
                 </h3>
                 <div className="bg-c-surface p-6 rounded-2xl border border-c-border">
-                  <div className="flex gap-3 flex-wrap">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                     {([
-                      { key: 'blue' as AccentColor, color: '#2563eb', label: 'ブルー' },
-                      { key: 'yellow' as AccentColor, color: '#ffd400', label: 'イエロー' },
-                      { key: 'pink' as AccentColor, color: '#f91880', label: 'ピンク' },
-                      { key: 'purple' as AccentColor, color: '#7856ff', label: 'パープル' },
-                      { key: 'orange' as AccentColor, color: '#ff7a00', label: 'オレンジ' },
-                      { key: 'green' as AccentColor, color: '#00ba7c', label: 'グリーン' },
-                    ]).map(({ key, color, label }) => (
+                      { key: 'indigo' as ColorScheme, name: 'インディゴ', accent: '#7566e6', surface: '#12151b', border: '#242933', text: '#eef0f5' },
+                      { key: 'amber-teal' as ColorScheme, name: 'アンバー×ティール', accent: '#e0993f', surface: '#171b26', border: '#2a3247', text: '#f2ece2' },
+                      { key: 'indigo-light' as ColorScheme, name: 'インディゴ・ライト', accent: '#5b4bd6', surface: '#ffffff', border: '#e1e3ec', text: '#181a22' },
+                      { key: 'amber-teal-light' as ColorScheme, name: 'アンバー×ティール・ライト', accent: '#b5691f', surface: '#ffffff', border: '#e8ddc7', text: '#241a0a' },
+                    ]).map((s) => (
                       <button
-                        key={key}
+                        key={s.key}
                         type="button"
-                        onClick={() => setAccentColor(key)}
-                        title={label}
-                        className={`w-8 h-8 rounded-full transition-all ${
-                          accentColor === key ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-105'
+                        onClick={() => setScheme(s.key)}
+                        className={`text-left rounded-xl border p-3 transition-colors ${
+                          scheme === s.key ? 'border-c-accent ring-1 ring-c-accent' : 'border-c-border hover:border-c-border-strong'
                         }`}
-                        style={{ background: color }}
-                      />
+                        style={{ background: s.surface }}
+                      >
+                        <div className="text-xs font-bold mb-2 truncate" style={{ color: s.text }}>{s.name}</div>
+                        <div className="flex gap-1.5">
+                          <span className="w-4 h-4 rounded" style={{ background: s.accent }} />
+                          <span className="w-4 h-4 rounded" style={{ background: s.surface, boxShadow: `inset 0 0 0 1px ${s.border}` }} />
+                          <span className="w-4 h-4 rounded" style={{ background: s.border }} />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              {/* デザインパターン */}
+              <section className="space-y-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
+                  <span className="material-symbols-outlined text-c-accent">style</span>
+                  デザインパターン
+                </h3>
+                <div className="bg-c-surface p-6 rounded-2xl border border-c-border">
+                  <div className="grid grid-cols-2 gap-3">
+                    {([
+                      { key: 'tonal' as DesignPattern, name: 'トーナルカード', desc: '背景の濃淡で階層を作る' },
+                      { key: 'bordered' as DesignPattern, name: '枠線リスト', desc: '背景は付けず、輪郭線だけで区切る' },
+                    ]).map((p) => (
+                      <button
+                        key={p.key}
+                        type="button"
+                        onClick={() => setPattern(p.key)}
+                        className={`text-left rounded-xl border p-4 transition-colors ${
+                          pattern === p.key ? 'border-c-accent ring-1 ring-c-accent bg-c-accent/5' : 'border-c-border hover:border-c-border-strong'
+                        }`}
+                      >
+                        <div className="text-sm font-bold text-slate-900 dark:text-white mb-1">{p.name}</div>
+                        <div className="text-xs text-slate-500">{p.desc}</div>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -763,52 +797,42 @@ export default function SettingsPage() {
                 </div>
               </section>
 
-              {/* 外観 */}
+              {/* ジェスチャー感度（スマホ） */}
               <section className="space-y-6">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                  <span className="material-symbols-outlined text-c-accent">palette</span>
-                  外観
+                  <span className="material-symbols-outlined text-c-accent">swipe</span>
+                  スワイプジェスチャーの感度
                 </h3>
-                <div className="bg-c-surface p-6 rounded-2xl border border-c-border space-y-6 shadow-lg shadow-black/5">
-                  <div>
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-4">テーマ</p>
-                    <div className="space-y-2">
-                      <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-c-border">
-                        {(['light', 'dark', 'auto'] as const).map((t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => setTheme(t)}
-                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${
-                              theme === t
-                                ? 'bg-c-accent text-[var(--c-accent-text)] shadow-lg'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                            }`}
-                          >
-                            {t === 'light' ? 'ライト' : t === 'dark' ? 'ダーク' : '自動'}
-                          </button>
-                        ))}
-                      </div>
-                      <div className="flex p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-c-border">
-                        {(['light-gray', 'gray', 'dark-gray'] as const).map((t) => (
-                          <button
-                            key={t}
-                            type="button"
-                            onClick={() => setTheme(t)}
-                            className={`flex-1 py-2 text-xs font-bold rounded-lg transition-colors ${
-                              theme === t
-                                ? 'bg-c-accent text-[var(--c-accent-text)] shadow-lg'
-                                : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                            }`}
-                          >
-                            {t === 'light-gray' ? 'ライトグレー' : t === 'gray' ? 'グレー' : 'ダークグレー'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                <div className="bg-c-surface p-6 rounded-2xl border border-c-border space-y-3">
+                  <p className="text-xs text-slate-500">
+                    スマホでのスワイプ操作(戻る・進む・最上部/最下部へ移動 など)を、どれくらい小さな動きで反応させるかを設定します。
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-slate-500 flex-shrink-0">鈍い</span>
+                    <input
+                      type="range"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={gestureSensitivity}
+                      onChange={(e) => setGestureSensitivity(Number(e.target.value) as 1 | 2 | 3 | 4 | 5)}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-slate-500 flex-shrink-0">敏感</span>
+                  </div>
+                  <div className="flex justify-between px-2">
+                    {[1,2,3,4,5].map((n) => (
+                      <span
+                        key={n}
+                        className={`text-[10px] ${gestureSensitivity === n ? 'text-c-accent font-bold' : 'text-slate-400'}`}
+                      >
+                        {n === 1 ? '鈍い' : n === 2 ? 'やや鈍い' : n === 3 ? '標準' : n === 4 ? 'やや敏感' : '敏感'}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </section>
+
             </>
           )}
 

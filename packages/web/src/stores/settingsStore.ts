@@ -1,8 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
-export type Theme = 'light' | 'dark' | 'auto' | 'light-gray' | 'gray' | 'dark-gray'
-export type AccentColor = 'blue' | 'yellow' | 'pink' | 'purple' | 'orange' | 'green'
+export type ColorScheme = 'indigo' | 'amber-teal' | 'indigo-light' | 'amber-teal-light'
+export type DesignPattern = 'tonal' | 'bordered'
 export type FontSize = 1 | 2 | 3 | 4 | 5
 
 export type NgTarget = 'threadTitle' | 'posterId' | 'posterName' | 'content'
@@ -28,8 +28,8 @@ interface LegacyNgWords {
 }
 
 interface SettingsState {
-  theme: Theme
-  accentColor: AccentColor
+  scheme: ColorScheme
+  pattern: DesignPattern
   fontSize: FontSize
   safeSearch: boolean
   ngRules: NgRule[]
@@ -48,8 +48,10 @@ interface SettingsState {
   hiddenBoardIds: string[]
   favoriteBoardIds: string[]
   collapsedCategories: string[]
-  setTheme: (theme: Theme) => void
-  setAccentColor: (c: AccentColor) => void
+  /** スマホのスワイプジェスチャーの感度 (1=鈍い〜5=敏感、既定3) */
+  gestureSensitivity: 1 | 2 | 3 | 4 | 5
+  setScheme: (scheme: ColorScheme) => void
+  setPattern: (pattern: DesignPattern) => void
   setFontSize: (s: FontSize) => void
   setSafeSearch: (val: boolean) => void
   addNgRule: (rule: Omit<NgRule, 'id'>) => void
@@ -67,6 +69,7 @@ interface SettingsState {
   setHiddenBoardIds: (ids: string[]) => void
   toggleFavoriteBoard: (boardId: string) => void
   toggleCategoryCollapsed: (category: string) => void
+  setGestureSensitivity: (level: 1 | 2 | 3 | 4 | 5) => void
 }
 
 // 旧形式(1カテゴリ1改行区切りテキスト)を新形式(1レコード1件)に変換する
@@ -87,8 +90,8 @@ function migrateLegacyNgWords(legacy: LegacyNgWords): NgRule[] {
 export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
-      theme: 'dark',
-      accentColor: 'blue',
+      scheme: 'indigo',
+      pattern: 'tonal',
       fontSize: 3,
       safeSearch: true,
       ngRules: [],
@@ -107,8 +110,9 @@ export const useSettingsStore = create<SettingsState>()(
       hiddenBoardIds: [],
       favoriteBoardIds: [],
       collapsedCategories: [],
-      setTheme: (theme) => set({ theme }),
-      setAccentColor: (accentColor) => set({ accentColor }),
+      gestureSensitivity: 3,
+      setScheme: (scheme) => set({ scheme }),
+      setPattern: (pattern) => set({ pattern }),
       setFontSize: (fontSize) => set({ fontSize }),
       setSafeSearch: (safeSearch) => set({ safeSearch }),
       addNgRule: (rule) =>
@@ -141,15 +145,25 @@ export const useSettingsStore = create<SettingsState>()(
             ? s.collapsedCategories.filter((c) => c !== category)
             : [...s.collapsedCategories, category],
         })),
+      setGestureSensitivity: (gestureSensitivity) => set({ gestureSensitivity }),
     }),
     {
       name: 'bbs-settings',
-      version: 1,
+      version: 2,
       migrate: (persisted, version) => {
-        const state = persisted as Record<string, unknown>
+        let state = persisted as Record<string, unknown>
         if (version < 1 && state.ngWords) {
           const { ngWords, ...rest } = state
-          return { ...rest, ngRules: migrateLegacyNgWords(ngWords as LegacyNgWords) }
+          state = { ...rest, ngRules: migrateLegacyNgWords(ngWords as LegacyNgWords) }
+        }
+        if (version < 2) {
+          // 旧テーマ(5種)+アクセントカラー(6種)を、新カラースキーム(4種)+
+          // デザインパターン(2種)に置き換える。旧値からの厳密な対応は無いため、
+          // ダーク系だったか/ライト系だったかだけ引き継ぎ、残りは既定値にする。
+          const { theme, accentColor, ...rest } = state
+          const wasLight = theme === 'light' || theme === 'light-gray'
+          state = { ...rest, scheme: wasLight ? 'indigo-light' : 'indigo', pattern: 'tonal' }
+          void accentColor
         }
         return state
       },

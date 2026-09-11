@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import type { Post } from '../../api/types'
 import PostArticle, { type PostHandlers } from './PostArticle'
+import { useSwipeGesture } from '../../hooks/useSwipeGesture'
 
 export interface PopupEntry {
   id: string
@@ -80,27 +81,41 @@ function PopupWindow({
     })
   }, [entry.triggerY, entry.posts, containerRect, stackIndex, isTop])
 
-  // タッチスワイプ検出（水平スワイプ → 全ポップアップ閉じる）
-  const touchStartRef = useRef<{ x: number; y: number } | null>(null)
+  // タッチスワイプ検出（水平スワイプ → 全ポップアップ閉じる、→↑/→↓ → 最下部/最上部へ）
+  // 閉じる操作は元々「50px動かせば速度を問わず閉じる」という緩い判定だったため、
+  // 既定の速度付き判定(共通フックの標準しきい値)だと、ゆっくりしたドラッグでは
+  // 閉じなくなってしまう。minDistanceOverrideで元と同じ緩さを維持する。
+  const swipeGesture = useSwipeGesture({
+    left: { onCommit: onCloseAll, minDistanceOverride: 50 },
+    right: { onCommit: onCloseAll, minDistanceOverride: 50 },
+    'right,up': {
+      label: '最下部へ',
+      onCommit: () => {
+        const el = ref.current
+        if (el) el.scrollTop = el.scrollHeight
+      },
+    },
+    'right,down': {
+      label: '最上部へ',
+      onCommit: () => {
+        const el = ref.current
+        if (el) el.scrollTop = 0
+      },
+    },
+  })
 
-  function handleTouchStart(e: React.TouchEvent) {
+  function handleTouchStart(e: React.TouchEvent<HTMLDivElement>) {
     e.stopPropagation()
-    touchStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    swipeGesture.onTouchStart(e)
   }
 
   function handleTouchMove(e: React.TouchEvent) {
     e.stopPropagation()
   }
 
-  function handleTouchEnd(e: React.TouchEvent) {
+  function handleTouchEnd(e: React.TouchEvent<HTMLDivElement>) {
     e.stopPropagation()
-    if (!touchStartRef.current) return
-    const dx = e.changedTouches[0].clientX - touchStartRef.current.x
-    const dy = e.changedTouches[0].clientY - touchStartRef.current.y
-    touchStartRef.current = null
-    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      onCloseAll()
-    }
+    swipeGesture.onTouchEnd(e)
   }
 
   return (

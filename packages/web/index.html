@@ -1,9 +1,13 @@
 <!doctype html>
-<html lang="ja" class="dark h-full">
+<html lang="ja" class="dark h-full" data-scheme="indigo" data-pattern="tonal">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- interactive-widget=resizes-content: Android等でソフトキーボード表示時にレイアウト
+         ビューポート自体を縮めさせる。無指定だとキーボード表示中はビジュアルビューポートだけが
+         縮み、100%/100vh基準の高さがキーボード分ズレたまま残ってしまい、キーボードを閉じた後も
+         下に不要な空白ができてスクロールできてしまう不具合の原因になっていた。 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content" />
     <title>AnonBoard</title>
   </head>
   <body class="h-full">

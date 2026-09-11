@@ -41,11 +41,22 @@ export default function NewThreadPage() {
     }
   }, [boardId])
 
-  // 下書き自動保存
+  // 下書き自動保存/削除。
+  // 両方空にした場合に何もしないと、以前保存した下書きが残り続けて次回開いたときに
+  // 復元されてしまう(消したはずの内容が残る不具合)ので、空になったら明示的に消す。
+  // ただし初回マウント時は「復元前の空文字」で走ってしまい、復元しようとしている
+  // 下書きを消してしまうため、最初の1回だけスキップする。
+  const isFirstDraftEffectRef = useRef(true)
   useEffect(() => {
     if (!boardId) return
+    if (isFirstDraftEffectRef.current) {
+      isFirstDraftEffectRef.current = false
+      return
+    }
     if (title.trim() || content.trim()) {
       saveThreadDraft(boardId, title, content, env.threadCacheGen)
+    } else {
+      clearThreadDraft(boardId)
     }
   }, [title, content, boardId])
 

@@ -1,26 +1,39 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useThreads } from '../../hooks/useThreads'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { filterThreads } from '../../utils/filter'
 import ThreadCard from '../thread/ThreadCard'
 import NgHiddenNotice from '../ui/NgHiddenNotice'
 import { useDragResize } from '../../hooks/useDragResize'
-import { getHistory, removeThreadFromHistory } from '../../utils/threadHistory'
+import { getHistory, forgetThread } from '../../utils/threadHistory'
 import { fuzzyMatch } from '../../utils/fuzzySearch'
+import { cycleSort, type SortState } from '../../utils/sortCycle'
+import { useNewIdsFlash } from '../../hooks/useNewIdsFlash'
+import { calculateMomentum } from '../../utils/momentum'
+import { useThreadHistoryVersionStore } from '../../stores/threadHistoryVersionStore'
+import { useWheelPullRefresh } from '../../hooks/useWheelPullRefresh'
+import PullSpinner from '../ui/PullSpinner'
+import { PULL_HIDDEN_Y } from '../../utils/pullRefresh'
+
+type SortMode = 'momentum' | 'newest'
 
 export default function ThreadListPanel() {
   const { boardId, threadId } = useParams()
   const navigate = useNavigate()
-  const { data, isLoading, refetch } = useThreads(boardId)
+  const queryClient = useQueryClient()
+  const { data, isLoading, isError, refetch } = useThreads(boardId)
   const ngRules = useSettingsStore((s) => s.ngRules)
   const threadListAutoRefresh = useSettingsStore((s) => s.threadListAutoRefresh)
   const threadListRefreshInterval = useSettingsStore((s) => s.threadListRefreshInterval)
 
-  const [sortMode, setSortMode] = useState<'default' | 'momentum' | 'newest'>('default')
+  const [sortState, setSortState] = useState<SortState<SortMode> | null>(null)
   const [unreadOnly, setUnreadOnly] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
-  const [historyVersion, setHistoryVersion] = useState(0)
+  // スレッド表示画面で新着レスを取得した際にも自動で再計算されるよう、
+  // ローカルstateではなく共有ストアの更新カウンタを使う
+  const historyVersion = useThreadHistoryVersionStore((s) => s.version)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const lastClickedIdRef = useRef<string | null>(null)
   const lastRefreshRef = useRef(0)
@@ -38,17 +51,16 @@ export default function ThreadListPanel() {
     threads = threads.filter(t => readMap.has(t.id) && (readMap.get(t.id) ?? 0) < t.postCount)
   }
 
-  if (sortMode === 'momentum') {
-    threads = threads.slice().sort((a, b) => {
-      const ma = a.postCount / Math.max(1, (Date.now() - new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()) / 86400000)
-      const mb = b.postCount / Math.max(1, (Date.now() - new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()) / 86400000)
-      return mb - ma
-    })
-  } else if (sortMode === 'newest') {
+  if (sortState?.mode === 'momentum') {
+    const sign = sortState.dir === 'asc' ? 1 : -1
+    // ThreadCardの炎アイコンと同じ計算式(calculateMomentum)を使う
+    threads = threads.slice().sort((a, b) => (calculateMomentum(a) - calculateMomentum(b)) * sign)
+  } else if (sortState?.mode === 'newest') {
+    const sign = sortState.dir === 'asc' ? 1 : -1
     threads = threads.slice().sort((a, b) => {
       const da = new Date(a.firstPost?.createdAt ?? a.createdAt).getTime()
       const db = new Date(b.firstPost?.createdAt ?? b.createdAt).getTime()
-      return db - da
+      return (da - db) * sign
     })
   }
 
@@ -56,16 +68,38 @@ export default function ThreadListPanel() {
     threads = threads.filter(t => fuzzyMatch(t.title, searchQuery))
   }
 
+  // 更新で新しく取得できたスレッドを描画時に一瞬光らせる。
+  // フィルタ/ソート後のthreadsを渡すと、未読フィルタのON/OFFや並び替えで
+  // 「表示から一時的に消えていただけ」のスレッドまで新着扱いされてしまう
+  // (再表示のたびにほぼ全件が誤って光るバグの原因だった)。サーバーから
+  // 取得した生データ(rawThreads)を渡し、UI操作では変化しない基準にする。
+  // (useNewIdsFlash内部でids配列をjoinして安定した依存値にしているので、ここではメモ化不要)
+  const newThreadIds = useNewIdsFlash(rawThreads.map((t) => t.id))
+
   // F5 / Ctrl+R でスレッド一覧を更新（5秒クールダウン）
-  const handleRefresh = useCallback(() => {
+  const handleRefresh = useCallback(async () => {
     const now = Date.now()
     if (now - lastRefreshRef.current < 5000) return
     lastRefreshRef.current = now
-    void refetch()
+    await refetch()
   }, [refetch])
 
+  // PC版: マウスホイールでの引っ張り更新（スマホのタッチ版と同じ丸矢印アニメーション）。
+  // 1回のホイールイベントで即座に更新されないよう、閾値まで複数回分を累積させる
+  // (だいたいスクロール3回分に相当する量)。
+  const {
+    indicatorRef: listPullIndicatorRef,
+    iconRef: listPullIconRef,
+    pull: listPull,
+    reset: listPullReset,
+  } = useWheelPullRefresh({ onRefresh: handleRefresh, sign: 1 })
+
   function handleWheelRefresh(e: React.WheelEvent<HTMLDivElement>) {
-    if (e.deltaY < 0 && e.currentTarget.scrollTop < 1) handleRefresh()
+    if (e.deltaY < 0 && e.currentTarget.scrollTop < 1) {
+      listPull(-e.deltaY)
+    } else {
+      listPullReset()
+    }
   }
 
   useEffect(() => {
@@ -92,20 +126,18 @@ export default function ThreadListPanel() {
     const handler = (e: KeyboardEvent) => {
       if (e.key !== 'Delete') return
       if (selectedIds.size > 0) {
-        selectedIds.forEach(id => removeThreadFromHistory(id))
+        if (boardId) selectedIds.forEach(id => forgetThread(queryClient, boardId, id))
         const wasViewingSelected = threadId != null && selectedIds.has(threadId)
         setSelectedIds(new Set())
-        setHistoryVersion(v => v + 1)
         if (wasViewingSelected && boardId) navigate(`/${boardId}`)
       } else if (threadId && boardId) {
-        removeThreadFromHistory(threadId)
-        setHistoryVersion(v => v + 1)
+        forgetThread(queryClient, boardId, threadId)
         navigate(`/${boardId}`)
       }
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [threadId, boardId, selectedIds, navigate])
+  }, [threadId, boardId, selectedIds, navigate, queryClient])
 
   function handleThreadClick(id: string, e: React.MouseEvent) {
     if (e.ctrlKey || e.metaKey) {
@@ -182,22 +214,36 @@ export default function ThreadListPanel() {
         </div>
       </div>
 
-      <div className="flex gap-1 px-3 py-2 border-b border-c-border bg-c-surface/50">
+      <div className="flex items-center gap-4 px-4 border-b border-c-border bg-c-surface/50 text-sm font-medium">
         <button
           type="button"
           onClick={() => setUnreadOnly(!unreadOnly)}
-          className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-colors ${unreadOnly ? 'bg-c-accent text-[var(--c-accent-text)]' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-800'}`}
-        >未読</button>
-        <button
-          type="button"
-          onClick={() => setSortMode(sortMode === 'momentum' ? 'default' : 'momentum')}
-          className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-colors ${sortMode === 'momentum' ? 'bg-c-accent text-[var(--c-accent-text)]' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-800'}`}
-        >勢い順</button>
-        <button
-          type="button"
-          onClick={() => setSortMode(sortMode === 'newest' ? 'default' : 'newest')}
-          className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-colors ${sortMode === 'newest' ? 'bg-c-accent text-[var(--c-accent-text)]' : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 bg-slate-100 dark:bg-slate-800'}`}
-        >新しい順</button>
+          className={`relative py-2.5 flex items-center gap-0.5 transition-colors ${unreadOnly ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+        >
+          未読
+          <span className="material-symbols-outlined text-sm leading-none invisible">arrow_upward</span>
+          {unreadOnly && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />}
+        </button>
+        {([
+          { mode: 'momentum' as const, label: '勢い順' },
+          { mode: 'newest' as const, label: '新しい順' },
+        ]).map(({ mode, label }) => {
+          const active = sortState?.mode === mode
+          return (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setSortState((s) => cycleSort(s, mode))}
+              className={`relative py-2.5 flex items-center gap-0.5 transition-colors ${active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+            >
+              {label}
+              <span className={`material-symbols-outlined text-sm leading-none ${active ? '' : 'invisible'}`}>
+                {active && sortState.dir === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+              </span>
+              {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />}
+            </button>
+          )
+        })}
       </div>
 
       <NgHiddenNotice count={rawThreads.length - baseThreads.length} />
@@ -208,10 +254,9 @@ export default function ThreadListPanel() {
           <button
             type="button"
             onClick={() => {
-              selectedIds.forEach(id => removeThreadFromHistory(id))
+              if (boardId) selectedIds.forEach(id => forgetThread(queryClient, boardId, id))
               const wasViewingSelected = threadId != null && selectedIds.has(threadId)
               setSelectedIds(new Set())
-              setHistoryVersion(v => v + 1)
               if (wasViewingSelected && boardId) navigate(`/${boardId}`)
             }}
             className="text-[10px] text-red-400 hover:text-red-300 font-bold flex items-center gap-0.5"
@@ -229,26 +274,40 @@ export default function ThreadListPanel() {
         </div>
       )}
 
-      <div className="flex-1 overflow-y-auto custom-scrollbar" onWheel={handleWheelRefresh}>
+      <div className="flex-1 relative overflow-hidden">
+        <div
+          className="absolute left-0 right-0 top-0 flex justify-center pointer-events-none z-10"
+          style={{ opacity: 0, transform: `translateY(${PULL_HIDDEN_Y}px)` }}
+          ref={listPullIndicatorRef}
+        >
+          <PullSpinner iconRef={listPullIconRef} />
+        </div>
+      <div className="h-full overflow-y-auto custom-scrollbar" onWheel={handleWheelRefresh}>
         {!boardId ? (
           <div className="p-8 text-center text-slate-500 text-sm">
             左のサイドバーから板を選択してください
           </div>
+        ) : isError ? (
+          <div className="p-8 text-center text-slate-500 text-sm">データが取得できませんでした</div>
         ) : isLoading ? (
           <div className="p-8 text-center text-slate-500 text-sm">読み込み中...</div>
         ) : threads.length === 0 ? (
           <div className="p-8 text-center text-slate-500 text-sm">スレッドがありません</div>
         ) : (
-          threads.map((thread) => (
+          <div className="p-2 flex flex-col gap-1.5">
+          {threads.map((thread) => (
             <ThreadCard
               key={thread.id}
               thread={thread}
               isActive={threadId === thread.id}
               isSelected={selectedIds.has(thread.id)}
+              isNew={newThreadIds.has(thread.id)}
               onClick={(e) => handleThreadClick(thread.id, e)}
             />
-          ))
+          ))}
+          </div>
         )}
+      </div>
       </div>
 
       {boardId && (

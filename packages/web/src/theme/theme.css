@@ -1,170 +1,145 @@
 /* =============================================================
- * テーマカラー設定ファイル
+ * カラースキーム設定ファイル
  *
- * 各テーマのCSS変数を定義します。
- * ここを編集することでテーマの色をカスタマイズできます。
+ * 4つのカラースキーム(ダーク2種+ライト2種)をCSS変数として定義します。
+ * <html data-scheme="..."> の値で切り替わります(App.tsx の ThemeProvider が設定)。
+ * ダーク/ライトの判定(Tailwindの dark: バリアント用に <html> へ付与する
+ * .dark クラス)は App.tsx 側で「indigo/amber-teal はダーク、
+ * indigo-light/amber-teal-light はライト」として別途管理します。
  *
  * CSS変数一覧:
- *   --c-base                  : ページ背景色
- *   --c-surface               : カード・パネル背景色（1段目）
- *   --c-surface2              : カード・パネル背景色（2段目）
- *   --c-border                : ボーダー色
- *   --c-scrollbar-thumb       : スクロールバーのつまみ色
- *   --c-scrollbar-thumb-hover : スクロールバーのつまみホバー色
- *   --c-own-tint              : 自分の投稿の背景ティント
- *   --c-reply-tint            : 返信先投稿の背景ティント
- *   --c-reply-line            : 返信線の色
- *
- * ※ アクセントカラー（--c-accent）は src/theme/accentColors.ts で定義します。
+ *   --c-base           : ページ背景色
+ *   --c-surface        : パネル背景色(1段目)
+ *   --c-surface2       : カード等の背景色(2段目)
+ *   --c-surface3       : 選択中カードなど、さらに一段明るい背景色(3段目)
+ *   --c-border         : 通常のボーダー色
+ *   --c-border-strong  : やや強調したボーダー色(選択枠など)
+ *   --c-text-strong    : 見出し・強調テキスト
+ *   --c-text-body      : 本文テキスト
+ *   --c-text-muted     : 補助・控えめなテキスト
+ *   --c-text-emphasis  : 最大限に目立たせたいテキスト(新着/未読スレのタイトル等)。
+ *                         ダーク系スキームでは純白、ライト系スキームでは純黒に近い値。
+ *   --c-accent         : アクセントカラー
+ *   --c-accent-hover   : アクセントカラー(ホバー)
+ *   --c-accent-text    : アクセントカラー背景の上に乗せる文字色
+ *   --c-accent-wash    : アクセントカラーを薄く敷いた背景(バッジ等)
+ *   --c-link           : 本文中のURL・アンカー(>>1)リンク色
+ *   --c-link-image     : 画像URL
+ *   --c-link-twitter   : X/TwitterのURL
+ *   --c-link-youtube   : YouTubeのURL
+ *   --c-poster-name    : 投稿者名
+ *   --c-heat-warm/hot/very-hot : 暖色ランプ(ID の投稿回数・レスの被アンカー数の
+ *                         両方が同じこのランプを参照する。投稿回数と被アンカー数を
+ *                         別変数化しない)
  * ============================================================= */
 
-/* ------------------------------------------------------------
- * ライトテーマ（デフォルト）
- * ------------------------------------------------------------ */
-:root {
-  --c-base: #f1f5f9;
+/* data-scheme が未設定の場合のフォールバックとしてindigoを:rootにも適用する
+   (別ブロックにすると:rootとの詳細度が同点になり、後勝ちでindigo以外の
+   スキームを上書きしてしまうため、同じセレクタブロックにまとめる) */
+:root, [data-scheme="indigo"] {
+  --c-base: #0c0e13;
+  --c-surface: #12151b;
+  --c-surface2: #191d26;
+  --c-surface3: #212633;
+  --c-border: #242933;
+  --c-border-strong: #333a47;
+  --c-text-strong: #eef0f5;
+  --c-text-body: #c7cbd6;
+  --c-text-muted: #656b7a;
+  --c-text-emphasis: #ffffff;
+  --c-accent: #7566e6;
+  --c-accent-hover: #8f83ea;
+  --c-accent-text: #f5f3ff;
+  --c-accent-wash: rgba(117, 102, 230, 0.14);
+  --c-link: #57a6ff;
+  --c-link-image: #f2b84b;
+  --c-link-twitter: #4fc3f7;
+  --c-link-youtube: #ef5da8;
+  --c-poster-name: #45c9a5;
+  --c-heat-warm: #f2b84b;
+  --c-heat-hot: #f2914b;
+  --c-heat-very-hot: #ef5350;
+}
+
+[data-scheme="amber-teal"] {
+  --c-base: #14171f;
+  --c-surface: #171b26;
+  --c-surface2: #1e2433;
+  --c-surface3: #262e40;
+  --c-border: #2a3247;
+  --c-border-strong: #3a4560;
+  --c-text-strong: #f2ece2;
+  --c-text-body: #d7d2c8;
+  --c-text-muted: #9a9488;
+  --c-text-emphasis: #ffffff;
+  --c-accent: #e0993f;
+  --c-accent-hover: #eaad5e;
+  --c-accent-text: #2b1804;
+  --c-accent-wash: rgba(224, 153, 63, 0.16);
+  --c-link: #5eb8ff;
+  --c-link-image: #e0993f;
+  --c-link-twitter: #5eb8ff;
+  --c-link-youtube: #e2506e;
+  --c-poster-name: #3d9e8a;
+  --c-heat-warm: #e0993f;
+  --c-heat-hot: #e2506e;
+  --c-heat-very-hot: #c23b3b;
+}
+
+[data-scheme="indigo-light"] {
+  --c-base: #f5f6fa;
   --c-surface: #ffffff;
-  --c-surface2: #f8fafc;
-  --c-border: #e2e8f0;
-
-  /* アクセントカラー（src/theme/accentColors.ts の ACCENT_MAP で上書きされます） */
-  --c-accent: #2563eb;
-  --c-accent-hover: #1d4ed8;
+  --c-surface2: #f0f1f6;
+  --c-surface3: #e7e8f4;
+  --c-border: #e1e3ec;
+  --c-border-strong: #c7cad9;
+  --c-text-strong: #181a22;
+  --c-text-body: #3d414d;
+  --c-text-muted: #7a7f8c;
+  --c-text-emphasis: #000000;
+  --c-accent: #5b4bd6;
+  --c-accent-hover: #6f5fe0;
   --c-accent-text: #ffffff;
+  --c-accent-wash: rgba(91, 75, 214, 0.08);
+  --c-link: #2f6fd6;
+  --c-link-image: #c97f1f;
+  --c-link-twitter: #0f8fbf;
+  --c-link-youtube: #d13d78;
+  --c-poster-name: #1f8f6f;
+  --c-heat-warm: #c97f1f;
+  --c-heat-hot: #d1642f;
+  --c-heat-very-hot: #c23b3b;
+}
 
-  /* スクロールバー */
-  --c-scrollbar-thumb: rgba(100, 116, 139, 0.25);
+[data-scheme="amber-teal-light"] {
+  --c-base: #faf6ee;
+  --c-surface: #ffffff;
+  --c-surface2: #f5efe2;
+  --c-surface3: #efe4cd;
+  --c-border: #e8ddc7;
+  --c-border-strong: #d3c4a3;
+  --c-text-strong: #241a0a;
+  --c-text-body: #4a3c26;
+  --c-text-muted: #8a7c62;
+  --c-text-emphasis: #000000;
+  --c-accent: #b5691f;
+  --c-accent-hover: #c97a2c;
+  --c-accent-text: #ffffff;
+  --c-accent-wash: rgba(181, 105, 31, 0.1);
+  --c-link: #1f7fbf;
+  --c-link-image: #b5691f;
+  --c-link-twitter: #1f7fbf;
+  --c-link-youtube: #c23b6e;
+  --c-poster-name: #1f8f7a;
+  --c-heat-warm: #b5691f;
+  --c-heat-hot: #c23b6e;
+  --c-heat-very-hot: #a5302f;
+}
+
+/* スクロールバー(スキーム非依存。--c-text-muted/--c-accent は各スキームで
+   上書きされた値をそのまま参照する) */
+:root {
+  --c-scrollbar-thumb: color-mix(in srgb, var(--c-text-muted) 45%, transparent);
   --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 55%, transparent);
   --c-scrollbar-track: transparent;
-
-  /* 投稿背景ティント */
-  --c-own-tint: color-mix(in srgb, var(--c-accent) 12%, var(--c-base));
-  --c-reply-tint: color-mix(in srgb, #000000 8%, var(--c-base));
-  --c-reply-line: #334155;
-
-  /* ---- 本文リンク色 ------------------------------------------ */
-  --c-link-image: #fb923c;          /* 画像URL（orange-400） */
-  --c-link-image-hover: #fdba74;    /* 画像URLホバー（orange-300） */
-  --c-link-twitter: #38bdf8;        /* X/TwitterのURL（sky-400） */
-  --c-link-twitter-hover: #7dd3fc;  /* X/Twitterホバー（sky-300） */
-  --c-link-youtube: #f87171;        /* YouTubeのURL（red-400） */
-  --c-link-youtube-hover: #fca5a5;  /* YouTubeホバー（red-300） */
-  --c-link-url: #60a5fa;            /* 通常URL（blue-400） */
-  --c-link-url-hover: #93c5fd;      /* 通常URLホバー（blue-300） */
-
-  /* ---- アンカー (>>1 等) ------------------------------------- */
-  --c-anchor: #60a5fa;              /* アンカーリンク（blue-400） */
-  --c-anchor-hover: #93c5fd;        /* アンカーホバー（blue-300） */
-
-  /* ---- 投稿者名 ---------------------------------------------- */
-  --c-poster-name: #16a34a;         /* 投稿者名（green-600） */
-  --c-poster-name-hover: #4ade80;   /* 投稿者名ホバー（green-400） */
-
-  /* ---- ID 色（発言数による変化） -------------------------------- */
-  --c-id-default: #94a3b8;          /* 通常ID（slate-400） */
-  --c-id-first: #475569;            /* 初回発言のID（slate-600） */
-  --c-id-warm: #f59e0b;             /* 3回以上（amber-500） */
-  --c-id-hot: #f97316;              /* 5回以上（orange-500） */
-  --c-id-very-hot: #ef4444;         /* 7回以上（red-500） */
-
-  /* ---- 人気レス色（被アンカー数による変化） ---------------------- */
-  --c-heat-warm: #f59e0b;           /* 3件以上（amber-500） */
-  --c-heat-hot: #f97316;            /* 5件以上（orange-500） */
-  --c-heat-very-hot: #ef4444;       /* 7件以上（red-500） */
-}
-
-/* ------------------------------------------------------------
- * ダークテーマ
- * ------------------------------------------------------------ */
-html.dark {
-  --c-base: #0f1115;
-  --c-surface: #161920;
-  --c-surface2: #1a1d24;
-  --c-border: #1e293b;
-
-  --c-scrollbar-thumb: rgba(71, 85, 105, 0.5);
-  --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 60%, transparent);
-
-  --c-reply-tint: color-mix(in srgb, #ffffff 8%, var(--c-base));
-  --c-reply-line: #cbd5e1;
-
-  /* 投稿者名（ダーク時は暗い緑） */
-  --c-poster-name: #166534;         /* green-800 */
-
-  /* ---- ハイライト色を少し抑える -------------------------------
-   * ライトテーマと共通の彩度の高い色をそのまま流用していたが、暗い背景の上だと
-   * ちらつき（ぎらつき）を感じやすいため、背景色を混ぜて彩度・明度を落とす。
-   * gray/dark-gray テーマも html 要素に dark クラスが付くため、ここが適用される。 */
-  --c-link-image: color-mix(in srgb, #fb923c 72%, var(--c-base));
-  --c-link-image-hover: color-mix(in srgb, #fdba74 78%, var(--c-base));
-  --c-link-twitter: color-mix(in srgb, #38bdf8 72%, var(--c-base));
-  --c-link-twitter-hover: color-mix(in srgb, #7dd3fc 78%, var(--c-base));
-  --c-link-youtube: color-mix(in srgb, #f87171 72%, var(--c-base));
-  --c-link-youtube-hover: color-mix(in srgb, #fca5a5 78%, var(--c-base));
-  --c-link-url: color-mix(in srgb, #60a5fa 72%, var(--c-base));
-  --c-link-url-hover: color-mix(in srgb, #93c5fd 78%, var(--c-base));
-
-  --c-anchor: color-mix(in srgb, #60a5fa 72%, var(--c-base));
-  --c-anchor-hover: color-mix(in srgb, #93c5fd 78%, var(--c-base));
-
-  --c-id-warm: color-mix(in srgb, #f59e0b 72%, var(--c-base));
-  --c-id-hot: color-mix(in srgb, #f97316 72%, var(--c-base));
-  --c-id-very-hot: color-mix(in srgb, #ef4444 72%, var(--c-base));
-
-  --c-heat-warm: color-mix(in srgb, #f59e0b 72%, var(--c-base));
-  --c-heat-hot: color-mix(in srgb, #f97316 72%, var(--c-base));
-  --c-heat-very-hot: color-mix(in srgb, #ef4444 72%, var(--c-base));
-}
-
-/* ------------------------------------------------------------
- * ライトグレーテーマ
- * 中途半端な明るさで文字とのコントラストが弱かったため、
- * はっきり明るい側に寄せた (ライトモードの文字色がそのまま使われる想定)。
- * ------------------------------------------------------------ */
-html.light-gray {
-  --c-base: #e7ebf1;
-  --c-surface: #f1f4f8;
-  --c-surface2: #f7f9fb;
-  --c-border: #d3dae3;
-
-  --c-scrollbar-thumb: rgba(100, 116, 139, 0.35);
-
-  --c-reply-tint: color-mix(in srgb, #000000 8%, var(--c-base));
-  --c-reply-line: #334155;
-}
-
-/* ------------------------------------------------------------
- * グレーテーマ
- * 以前は中間的な明るさ(#b0bac4)で、ライト用/ダーク用どちらの文字色とも
- * コントラストが弱かった。ダーク系(light文字ではなくdark:文字を使う)側に
- * 倒して、light-gray〜dark-grayの明るさのグラデーションが自然につながる
- * ようにした (App.tsxでdarkクラスも付与する)。
- * ------------------------------------------------------------ */
-html.gray {
-  --c-base: #414a5a;
-  --c-surface: #4a5468;
-  --c-surface2: #535e73;
-  --c-border: #5f6b82;
-
-  --c-scrollbar-thumb: rgba(148, 163, 184, 0.35);
-  --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 60%, transparent);
-
-  --c-reply-tint: color-mix(in srgb, #ffffff 8%, var(--c-base));
-  --c-reply-line: #dbe1e8;
-}
-
-/* ------------------------------------------------------------
- * ダークグレーテーマ (Atom One Dark 風の配色)
- * ------------------------------------------------------------ */
-html.dark-gray {
-  --c-base: #282c34;
-  --c-surface: #2f333c;
-  --c-surface2: #363b45;
-  --c-border: #3f4451;
-
-  --c-scrollbar-thumb: rgba(92, 99, 112, 0.6);
-  --c-scrollbar-thumb-hover: color-mix(in srgb, var(--c-accent) 60%, transparent);
-
-  --c-reply-tint: color-mix(in srgb, #ffffff 8%, var(--c-base));
-  --c-reply-line: #9da5b4;
 }

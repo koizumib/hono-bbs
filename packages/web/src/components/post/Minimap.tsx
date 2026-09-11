@@ -10,10 +10,11 @@ interface MinimapProps {
   replyToOwnNumbers?: Set<number>
 }
 
+// PostArticle.tsx の heatClass と同じ暖色ランプ(--c-heat-*)を参照する
 function heatColor(count: number): string {
-  if (count >= 7) return '#ef4444'
-  if (count >= 5) return '#f97316'
-  return '#f59e0b'
+  if (count >= 7) return 'var(--c-heat-very-hot)'
+  if (count >= 5) return 'var(--c-heat-hot)'
+  return 'var(--c-heat-warm)'
 }
 
 export default function Minimap({ posts, scrollAreaRef, anchorCountMap, ownPostNumbers, replyToOwnNumbers }: MinimapProps) {
@@ -205,20 +206,26 @@ export default function Minimap({ posts, scrollAreaRef, anchorCountMap, ownPostN
     <div
       ref={containerRef}
       className="w-[21px] flex-shrink-0 relative pt-4 pb-40"
-      style={{ background: 'rgba(15,17,21,0.5)', borderLeft: '1px solid rgba(51,65,85,0.3)', touchAction: 'none' }}
+      style={{
+        background: 'var(--c-surface2)',
+        border: '1px solid var(--c-border)',
+        borderRadius: 'var(--minimap-radius)',
+        touchAction: 'none',
+      }}
     >
-      {/* 返信（自分のレスへのアンカー）の青ダイヤ */}
+      {/* 自分の投稿への返信（アウトラインダイヤ、色は自分のレスと同じ） */}
       {replyToOwnMarkers.map((m) => (
         <button
           key={`reply-${m.postNumber}`}
           onClick={() => scrollToPost(m.postNumber)}
-          className="absolute left-1/2 w-2.5 h-2.5 hover:opacity-80 transition-opacity z-[11]"
+          className="absolute left-1/2 w-2.5 h-2.5 hover:opacity-80 transition-opacity z-[11] rounded-[1px]"
           style={{
             top: `${m.percent}%`,
             transform: 'translateX(-50%) translateY(-50%) rotate(45deg)',
-            background: '#3b82f6',
+            background: 'transparent',
+            border: '1.5px solid var(--c-accent)',
           }}
-          title={`返信レス: ${m.postNumber}`}
+          title={`自分への返信: ${m.postNumber}`}
         />
       ))}
 
@@ -227,7 +234,7 @@ export default function Minimap({ posts, scrollAreaRef, anchorCountMap, ownPostN
         <button
           key={`own-${m.postNumber}`}
           onClick={() => scrollToPost(m.postNumber)}
-          className="absolute left-1/2 w-2.5 h-2.5 hover:opacity-80 transition-opacity z-[12]"
+          className="absolute left-1/2 w-2.5 h-2.5 hover:opacity-80 transition-opacity z-[12] rounded-[1px]"
           style={{
             top: `${m.percent}%`,
             transform: 'translateX(-50%) translateY(-50%) rotate(45deg)',
@@ -251,27 +258,43 @@ export default function Minimap({ posts, scrollAreaRef, anchorCountMap, ownPostN
         />
       ))}
 
-      {/* メディアの丸点 */}
-      {mediaMarkers.map((m) => (
-        <button
-          key={`media-${m.postNumber}`}
-          onClick={() => scrollToPost(m.postNumber)}
-          className="absolute left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full hover:scale-150 transition-transform z-[10]"
-          style={{
-            top: `${m.percent}%`,
-            background: m.type === 'image' ? '#f59e0b' : '#a855f7',
-          }}
-          title={`${m.postNumber}: ${m.type === 'image' ? '画像' : 'YouTube'}あり`}
-        />
-      ))}
+      {/* メディアマーカー: 形(画像=四角、動画=三角)で種別を区別する。
+          画像マーカーの色は本文中の画像URLリンクと同じ--c-link-imageにして
+          「画像がある」という意味を色でも一致させる */}
+      {mediaMarkers.map((m) =>
+        m.type === 'image' ? (
+          <button
+            key={`media-${m.postNumber}`}
+            onClick={() => scrollToPost(m.postNumber)}
+            className="absolute left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-[1px] hover:scale-150 transition-transform z-[10]"
+            style={{ top: `${m.percent}%`, background: 'var(--c-link-image)' }}
+            title={`${m.postNumber}: 画像あり`}
+          />
+        ) : (
+          <button
+            key={`media-${m.postNumber}`}
+            onClick={() => scrollToPost(m.postNumber)}
+            className="absolute left-1/2 -translate-x-1/2 hover:scale-150 transition-transform z-[10]"
+            style={{
+              top: `${m.percent}%`,
+              width: 0,
+              height: 0,
+              borderLeft: '3px solid transparent',
+              borderRight: '3px solid transparent',
+              borderBottom: '5px solid var(--c-text-muted)',
+            }}
+            title={`${m.postNumber}: YouTubeあり`}
+          />
+        ),
+      )}
 
       {/* つまみ: 全マーカーより前面 */}
       <div
         ref={thumbRef}
         className="absolute left-0 right-0 rounded"
         style={{
-          background: 'rgba(255,255,255,0.12)',
-          border: '1px solid rgba(255,255,255,0.2)',
+          background: 'color-mix(in srgb, var(--c-text-muted) 25%, transparent)',
+          border: '1px solid color-mix(in srgb, var(--c-text-muted) 45%, transparent)',
           cursor: 'ns-resize',
           zIndex: 20,
         }}

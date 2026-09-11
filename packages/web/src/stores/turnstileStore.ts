@@ -4,33 +4,29 @@ import { env } from '../config/env'
 
 interface TurnstileState {
   sessionId: string | null
-  issuedAt: string | null
   setSession: (sessionId: string) => void
   clearSession: () => void
   isValid: () => boolean
 }
 
+// セッションの実際の有効期限は、発行時にサーバー側でTURNSTILE_TOKEN_TTLに基づいて
+// KVに設定される (packages/api/src/features/turnstile/service.ts)。
+// 以前はここで独自に「24時間で失効」というクライアント側の期限切れ判定をしており、
+// サーバー側のTTLをどれだけ長く設定してもクライアントが24時間で見切りをつけて
+// 再認証を要求してしまっていた。sessionIdの有無だけを見て、実際の期限切れ判定は
+// サーバーに委ねる(期限切れなら通常のAPIリクエストがTurnstileRequiredErrorを返すので、
+// 既存のエラーハンドリングフローで再認証を促せる)。
 export const useTurnstileStore = create<TurnstileState>()(
   persist(
     (set, get) => ({
       sessionId: null,
-      issuedAt: null,
       setSession: (sessionId) => {
-        if (env.disableTurnstile) {
-          set({ sessionId: 'dev-turnstile-disabled', issuedAt: new Date().toISOString() })
-        } else {
-          set({ sessionId, issuedAt: new Date().toISOString() })
-        }
+        set({ sessionId: env.disableTurnstile ? 'dev-turnstile-disabled' : sessionId })
       },
-      clearSession: () => set({ sessionId: null, issuedAt: null }),
+      clearSession: () => set({ sessionId: null }),
       isValid: () => {
         if (env.disableTurnstile) return true
-        const { sessionId, issuedAt } = get()
-        if (!sessionId || !issuedAt) return false
-        // Turnstileセッションは24時間有効
-        const expiresAt = new Date(issuedAt)
-        expiresAt.setHours(expiresAt.getHours() + 24)
-        return new Date() < expiresAt
+        return Boolean(get().sessionId)
       },
     }),
     {
