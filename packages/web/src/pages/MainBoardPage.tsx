@@ -493,93 +493,8 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     ? filteredPosts.findIndex(p => newPostIds.has(p.id))
     : -1
 
-  const postsArea = (
-    <div className="flex-1 relative overflow-hidden">
-      {/* 上部更新インジケーター（コンテンツの高さを変えず独立して降りてくる） */}
-      <div
-        className="absolute left-0 right-0 top-0 flex justify-center pointer-events-none z-10"
-        style={{ opacity: 0, transform: `translateY(${PULL_HIDDEN_Y}px)` }}
-        ref={topPullIndicatorRef}
-      >
-        <PullSpinner iconRef={topPullIconRef} />
-      </div>
-      {/* 下部更新インジケーター */}
-      <div
-        className="absolute left-0 right-0 bottom-0 flex justify-center pointer-events-none z-10"
-        style={{ opacity: 0, transform: `translateY(${-PULL_HIDDEN_Y}px)` }}
-        ref={bottomPullIndicatorRef}
-      >
-        <PullSpinner iconRef={bottomPullIconRef} />
-      </div>
-    <div
-      ref={scrollAreaRef}
-      onScroll={handleScroll}
-      onWheel={handleWheelRefresh}
-      className="h-full overflow-y-auto custom-scrollbar p-6 space-y-3"
-    >
-      {isError && !thread ? (
-        <div className="text-slate-500 text-sm">データが取得できませんでした</div>
-      ) : isLoading ? (
-        <div className="text-slate-500 text-sm">読み込み中...</div>
-      ) : filteredPosts.length === 0 ? (
-        <div className="text-slate-500 text-sm">投稿がありません</div>
-      ) : (
-        filteredPosts.map((post, i) => {
-          const content = (
-            <>
-              {i === firstNewIndex && (
-                <div
-                  id="unread-divider"
-                  className="flex items-center gap-3 py-1 select-none"
-                  style={{ color: 'var(--c-accent-self)', opacity: 0.6 }}
-                >
-                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
-                  <span className="text-[10px] font-bold tracking-widest whitespace-nowrap">
-                    ここから未読
-                  </span>
-                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
-                </div>
-              )}
-              <PostArticle
-                post={post}
-                anchorCount={anchorCountMap.get(post.postNumber) ?? 0}
-                idCount={idCountMap.get(post.authorId) ?? 1}
-                handlers={handlers}
-                isOwnPost={ownPostNumbers.has(post.postNumber)}
-                isReplyToOwn={replyToOwnNumbers.has(post.postNumber)}
-                showTopDivider={i > 0 && i !== firstNewIndex}
-                // newPostsVisible が false の間(初回表示のフェードイン待ち)は
-                // まだ画面上で不可視のため、ここでisNewを立てて光らせても意味が
-                // ないばかりか、見えるようになる頃にはアニメーションが終わって
-                // しまう。実際に見える(newPostsVisible=true)タイミングに合わせて
-                // 発火させる。
-                isNew={newPostsVisible && newPostIds.has(post.id)}
-              />
-            </>
-          )
-          // 未読レスはスレッド表示位置が決まった後、少し遅れてフェードインさせる
-          if (firstNewIndex !== -1 && i >= firstNewIndex) {
-            return (
-              <div key={post.id} className={`transition-opacity duration-300 ${newPostsVisible ? 'opacity-100' : 'opacity-0'}`}>
-                {content}
-              </div>
-            )
-          }
-          return <Fragment key={post.id}>{content}</Fragment>
-        })
-      )}
-    </div>
-    {/* 表示位置(スクロール復元/未読ジャンプ)が決まるまでコンテンツを覆う */}
-    {!positioned && (
-      <div className="absolute inset-0 z-20 flex items-center justify-center bg-c-base">
-        <span className="material-symbols-outlined text-3xl text-slate-400 animate-spin">progress_activity</span>
-      </div>
-    )}
-    </div>
-  )
-
   const header = (
-    <header className="h-16 flex-shrink-0 border-b border-c-border bg-c-base/80 backdrop-blur-md shadow-sm flex items-center justify-between px-6 sticky top-0 z-10">
+    <header className="h-16 flex-shrink-0 flex items-center justify-between px-6">
       <div className="min-w-0 flex-1 flex items-center gap-2">
         <h2
           className="font-bold text-slate-900 dark:text-white truncate text-base cursor-pointer hover:text-c-accent transition-colors"
@@ -639,7 +554,7 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
   )
 
   const filterBar = (
-    <div className="flex items-center gap-4 px-4 border-b border-c-border bg-c-surface/50 flex-shrink-0 overflow-x-auto no-scrollbar text-sm font-medium">
+    <div className="flex items-center gap-4 px-4 overflow-x-auto no-scrollbar text-sm font-medium">
       <button
         type="button"
         onClick={() => setPostFilters(new Set())}
@@ -679,12 +594,106 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
     </div>
   )
 
+  const postsArea = (
+    <div className="flex-1 relative overflow-hidden">
+      {/* 上部更新インジケーター（コンテンツの高さを変えず独立して降りてくる） */}
+      <div
+        className="absolute left-0 right-0 top-0 flex justify-center pointer-events-none z-20"
+        style={{ opacity: 0, transform: `translateY(${PULL_HIDDEN_Y}px)` }}
+        ref={topPullIndicatorRef}
+      >
+        <PullSpinner iconRef={topPullIconRef} />
+      </div>
+      {/* 下部更新インジケーター */}
+      <div
+        className="absolute left-0 right-0 bottom-0 flex justify-center pointer-events-none z-20"
+        style={{ opacity: 0, transform: `translateY(${-PULL_HIDDEN_Y}px)` }}
+        ref={bottomPullIndicatorRef}
+      >
+        <PullSpinner iconRef={bottomPullIconRef} />
+      </div>
+    <div
+      ref={scrollAreaRef}
+      onScroll={handleScroll}
+      onWheel={handleWheelRefresh}
+      className="h-full overflow-y-auto custom-scrollbar flex flex-col"
+    >
+      {/* ヘッダー/フィルターバーをスクロール領域内の先頭に sticky で配置することで、
+          すりガラス(半透明+ぼかし)越しにレスがうっすら透けて見えるようにする */}
+      <div className="sticky top-0 z-10 frosted-glass border-b border-c-border flex-shrink-0">
+        {header}
+        {filterBar}
+        <NgHiddenNotice count={rawPosts.length - posts.length} />
+      </div>
+
+      <div className="flex-1 p-6 space-y-3">
+      {isError && !thread ? (
+        <div className="text-slate-500 text-sm">データが取得できませんでした</div>
+      ) : isLoading ? (
+        <div className="text-slate-500 text-sm">読み込み中...</div>
+      ) : filteredPosts.length === 0 ? (
+        <div className="text-slate-500 text-sm">投稿がありません</div>
+      ) : (
+        filteredPosts.map((post, i) => {
+          const content = (
+            <>
+              {i === firstNewIndex && (
+                <div
+                  id="unread-divider"
+                  className="flex items-center gap-3 py-1 select-none"
+                  style={{ color: 'var(--c-accent-self)', opacity: 0.6 }}
+                >
+                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
+                  <span className="text-[10px] font-bold tracking-widest whitespace-nowrap">
+                    ここから未読
+                  </span>
+                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
+                </div>
+              )}
+              <PostArticle
+                post={post}
+                anchorCount={anchorCountMap.get(post.postNumber) ?? 0}
+                idCount={idCountMap.get(post.authorId) ?? 1}
+                handlers={handlers}
+                isOwnPost={ownPostNumbers.has(post.postNumber)}
+                isReplyToOwn={replyToOwnNumbers.has(post.postNumber)}
+                showTopDivider={i > 0 && i !== firstNewIndex}
+                // newPostsVisible が false の間(初回表示のフェードイン待ち)は
+                // まだ画面上で不可視のため、ここでisNewを立てて光らせても意味が
+                // ないばかりか、見えるようになる頃にはアニメーションが終わって
+                // しまう。実際に見える(newPostsVisible=true)タイミングに合わせて
+                // 発火させる。
+                isNew={newPostsVisible && newPostIds.has(post.id)}
+                boardId={boardId}
+                threadId={threadId}
+                threadTitle={thread?.title}
+              />
+            </>
+          )
+          // 未読レスはスレッド表示位置が決まった後、少し遅れてフェードインさせる
+          if (firstNewIndex !== -1 && i >= firstNewIndex) {
+            return (
+              <div key={post.id} className={`transition-opacity duration-300 ${newPostsVisible ? 'opacity-100' : 'opacity-0'}`}>
+                {content}
+              </div>
+            )
+          }
+          return <Fragment key={post.id}>{content}</Fragment>
+        })
+      )}
+      </div>
+    </div>
+    {/* 表示位置(スクロール復元/未読ジャンプ)が決まるまでコンテンツを覆う */}
+    {!positioned && (
+      <div className="absolute inset-0 z-20 flex items-center justify-center bg-c-base">
+        <span className="material-symbols-outlined text-3xl text-slate-400 animate-spin">progress_activity</span>
+      </div>
+    )}
+    </div>
+  )
+
   return (
     <main className="flex-1 flex flex-col bg-c-base overflow-hidden">
-      {header}
-      {filterBar}
-      <NgHiddenNotice count={rawPosts.length - posts.length} />
-
       {replyLayout === 'bottom' ? (
         <>
           <div className="flex flex-1 overflow-hidden">
