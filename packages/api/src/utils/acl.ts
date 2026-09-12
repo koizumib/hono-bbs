@@ -59,6 +59,18 @@ export function can(
   return acl.anonymousActions.includes(action)
 }
 
+// ACL自体(grants/authenticatedActions/anonymousActions)の書き換えを許可するかの判定。
+// 通常のcan(acl, ctx, 'update')より厳しい: 'update'権限は「コンテンツの編集」を
+// 意図したものであり、grants経由でそれを付与された非オーナーが権限体系そのものを
+// 書き換えて自身に delete を追加する、といった権限昇格の踏み台にされないようにする。
+export function isOwnerOrSysAdmin(
+  acl: ResourceAcl,
+  ctx: { userId: string | null; isSysAdmin: boolean },
+): boolean {
+  if (ctx.isSysAdmin) return true
+  return !!ctx.userId && acl.ownerUserId === ctx.userId
+}
+
 // board の defaultThreadAcl/defaultPostAcl のようなテンプレートから
 // 実際のリソース (thread/post) 用の ACL を作る。
 // 旧 $CREATOR/$PARENTS のテンプレート展開に相当するが、grants/authenticatedActions/

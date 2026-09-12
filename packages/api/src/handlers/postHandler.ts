@@ -61,6 +61,8 @@ export async function createPostHandler(c: WithThreadId) {
       if (e.message === 'POST_LIMIT_REACHED') return c.json({ error: 'POST_LIMIT_REACHED', message: 'Post limit reached' }, 422)
       if (e.message === 'CONTENT_TOO_LONG') return c.json({ error: 'CONTENT_TOO_LONG', message: 'Content is too long' }, 422)
       if (e.message === 'CONTENT_TOO_MANY_LINES') return c.json({ error: 'CONTENT_TOO_MANY_LINES', message: 'Content has too many lines' }, 422)
+      if (e.message === 'POSTER_NAME_TOO_LONG') return c.json({ error: 'POSTER_NAME_TOO_LONG', message: 'Poster name is too long' }, 422)
+      if (e.message === 'POSTER_OPTION_TOO_LONG') return c.json({ error: 'POSTER_OPTION_TOO_LONG', message: 'Poster option info is too long' }, 422)
       if (e.message === 'CONTENT_REJECTED') return c.json({ error: 'CONTENT_REJECTED', message: 'Content was rejected' }, 400)
       if (e.message === 'DUPLICATE_CONTENT') return c.json({ error: 'DUPLICATE_CONTENT', message: 'Duplicate content' }, 409)
     }
@@ -87,8 +89,14 @@ export async function putPostHandler(c: WithPostNumber) {
     return c.json({ data: stripPost(post, adminVisible(c)) })
   } catch (e) {
     if (isZodError(e)) return c.json({ error: 'VALIDATION_ERROR', message: zodMessage(e) }, 400)
-    if (e instanceof Error && e.message === 'FORBIDDEN') {
-      return c.json({ error: 'FORBIDDEN', message: 'Insufficient permissions' }, 403)
+    if (e instanceof Error) {
+      if (e.message === 'FORBIDDEN') return c.json({ error: 'FORBIDDEN', message: 'Insufficient permissions' }, 403)
+      if (e.message === 'BOARD_NOT_FOUND') return c.json({ error: 'BOARD_NOT_FOUND', message: 'Board not found' }, 404)
+      if (e.message === 'CONTENT_TOO_LONG') return c.json({ error: 'CONTENT_TOO_LONG', message: 'Content is too long' }, 422)
+      if (e.message === 'CONTENT_TOO_MANY_LINES') return c.json({ error: 'CONTENT_TOO_MANY_LINES', message: 'Content has too many lines' }, 422)
+      if (e.message === 'POSTER_NAME_TOO_LONG') return c.json({ error: 'POSTER_NAME_TOO_LONG', message: 'Poster name is too long' }, 422)
+      if (e.message === 'POSTER_OPTION_TOO_LONG') return c.json({ error: 'POSTER_OPTION_TOO_LONG', message: 'Poster option info is too long' }, 422)
+      if (e.message === 'CONTENT_REJECTED') return c.json({ error: 'CONTENT_REJECTED', message: 'Content was rejected' }, 400)
     }
     throw e
   }

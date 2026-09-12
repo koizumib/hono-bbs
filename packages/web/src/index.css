@@ -141,15 +141,3 @@ input[type="range"] {
   animation: flash-new 1.2s ease-out;
 }
 
-/* 自分の投稿の縦帯。border-leftをそのままカードに付けると角丸との交点で
- * 線が歪んで見えるため、角に触れない独立した短いバーを::beforeで描画する。 */
-.bbs-post-own::before {
-  content: '';
-  position: absolute;
-  left: 7px;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 3px;
-  background: var(--c-accent);
-}

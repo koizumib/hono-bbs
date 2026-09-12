@@ -3,18 +3,24 @@ import type { Board } from '../types'
 import type { DbAdapter } from '../adapters/db'
 import * as boardRepository from '../repository/boardRepository'
 import type { BoardCursor } from '../repository/boardRepository'
-import { can, buildAcl, resourceAclInputSchema } from '../utils/acl'
+import { can, buildAcl, isOwnerOrSysAdmin, resourceAclInputSchema } from '../utils/acl'
+import { isRegexPatternSafe } from '../utils/regexSafety'
 import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
 const NG_WORD_TARGETS = ['title', 'posterName', 'content'] as const
 
 // サーバー側NGワード (板単位)。一致した投稿は拒否される (クライアント側のNGワード機能とは別物)
+// isRegex=trueのパターンは、投稿の都度サーバー側で評価される(utils/ngWords.ts)ため、
+// 破滅的バックトラッキングを起こす危険なパターンをここで弾く (ReDoS対策)
 export const ngWordRuleSchema = z.object({
   pattern: z.string().min(1).max(500),
   isRegex: z.boolean(),
   target: z.enum(NG_WORD_TARGETS),
-})
+}).refine(
+  (rule) => !rule.isRegex || isRegexPatternSafe(rule.pattern),
+  { message: 'この正規表現パターンは危険(ReDoSの可能性)なため使用できません', path: ['pattern'] },
+)
 
 // POST /boards および PUT /boards/:boardId (upsert) で使用: 全フィールド必須
 export const boardBodySchema = z.object({
@@ -156,8 +162,12 @@ export async function putBoard(
     return board
   }
 
-  // 存在する場合: update 権限チェック (ACLそのものを書き換えられる操作なので owner/sysAdmin 相当が必要)
+  // 存在する場合: update 権限チェック
   if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+  // PUTは acl/defaultThreadAcl/defaultPostAcl を常に含む(=常にACLを書き換える)ため、
+  // 'update'権限だけでなく owner/sysAdmin であることを別途要求する
+  // (grants経由で'update'だけを付与された非オーナーが権限体系ごと書き換えるのを防ぐ)
+  if (!isOwnerOrSysAdmin(existing.acl, { userId, isSysAdmin })) throw new Error('FORBIDDEN')
 
   await boardRepository.updateBoard(db, boardId, {
     acl: buildAcl(input.acl, existing.acl.ownerUserId ?? userId),
@@ -193,6 +203,14 @@ export async function patchBoard(
   if (!existing) return null
 
   if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+  // acl/defaultThreadAcl/defaultPostAclのいずれかを実際に書き換えようとしている場合のみ、
+  // 'update'権限に加えて owner/sysAdmin であることを要求する
+  if (
+    (input.acl !== undefined || input.defaultThreadAcl !== undefined || input.defaultPostAcl !== undefined)
+    && !isOwnerOrSysAdmin(existing.acl, { userId, isSysAdmin })
+  ) {
+    throw new Error('FORBIDDEN')
+  }
 
   await boardRepository.updateBoard(db, boardId, {
     acl: input.acl !== undefined ? buildAcl(input.acl, existing.acl.ownerUserId ?? userId) : undefined,

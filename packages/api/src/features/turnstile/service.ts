@@ -18,7 +18,9 @@ export function parseTurnstileTtl(raw: string | undefined): { minutes: number; l
 
 // IP + UA + 日付(UTC) + ペッパー からセッションIDを生成する
 // ペッパーはシークレットとして環境変数で管理する
-async function computeSessionId(ip: string, userAgent: string, date: string, pepper: string): Promise<string> {
+// requireTurnstile ミドルウェアが「クライアント提示のセッションIDが今のリクエスト元と一致するか」の
+// 再検証にも使うため export する (セッションIDを単なる持ち運び可能なbearerトークンにしないため)
+export async function computeSessionId(ip: string, userAgent: string, date: string, pepper: string): Promise<string> {
   const raw = `${ip}:${userAgent}:${date}:${pepper}`
   const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw))
   return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, '0')).join('')

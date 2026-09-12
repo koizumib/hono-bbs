@@ -1,6 +1,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { cors } from 'hono/cors'
+import { HTTPException } from 'hono/http-exception'
 import { trimTrailingSlash } from 'hono/trailing-slash'
 import type { AppEnv } from './types'
 import { authContext } from './middleware/auth'
@@ -56,6 +57,17 @@ api.route('/moderation', moderation)
 
 // グローバルエラーハンドラー
 api.onError((err, c) => {
+  // zValidator('json', ...) やHono自身が投げる HTTPException (例: 不正なJSONボディを
+  // c.req.json()相当の内部処理でパースした際の400) は、自身のstatusを保持している。
+  // それを無視して一律500にしてしまうと、クライアント起因のエラーが内部エラーとして
+  // 扱われてしまう (かつ本来の400という有用な情報が失われる)
+  if (err instanceof HTTPException && err.status < 500) {
+    return c.json({ error: 'VALIDATION_ERROR', message: err.message || 'Invalid request' }, err.status)
+  }
+  // c.req.json() を直接呼んで自前でtry/catchしていない箇所が投げる素の SyntaxError も同様に400にする
+  if (err instanceof SyntaxError) {
+    return c.json({ error: 'VALIDATION_ERROR', message: 'Invalid JSON body' }, 400)
+  }
   console.error(err)
   return c.json({ error: 'INTERNAL_SERVER_ERROR', message: 'An error occurred' }, 500)
 })

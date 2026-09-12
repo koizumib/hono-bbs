@@ -61,14 +61,14 @@ export default function BoardSidebar() {
             title="トップへ戻る"
           >
             {env.appIcon ? (
-              <img src={env.appIcon} alt={env.appName} className="w-8 h-8 rounded-lg flex-shrink-0 object-contain" />
+              <img src={env.appIcon} alt={env.appName} className="w-8 h-8 rounded-[var(--btn-radius)] flex-shrink-0 object-contain" />
             ) : (
-              <div className="w-8 h-8 bg-c-accent rounded-lg flex-shrink-0 flex items-center justify-center font-bold text-[var(--c-accent-text)] text-sm">
+              <div className="w-8 h-8 bg-c-accent rounded-[var(--btn-radius)] flex-shrink-0 flex items-center justify-center font-bold text-[var(--c-accent-text)] text-sm">
                 {appIconInitials(env.appName)}
               </div>
             )}
             {!collapsed && (
-              <h1 className="font-bold text-lg tracking-tight truncate whitespace-nowrap text-slate-900 dark:text-white">
+              <h1 className="font-bold text-lg tracking-tight truncate whitespace-nowrap text-c-text-strong">
                 {env.appName}
               </h1>
             )}
@@ -79,7 +79,7 @@ export default function BoardSidebar() {
               document.cookie = `bbs-sidebar-collapsed=${next}; path=/; max-age=${365*24*3600}; SameSite=Strict`
               setCollapsed(next)
             }}
-            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-500 dark:text-slate-400 flex-shrink-0"
+            className="p-1 hover:bg-c-surface2 rounded text-c-text-muted flex-shrink-0"
             title="サイドバーを切り替え"
           >
             <span className="material-symbols-outlined text-xl">
@@ -90,22 +90,23 @@ export default function BoardSidebar() {
 
         {/* 板一覧 */}
         {collapsed ? (
-          // 折りたたみ時はアイコンのみのシンプルな一覧のまま
+          // 折りたたみ時はアイコンのみのレール表示。アクティブは背景/左線ではなく
+          // アイコン自体の色(アクセントカラー)だけで示す(サンプルデザインのrail準拠)
           <nav className="flex-1 overflow-y-auto custom-scrollbar py-4">
             {isLoading ? (
-              <div className="px-5 py-3 text-slate-500 text-sm">読み込み中...</div>
+              <div className="px-5 py-3 text-c-text-muted text-sm">読み込み中...</div>
             ) : (
-              <ul className="space-y-1">
+              <ul className="space-y-2">
                 {boards.map((board) => (
-                  <li key={board.id}>
+                  <li key={board.id} className="flex justify-center">
                     <button
                       onClick={() => navigate(`/${board.id}`)}
-                      className={`w-full flex items-center px-5 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors ${
-                        boardId === board.id ? 'active-board text-slate-900 dark:text-white' : ''
+                      className={`flex items-center justify-center w-9 h-9 rounded-[var(--btn-radius)] transition-colors ${
+                        boardId === board.id ? 'text-c-accent' : 'text-c-text-muted hover:text-c-text-body hover:bg-c-surface2'
                       }`}
                       title={board.name}
                     >
-                      <span className="material-symbols-outlined text-xl flex-shrink-0">terminal</span>
+                      <span className={`material-symbols-outlined text-xl flex-shrink-0 ${boardId === board.id ? 'fill' : ''}`}>forum</span>
                     </button>
                   </li>
                 ))}
@@ -121,7 +122,7 @@ export default function BoardSidebar() {
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="板名・キーワード絞り込み..."
-                className="w-full bg-c-surface2 border border-c-border rounded-lg px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-c-accent/50"
+                className="w-full bg-c-surface2 border border-c-border rounded-[var(--btn-radius)] px-3 py-1.5 text-sm text-c-text-body placeholder-c-text-muted focus:outline-none focus:ring-1 focus:ring-c-accent/50"
               />
             </div>
 
@@ -132,7 +133,7 @@ export default function BoardSidebar() {
                 className={`flex-1 py-2 font-medium border-b-2 transition-colors ${
                   tab === 'favorites'
                     ? 'border-c-accent text-c-accent'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    : 'border-transparent text-c-text-muted hover:text-c-text-body'
                 }`}
               >
                 お気に入り ({favoriteBoardIds.length})
@@ -142,7 +143,7 @@ export default function BoardSidebar() {
                 className={`flex-1 py-2 font-medium border-b-2 transition-colors ${
                   tab === 'all'
                     ? 'border-c-accent text-c-accent'
-                    : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+                    : 'border-transparent text-c-text-muted hover:text-c-text-body'
                 }`}
               >
                 全板一覧 ({boards.length})
@@ -151,10 +152,10 @@ export default function BoardSidebar() {
 
             <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
               {isLoading ? (
-                <div className="px-5 py-3 text-slate-500 text-sm">読み込み中...</div>
+                <div className="px-5 py-3 text-c-text-muted text-sm">読み込み中...</div>
               ) : tab === 'favorites' ? (
                 favoriteBoards.length === 0 ? (
-                  <div className="px-4 py-6 text-center text-slate-500 text-xs">
+                  <div className="px-4 py-6 text-center text-c-text-muted text-xs">
                     お気に入りの板はありません
                   </div>
                 ) : (
@@ -176,7 +177,7 @@ export default function BoardSidebar() {
                     <div key={group.category}>
                       <button
                         onClick={() => toggleCategoryCollapsed(group.category)}
-                        className="w-full flex items-center justify-between px-4 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+                        className="w-full flex items-center justify-between px-4 py-1.5 text-[10px] font-semibold text-c-text-muted uppercase tracking-wider hover:text-c-text-body transition-colors"
                       >
                         <span>{group.category} ({group.boards.length})</span>
                         <span
@@ -210,22 +211,22 @@ export default function BoardSidebar() {
             <>
               <button
                 onClick={() => navigate('/settings')}
-                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg"
+                className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-c-surface2 transition-colors rounded-[var(--btn-radius)]"
                 title={displayName ?? 'ユーザー情報'}
               >
-                <div className="w-7 h-7 rounded-full bg-blue-600/10 border border-blue-600/20 flex items-center justify-center text-blue-400 font-bold text-xs flex-shrink-0">
+                <div className="w-7 h-7 rounded-full bg-c-surface3 flex items-center justify-center text-c-accent font-bold text-xs flex-shrink-0">
                   {displayName?.charAt(0).toUpperCase() ?? '?'}
                 </div>
                 {!collapsed && (
                   <div className="flex flex-col min-w-0 text-left">
-                    <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">{displayName}</span>
-                    <span className="text-[10px] text-slate-500">一般会員</span>
+                    <span className="text-sm font-semibold text-c-text-strong truncate">{displayName}</span>
+                    <span className="text-[10px] text-c-text-muted">一般会員</span>
                   </div>
                 )}
               </button>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg"
+                className="w-full flex items-center px-3 py-2 text-c-text-muted hover:text-c-text-strong hover:bg-c-surface2 transition-colors rounded-[var(--btn-radius)]"
                 title="ログアウト"
               >
                 <span className="material-symbols-outlined text-xl flex-shrink-0">logout</span>
@@ -236,7 +237,7 @@ export default function BoardSidebar() {
             <>
               <button
                 onClick={() => navigate('/settings')}
-                className="w-full flex items-center px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg"
+                className="w-full flex items-center px-3 py-2 text-c-text-muted hover:text-c-text-strong hover:bg-c-surface2 transition-colors rounded-[var(--btn-radius)]"
                 title="アカウント設定"
               >
                 <span className="material-symbols-outlined text-xl flex-shrink-0">account_circle</span>
@@ -244,7 +245,7 @@ export default function BoardSidebar() {
               </button>
               <button
                 onClick={() => setShowLogin(true)}
-                className="w-full flex items-center px-3 py-2 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors rounded-lg"
+                className="w-full flex items-center px-3 py-2 text-c-text-muted hover:text-c-text-strong hover:bg-c-surface2 transition-colors rounded-[var(--btn-radius)]"
                 title="ログイン"
               >
                 <span className="material-symbols-outlined text-xl flex-shrink-0">login</span>

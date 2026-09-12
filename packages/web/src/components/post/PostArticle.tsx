@@ -270,7 +270,7 @@ export default function PostArticle({
         {post.posterOptionInfo && (
           <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted`}>{post.posterOptionInfo}</span>
         )}
-        <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted`}>{fullDateTime(post.createdAt, compact)}</span>
+        <span className={`${compact ? 'text-[10px]' : 'text-xs'} text-c-text-muted`}>{fullDateTime(post.createdAt)}</span>
 
         {/* ID */}
         {displayAuthorId && (
@@ -312,7 +312,7 @@ export default function PostArticle({
       {/* 本文 */}
       <div
         className={`${
-          isOwnPost ? 'bbs-post-own relative pl-[17px]' : 'pl-4 border-l-2 border-c-border'
+          isOwnPost ? 'pl-[13px] border-l-[3px] border-c-accent' : 'pl-4 border-l-2 border-c-border'
         } ${hasConnections ? 'cursor-pointer' : ''}`}
         onClick={handleBodyClick}
       >

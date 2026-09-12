@@ -71,13 +71,18 @@ export async function updateStatus(db: D1Database, id: string, status: ImageStat
 }
 
 // 通報数をインクリメントし、active の場合は reported に遷移する
+// 通報1件だけでactive→reportedに落ちてしまうと、匿名の1リクエストだけで
+// 他人の画像を即座に取り下げられてしまう(閲覧できるimageIdを知っていれば誰でも可能なため)。
+// 一定件数(REPORT_THRESHOLD)溜まるまではstatusを変えず、report_countだけ増やす。
+const REPORT_THRESHOLD = 3
+
 export async function reportImage(db: D1Database, id: string): Promise<void> {
   await db.prepare(`
     UPDATE images
     SET report_count = report_count + 1,
-        status = CASE WHEN status = 'active' THEN 'reported' ELSE status END
+        status = CASE WHEN status = 'active' AND report_count + 1 >= ? THEN 'reported' ELSE status END
     WHERE id = ? AND status NOT IN ('deleted', 'pending')
-  `).bind(id).run()
+  `).bind(REPORT_THRESHOLD, id).run()
 }
 
 // DB レコードを物理削除する

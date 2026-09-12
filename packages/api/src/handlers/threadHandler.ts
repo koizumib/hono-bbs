@@ -65,6 +65,8 @@ export async function createThreadHandler(c: WithBoardId) {
       if (e.message === 'TITLE_TOO_LONG') return c.json({ error: 'TITLE_TOO_LONG', message: 'Thread title is too long' }, 422)
       if (e.message === 'CONTENT_TOO_LONG') return c.json({ error: 'CONTENT_TOO_LONG', message: 'Content is too long' }, 422)
       if (e.message === 'CONTENT_TOO_MANY_LINES') return c.json({ error: 'CONTENT_TOO_MANY_LINES', message: 'Content has too many lines' }, 422)
+      if (e.message === 'POSTER_NAME_TOO_LONG') return c.json({ error: 'POSTER_NAME_TOO_LONG', message: 'Poster name is too long' }, 422)
+      if (e.message === 'POSTER_OPTION_TOO_LONG') return c.json({ error: 'POSTER_OPTION_TOO_LONG', message: 'Poster option info is too long' }, 422)
       if (e.message === 'CONTENT_REJECTED') return c.json({ error: 'CONTENT_REJECTED', message: 'Content was rejected' }, 400)
     }
     throw e

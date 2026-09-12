@@ -46,7 +46,7 @@ async function uploaderPost(path: string, body?: unknown): Promise<Response> {
 export async function requestUpload(params: {
   contentType: string
   filename?: string
-  size?: number
+  size: number
 }): Promise<UploadRequestResponse> {
   const res = await uploaderPost('/upload/request', params)
   const json = await res.json() as { data?: UploadRequestResponse; message?: string }

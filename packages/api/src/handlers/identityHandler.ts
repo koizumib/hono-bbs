@@ -189,13 +189,17 @@ export async function addRoleMemberHandler(c: RoleMembersContext) {
   if (!body.userId) {
     return c.json({ error: 'VALIDATION_ERROR', message: 'userId is required' }, 400)
   }
+  const sysIds = getSystemIds(c.env)
   try {
-    await identityService.addRoleMember(c.get('db'), roleId, body.userId)
+    await identityService.addRoleMember(c.get('db'), roleId, body.userId, sysIds, c.get('isSysAdmin'))
     return new Response(null, { status: 204 })
   } catch (e) {
     if (e instanceof Error) {
       if (e.message === 'ROLE_NOT_FOUND') return c.json({ error: 'ROLE_NOT_FOUND', message: 'Role not found' }, 404)
       if (e.message === 'USER_NOT_FOUND') return c.json({ error: 'USER_NOT_FOUND', message: 'User not found' }, 404)
+      if (e.message === 'SYSTEM_ROLE_REQUIRES_SYSADMIN') {
+        return c.json({ error: 'FORBIDDEN', message: 'Only a sysadmin can grant this role' }, 403)
+      }
     }
     throw e
   }
@@ -205,12 +209,19 @@ export async function addRoleMemberHandler(c: RoleMembersContext) {
 export async function removeRoleMemberHandler(c: RoleMemberIdContext) {
   const roleId = c.req.param('id')
   const userId = c.req.param('userId')
+  const sysIds = getSystemIds(c.env)
   try {
-    await identityService.removeRoleMember(c.get('db'), roleId, userId)
+    await identityService.removeRoleMember(c.get('db'), roleId, userId, sysIds, c.get('isSysAdmin'))
     return new Response(null, { status: 204 })
   } catch (e) {
-    if (e instanceof Error && e.message === 'MEMBER_NOT_FOUND') {
-      return c.json({ error: 'MEMBER_NOT_FOUND', message: 'Member not found in role' }, 404)
+    if (e instanceof Error) {
+      if (e.message === 'MEMBER_NOT_FOUND') return c.json({ error: 'MEMBER_NOT_FOUND', message: 'Member not found in role' }, 404)
+      if (e.message === 'SYSTEM_ROLE_REQUIRES_SYSADMIN') {
+        return c.json({ error: 'FORBIDDEN', message: 'Only a sysadmin can revoke this role' }, 403)
+      }
+      if (e.message === 'CANNOT_REMOVE_LAST_ADMIN') {
+        return c.json({ error: 'CANNOT_REMOVE_LAST_ADMIN', message: 'Cannot remove the last sysadmin' }, 409)
+      }
     }
     throw e
   }

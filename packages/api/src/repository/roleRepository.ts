@@ -89,3 +89,11 @@ export async function deleteUserRole(db: DbAdapter, userId: string, roleId: stri
   )
   return result.changes > 0
 }
+
+export async function countRoleMembers(db: DbAdapter, roleId: string): Promise<number> {
+  const row = await db.first<{ count: number }>(
+    'SELECT COUNT(*) AS count FROM user_roles WHERE role_id = ?',
+    [roleId],
+  )
+  return row?.count ?? 0
+}

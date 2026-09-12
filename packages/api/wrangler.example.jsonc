@@ -23,6 +23,10 @@
 		// KV_PREFIX:           KV グローバルプレフィックス (複数インスタンス共存時のキー衝突防止)
 		// TURNSTILE_SITE_KEY:  Cloudflare Turnstile サイトキー (公開値、シークレットではない)
 		// ARCHIVED_THREAD_VISIBLE_SECONDS: dat落ちしたスレが一覧から消えるまでの猶予秒数 (0=無制限)
+		// THREAD_CREATE_RATE_LIMIT / THREAD_CREATE_RATE_WINDOW: スレッド作成のレート制限
+		//                      (未設定時は既定で1時間5件。明示的に"0"を設定した場合のみ無制限、単位:分)
+		// POST_CREATE_RATE_LIMIT / POST_CREATE_RATE_WINDOW: 投稿(レス)作成のレート制限
+		//                      (未設定時は既定で1時間20件。明示的に"0"を設定した場合のみ無制限、単位:分)
 		// UPLOAD_RATE_LIMIT / UPLOAD_RATE_WINDOW: 画像アップロードのレート制限 (0=無制限, 単位:分)
 		// ALLOWED_CONTENT_TYPES / MAX_IMAGE_SIZE / IMAGE_TTL_DAYS: 画像アップロードの制限設定
 		// IMAGE_PUBLIC_BASE_URL: 画像の公開URLベース (CDN または R2 パブリックURL)

@@ -2,8 +2,11 @@ import type { Context, MiddlewareHandler } from 'hono'
 import type { AppEnv } from '../types'
 import type { KvAdapter } from '../adapters/kv'
 
-function parseLimit(s: string | undefined): number {
-  return Math.max(0, parseInt(s ?? '0', 10) || 0)
+// 環境変数が明示的に設定されていないときは defaultLimit を使う。
+// "0" を明示的に設定した場合のみ、運用者の意図的な選択として無制限を許可する。
+function parseLimit(s: string | undefined, defaultLimit: number): number {
+  if (s === undefined) return Math.max(0, defaultLimit)
+  return Math.max(0, parseInt(s, 10) || 0)
 }
 
 function parseWindowMs(s: string | undefined): number {
@@ -12,7 +15,9 @@ function parseWindowMs(s: string | undefined): number {
 }
 
 // Sliding Window Log方式でカウントし、許可されれば記録する。
-// limit=0 または kv 未設定のときは常に許可 (無制限)。
+// limit=0 (環境変数を明示的に"0"にした場合)、または kv 未設定のときは常に許可 (無制限)。
+// 環境変数が未設定(undefined)のときは defaultLimit を適用する — 連投/フラッド対策を
+// 「運用者が明示的に設定しない限り無制限」にしてしまわないための安全側デフォルト。
 // 各機能(ログイン失敗・画像アップロード・スレッド/投稿作成・Turnstile発行)で
 // バラバラに実装されていたレート制限ロジックの共通部分をここに集約する。
 export async function checkAndRecord(
@@ -21,8 +26,9 @@ export async function checkAndRecord(
   identifier: string,
   limitStr: string | undefined,
   windowStr: string | undefined,
+  defaultLimit = 0,
 ): Promise<boolean> {
-  const limit = parseLimit(limitStr)
+  const limit = parseLimit(limitStr, defaultLimit)
   if (limit === 0 || !kv) return true
 
   const windowMs = parseWindowMs(windowStr)
@@ -46,6 +52,7 @@ export function rateLimit(opts: {
   keyFn: (c: Context<AppEnv>) => string
   limitEnvKey: keyof AppEnv['Bindings']
   windowEnvKey: keyof AppEnv['Bindings']
+  defaultLimit?: number
 }): MiddlewareHandler<AppEnv> {
   return async (c, next) => {
     const allowed = await checkAndRecord(
@@ -54,6 +61,7 @@ export function rateLimit(opts: {
       opts.keyFn(c),
       c.env[opts.limitEnvKey] as string | undefined,
       c.env[opts.windowEnvKey] as string | undefined,
+      opts.defaultLimit,
     )
     if (!allowed) {
       return c.json({ error: 'RATE_LIMIT_EXCEEDED', message: 'Rate limit exceeded' }, 429)

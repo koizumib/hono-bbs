@@ -235,7 +235,14 @@ export async function addRoleMember(
   db: DbAdapter,
   roleId: string,
   userId: string,
+  sysIds: SystemIds,
+  isSysAdmin: boolean,
 ): Promise<void> {
+  // admin-role / user-admin-role への追加はsysadminのみ許可
+  // (user-admin-roleしか持たない者が自身/他者をこれらに追加して権限昇格するのを防ぐ)
+  if ((roleId === sysIds.adminRoleId || roleId === sysIds.userAdminRoleId) && !isSysAdmin) {
+    throw new Error('SYSTEM_ROLE_REQUIRES_SYSADMIN')
+  }
   const role = await roleRepository.findRoleById(db, roleId)
   if (!role) throw new Error('ROLE_NOT_FOUND')
   const user = await userRepository.findUserById(db, userId)
@@ -247,7 +254,17 @@ export async function removeRoleMember(
   db: DbAdapter,
   roleId: string,
   userId: string,
+  sysIds: SystemIds,
+  isSysAdmin: boolean,
 ): Promise<void> {
+  if ((roleId === sysIds.adminRoleId || roleId === sysIds.userAdminRoleId) && !isSysAdmin) {
+    throw new Error('SYSTEM_ROLE_REQUIRES_SYSADMIN')
+  }
+  // 唯一のsysadminを外して誰も管理できなくなる事態を防ぐ
+  if (roleId === sysIds.adminRoleId) {
+    const memberCount = await roleRepository.countRoleMembers(db, roleId)
+    if (memberCount <= 1) throw new Error('CANNOT_REMOVE_LAST_ADMIN')
+  }
   const deleted = await roleRepository.deleteUserRole(db, userId, roleId)
   if (!deleted) throw new Error('MEMBER_NOT_FOUND')
 }

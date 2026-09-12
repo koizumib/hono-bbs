@@ -5,9 +5,10 @@ import * as threadRepository from '../repository/threadRepository'
 import type { ThreadCursor } from '../repository/threadRepository'
 import * as boardRepository from '../repository/boardRepository'
 import * as postRepository from '../repository/postRepository'
-import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
+import { can, buildAcl, instantiateAcl, isOwnerOrSysAdmin, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
 import { matchesAnyNgWord } from '../utils/ngWords'
+import { stripDangerousUnicode } from '../utils/textSanitize'
 import { hasPermission } from '../utils/permissions'
 import { encodeCursor, decodeCursor, paginationQuerySchema, type PaginationQuery, type Page } from '../utils/pagination'
 
@@ -21,16 +22,16 @@ export const listThreadsQuerySchema = paginationQuerySchema.extend({
 export type ListThreadsQuery = z.infer<typeof listThreadsQuerySchema>
 
 export const createThreadSchema = z.object({
-  title: z.string().min(1).max(500),
-  content: z.string().min(1).max(10000),
-  posterName: z.string().max(50).optional(),
-  posterOptionInfo: z.string().max(100).optional(),
+  title: z.string().min(1).max(500).transform(stripDangerousUnicode),
+  content: z.string().min(1).max(10000).transform(stripDangerousUnicode),
+  posterName: z.string().max(50).transform(stripDangerousUnicode).optional(),
+  posterOptionInfo: z.string().max(100).transform(stripDangerousUnicode).optional(),
 })
 
 // PUT: upsert。全フィールドが確定値になるスキーマ (冪等な全体置換のため)
 export const putThreadSchema = z.object({
-  title: z.string().min(1).max(500),
-  posterName: z.string().max(50).default(''),
+  title: z.string().min(1).max(500).transform(stripDangerousUnicode),
+  posterName: z.string().max(50).transform(stripDangerousUnicode).default(''),
   acl: resourceAclInputSchema,
   maxPosts: z.number().int().min(0).default(0),
   maxPostLength: z.number().int().min(0).default(0),
@@ -43,8 +44,8 @@ export const putThreadSchema = z.object({
 // PATCH: 既存スレッドの指定フィールドのみ更新 (upsertしない)
 export const patchThreadSchema = z.object({
   acl: resourceAclInputSchema.optional(),
-  title: z.string().min(1).max(500).optional(),
-  posterName: z.string().max(50).optional(),
+  title: z.string().min(1).max(500).transform(stripDangerousUnicode).optional(),
+  posterName: z.string().max(50).transform(stripDangerousUnicode).optional(),
   maxPosts: z.number().int().min(0).optional(),
   maxPostLength: z.number().int().min(0).optional(),
   maxPostLines: z.number().int().min(0).optional(),
@@ -145,6 +146,18 @@ export async function createThread(
   }
   if (board.defaultMaxPostLines > 0 && input.content.split('\n').length > board.defaultMaxPostLines) {
     throw new Error('CONTENT_TOO_MANY_LINES')
+  }
+
+  // 投稿者名・メール欄の文字数チェック (新規スレッドなのでボードデフォルトのみ)
+  if (board.defaultMaxPosterNameLength > 0 && input.posterName && input.posterName.length > board.defaultMaxPosterNameLength) {
+    throw new Error('POSTER_NAME_TOO_LONG')
+  }
+  if (
+    board.defaultMaxPosterOptionLength > 0
+    && input.posterOptionInfo
+    && input.posterOptionInfo.length > board.defaultMaxPosterOptionLength
+  ) {
+    throw new Error('POSTER_OPTION_TOO_LONG')
   }
 
   // サーバー側NGワードチェック (板単位。一致したら投稿自体を拒否する)
@@ -268,6 +281,9 @@ export async function putThread(
   }
 
   if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+  // PUTは acl を常に含む(=常にACLを書き換える)ため、'update'権限だけでなく
+  // owner/sysAdmin であることを別途要求する
+  if (!isOwnerOrSysAdmin(existing.acl, { userId, isSysAdmin })) throw new Error('FORBIDDEN')
 
   await threadRepository.updateThread(db, threadId, {
     acl: buildAcl(input.acl, existing.acl.ownerUserId ?? userId),
@@ -297,6 +313,9 @@ export async function patchThread(
   if (!existing || existing.boardId !== boardId) return null
 
   if (!can(existing.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+  if (input.acl !== undefined && !isOwnerOrSysAdmin(existing.acl, { userId, isSysAdmin })) {
+    throw new Error('FORBIDDEN')
+  }
 
   // dat落ち状態の手動切り替えは、板ごとに自由に設定できるACLの update 権限とは別に、
   // manage_threads 権限を持つロール (または isSysAdmin) のみに限定する

@@ -190,6 +190,8 @@ export type AppEnv = {
     IMAGE_KV?: KVNamespace              // レート制限用 KV (未設定時はレート制限無効)
     UPLOAD_RATE_LIMIT?: string          // 単位時間内の最大アップロード数 (0=無制限)
     UPLOAD_RATE_WINDOW?: string         // 単位時間 (分, デフォルト: 60)
+    IMAGE_REPORT_RATE_LIMIT?: string    // 単位時間内の最大画像通報数 (未設定時は既定10件。明示的に"0"で無制限)
+    IMAGE_REPORT_RATE_WINDOW?: string   // 単位時間 (分, デフォルト: 60)
     S3_ENDPOINT?: string                // e.g. "https://xxx.r2.cloudflarestorage.com"
     S3_BUCKET?: string
     S3_REGION?: string                  // R2 は "auto", AWS S3 は "ap-northeast-1" 等
@@ -197,14 +199,14 @@ export type AppEnv = {
     S3_SECRET_ACCESS_KEY?: string
     IMAGE_PUBLIC_BASE_URL?: string      // 公開URL (CDN または R2 パブリックURLのベース)
     PRESIGNED_URL_TTL?: string          // Presigned URL 有効期限 (秒, デフォルト: 300)
-    MAX_IMAGE_SIZE?: string             // 最大ファイルサイズ (バイト, 0=無制限)
+    MAX_IMAGE_SIZE?: string             // 最大ファイルサイズ (バイト。未設定時は既定10MB。明示的に"0"で無制限)
     ALLOWED_CONTENT_TYPES?: string      // 許可 MIME タイプ (カンマ区切り)
     IMAGE_TTL_DAYS?: string             // 画像保持日数 (0=無期限)
     ADMIN_API_KEY?: string              // 画像管理エンドポイント用
     // ── レート制限 (スレッド/投稿作成) ────────────────────────────
-    THREAD_CREATE_RATE_LIMIT?: string   // ウィンドウ内の最大スレッド作成数 (0=無制限)
+    THREAD_CREATE_RATE_LIMIT?: string   // ウィンドウ内の最大スレッド作成数 (未設定時は既定5件。明示的に"0"で無制限)
     THREAD_CREATE_RATE_WINDOW?: string  // ウィンドウ幅 (分, デフォルト: 60)
-    POST_CREATE_RATE_LIMIT?: string     // ウィンドウ内の最大投稿数 (0=無制限)
+    POST_CREATE_RATE_LIMIT?: string     // ウィンドウ内の最大投稿数 (未設定時は既定20件。明示的に"0"で無制限)
     POST_CREATE_RATE_WINDOW?: string    // ウィンドウ幅 (分, デフォルト: 60)
     TURNSTILE_VERIFY_RATE_LIMIT?: string   // ウィンドウ内の最大Turnstile検証試行数 (0=無制限)
     TURNSTILE_VERIFY_RATE_WINDOW?: string  // ウィンドウ幅 (分, デフォルト: 60)

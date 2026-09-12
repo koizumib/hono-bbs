@@ -35,13 +35,17 @@ async function signingKey(secretKey: string, dateShort: string, region: string):
 }
 
 // Presigned PUT URL を生成する
-// クライアントはこの URL に対して Content-Type ヘッダーを付けて直接 PUT アップロードを行う
-// content-type を署名ヘッダーに含めることで、指定外の MIME タイプのアップロードを防ぐ
+// クライアントはこの URL に対して Content-Type (+ Content-Length) ヘッダーを付けて直接 PUT アップロードを行う
+// content-type を署名ヘッダーに含めることで、指定外の MIME タイプのアップロードを防ぐ。
+// contentLength も併せて署名することで、アップロード時の実際のバイト数が
+// リクエスト時に申告した値と一致しない場合はストレージ側(R2/S3)がPUT自体を拒否するようになる
+// (申告サイズだけをチェックして、実アップロードは無検証だった問題への対処)
 export async function generatePresignedPutUrl(
   config: StorageConfig,
   key: string,
   contentType: string,
   expiresIn: number,        // 秒
+  contentLength: number,
 ): Promise<string> {
   const { amzDate, dateShort } = buildAmzDate()
   const url = new URL(`${config.endpoint.replace(/\/$/, '')}/${config.bucket}/${key}`)
@@ -53,7 +57,7 @@ export async function generatePresignedPutUrl(
     ['X-Amz-Credential', `${config.accessKeyId}/${credentialScope}`],
     ['X-Amz-Date', amzDate],
     ['X-Amz-Expires', expiresIn.toString()],
-    ['X-Amz-SignedHeaders', 'content-type;host'],
+    ['X-Amz-SignedHeaders', 'content-length;content-type;host'],
   ])
   params.sort()
   const canonicalQuery = params.toString()
@@ -62,8 +66,8 @@ export async function generatePresignedPutUrl(
     'PUT',
     url.pathname,
     canonicalQuery,
-    `content-type:${contentType}\nhost:${host}\n`,
-    'content-type;host',
+    `content-length:${contentLength}\ncontent-type:${contentType}\nhost:${host}\n`,
+    'content-length;content-type;host',
     'UNSIGNED-PAYLOAD',
   ].join('\n')
 

@@ -4,22 +4,23 @@ import type { DbAdapter } from '../adapters/db'
 import * as postRepository from '../repository/postRepository'
 import * as threadRepository from '../repository/threadRepository'
 import * as boardRepository from '../repository/boardRepository'
-import { can, buildAcl, instantiateAcl, resourceAclInputSchema } from '../utils/acl'
+import { can, buildAcl, instantiateAcl, isOwnerOrSysAdmin, resourceAclInputSchema } from '../utils/acl'
 import { computeDisplayUserId } from '../utils/hash'
 import { matchesAnyNgWord } from '../utils/ngWords'
+import { stripDangerousUnicode } from '../utils/textSanitize'
 import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
 
 export const createPostSchema = z.object({
-  content: z.string().min(1).max(10000),
-  posterName: z.string().max(50).optional(),
-  posterOptionInfo: z.string().max(100).optional(),
+  content: z.string().min(1).max(10000).transform(stripDangerousUnicode),
+  posterName: z.string().max(50).transform(stripDangerousUnicode).optional(),
+  posterOptionInfo: z.string().max(100).transform(stripDangerousUnicode).optional(),
 })
 
 // PUT: content/posterName/posterOptionInfo を冪等に置換する (isEdited フラグを立てる)
 export const updatePostSchema = z.object({
-  content: z.string().min(1).max(10000),
-  posterName: z.string().max(50).default(''),
-  posterOptionInfo: z.string().max(100).default(''),
+  content: z.string().min(1).max(10000).transform(stripDangerousUnicode),
+  posterName: z.string().max(50).transform(stripDangerousUnicode).default(''),
+  posterOptionInfo: z.string().max(100).transform(stripDangerousUnicode).default(''),
 })
 
 export const patchPostSchema = z.object({
@@ -130,6 +131,17 @@ export async function createPost(
   // 投稿者名 (入力 → スレッドデフォルト → ボードデフォルト)
   const posterName = input.posterName || thread.posterName || board.defaultPosterName
 
+  // 投稿者名・メール欄の文字数チェック (スレッド設定 → ボードデフォルト)。
+  // スレッド/ボードのデフォルト値自体は対象外にするため、ユーザーが実際に入力した場合のみ検証する
+  const maxPosterNameLength = thread.maxPosterNameLength > 0 ? thread.maxPosterNameLength : board.defaultMaxPosterNameLength
+  const maxPosterOptionLength = thread.maxPosterOptionLength > 0 ? thread.maxPosterOptionLength : board.defaultMaxPosterOptionLength
+  if (maxPosterNameLength > 0 && input.posterName && input.posterName.length > maxPosterNameLength) {
+    throw new Error('POSTER_NAME_TOO_LONG')
+  }
+  if (maxPosterOptionLength > 0 && input.posterOptionInfo && input.posterOptionInfo.length > maxPosterOptionLength) {
+    throw new Error('POSTER_OPTION_TOO_LONG')
+  }
+
   // サーバー側NGワードチェック (板単位。一致したら投稿自体を拒否する)
   if (
     matchesAnyNgWord(board.ngWords, 'content', input.content) ||
@@ -197,6 +209,32 @@ export async function updatePost(
 
   if (!can(post.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
 
+  // 編集時も新規作成と同じ板の制限(文字数・行数・NGワード)を適用する。
+  // ここを素通りさせると、投稿後にPUTで編集することで全ての板設定を回避できてしまう
+  const board = await boardRepository.findBoardById(db, boardId)
+  if (!board) throw new Error('BOARD_NOT_FOUND')
+
+  const maxLength = thread.maxPostLength > 0 ? thread.maxPostLength : board.defaultMaxPostLength
+  const maxLines = thread.maxPostLines > 0 ? thread.maxPostLines : board.defaultMaxPostLines
+  if (maxLength > 0 && input.content.length > maxLength) throw new Error('CONTENT_TOO_LONG')
+  if (maxLines > 0 && input.content.split('\n').length > maxLines) throw new Error('CONTENT_TOO_MANY_LINES')
+
+  const maxPosterNameLength = thread.maxPosterNameLength > 0 ? thread.maxPosterNameLength : board.defaultMaxPosterNameLength
+  const maxPosterOptionLength = thread.maxPosterOptionLength > 0 ? thread.maxPosterOptionLength : board.defaultMaxPosterOptionLength
+  if (maxPosterNameLength > 0 && input.posterName && input.posterName.length > maxPosterNameLength) {
+    throw new Error('POSTER_NAME_TOO_LONG')
+  }
+  if (maxPosterOptionLength > 0 && input.posterOptionInfo && input.posterOptionInfo.length > maxPosterOptionLength) {
+    throw new Error('POSTER_OPTION_TOO_LONG')
+  }
+
+  if (
+    matchesAnyNgWord(board.ngWords, 'content', input.content) ||
+    (input.posterName && matchesAnyNgWord(board.ngWords, 'posterName', input.posterName))
+  ) {
+    throw new Error('CONTENT_REJECTED')
+  }
+
   const now = new Date().toISOString()
   await postRepository.updatePostContent(db, threadId, postNumber, {
     content: input.content,
@@ -225,6 +263,9 @@ export async function patchPost(
   if (!post) return null
 
   if (!can(post.acl, { userId, userRoleIds, isSysAdmin }, 'update')) throw new Error('FORBIDDEN')
+  if (input.acl !== undefined && !isOwnerOrSysAdmin(post.acl, { userId, isSysAdmin })) {
+    throw new Error('FORBIDDEN')
+  }
 
   const acl = input.acl !== undefined ? buildAcl(input.acl, post.acl.ownerUserId ?? userId) : undefined
 

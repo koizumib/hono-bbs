@@ -15,13 +15,17 @@ import { requireLogin } from '../middleware/auth'
 import { requireTurnstile } from '../middleware/turnstile'
 import { rateLimit } from '../middleware/rateLimit'
 import { zValidatorHook } from '../utils/zodHelper'
+import { getClientIp } from '../utils/clientIp'
 import posts from './posts'
 
 const threadCreateRateLimit = rateLimit({
   keyPrefix: 'thread-create',
-  keyFn: (c) => c.get('turnstileSessionId') ?? c.req.header('CF-Connecting-IP') ?? 'unknown',
+  keyFn: (c) => c.get('turnstileSessionId') ?? getClientIp(c) ?? 'unknown',
   limitEnvKey: 'THREAD_CREATE_RATE_LIMIT',
   windowEnvKey: 'THREAD_CREATE_RATE_WINDOW',
+  // THREAD_CREATE_RATE_LIMIT が未設定のときの既定値 (1時間あたり)。
+  // 明示的に "0" を設定した運用者だけが無制限を選べる。
+  defaultLimit: 5,
 })
 
 // /boards/:boardId/threads にマウントされる

@@ -1,6 +1,7 @@
 import type { Context } from 'hono'
 import type { AppEnv } from '../../types'
 import * as service from './service'
+import { getClientIp } from '../../utils/clientIp'
 
 // returnTo / Referer が ALLOW_BBS_UI_DOMAINS に含まれているか確認する
 function resolveRedirectTo(
@@ -170,9 +171,7 @@ export async function turnstileVerifyHandler(c: Context<AppEnv>): Promise<Respon
     return c.json({ error: 'VALIDATION_ERROR', message: 'token is required' }, 400)
   }
 
-  const clientIP = c.req.header('CF-Connecting-IP')
-    ?? c.req.header('X-Forwarded-For')?.split(',')[0]?.trim()
-    ?? 'unknown'
+  const clientIP = getClientIp(c) ?? 'unknown'
   const userAgent = c.req.header('User-Agent') ?? 'unknown'
 
   const result = await service.issueTurnstileSession(
