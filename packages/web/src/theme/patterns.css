@@ -1,0 +1,41 @@
+/* =============================================================
+ * デザインパターン設定ファイル
+ *
+ * カラースキームとは独立した軸として、カード/リスト項目の構造を
+ * 「トーナルカード(背景の濃淡で階層を作る)」「枠線リスト(輪郭線だけで
+ * 区切る)」の2パターンから選べるようにする。<html data-pattern="...">
+ * の値で切り替わる(App.tsx の ThemeProvider が設定)。
+ *
+ * コンポーネント側(ThreadCard/PostArticle/Minimap等)はここで定義した
+ * card系・chip系・btn-radius等の変数だけを参照し、パターンごとの分岐は
+ * 一切書かない。
+ * ============================================================= */
+
+:root, [data-pattern="tonal"] {
+  /* surface2そのままだと(特にライト系スキームで)明るすぎて上に乗る文字が
+     見づらくなるため、黒寄りに少し暗くする(ダーク/ライトどちらのスキームでも
+     常に「元よりわずかに暗い」方向になるようblackへ混ぜる) */
+  --card-bg: color-mix(in srgb, var(--c-surface2) 85%, black 15%);
+  --card-border-color: transparent;
+  --card-radius: 10px;
+  --card-selected-bg: var(--c-surface3);
+  --card-selected-border-color: transparent;
+  --chip-bg: var(--c-accent-wash);
+  --chip-border-color: transparent;
+  --chip-radius: 20px;
+  --btn-radius: 9px;
+  --minimap-radius: 8px;
+}
+
+[data-pattern="bordered"] {
+  --card-bg: transparent;
+  --card-border-color: var(--c-border);
+  --card-radius: 7px;
+  --card-selected-bg: transparent;
+  --card-selected-border-color: var(--c-accent);
+  --chip-bg: transparent;
+  --chip-border-color: var(--c-accent);
+  --chip-radius: 5px;
+  --btn-radius: 6px;
+  --minimap-radius: 6px;
+}
