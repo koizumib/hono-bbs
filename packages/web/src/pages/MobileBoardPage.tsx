@@ -313,12 +313,11 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
           <button
             type="button"
             onClick={() => setShowUnread((s) => !s)}
-            className={`relative px-3 py-2.5 flex items-center justify-center gap-0.5 min-w-[68px] text-xs font-medium transition-colors ${
+            className={`relative px-3 py-2.5 flex items-center justify-center min-w-[68px] text-xs font-medium transition-colors ${
               showUnread ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400'
             }`}
           >
             未読
-            <span className="material-symbols-outlined text-sm leading-none invisible">arrow_upward</span>
             {showUnread && <span className="absolute bottom-0.5 left-1.5 right-1.5 h-[2px] bg-c-accent rounded-full" />}
           </button>
           {/* ソートボタン（勢い・新着、レス抽出タブと同じ下線タブ形式。クリックで昇順→降順→オフを巡回） */}

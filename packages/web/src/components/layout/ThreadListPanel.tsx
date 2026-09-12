@@ -218,10 +218,9 @@ export default function ThreadListPanel() {
         <button
           type="button"
           onClick={() => setUnreadOnly(!unreadOnly)}
-          className={`relative py-2.5 flex items-center gap-0.5 transition-colors ${unreadOnly ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+          className={`relative py-2.5 transition-colors ${unreadOnly ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
         >
           未読
-          <span className="material-symbols-outlined text-sm leading-none invisible">arrow_upward</span>
           {unreadOnly && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />}
         </button>
         {([
