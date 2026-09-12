@@ -201,6 +201,9 @@ export function useThreadView(
     const id = setTimeout(() => {
       const el = scrollAreaRef.current
       if (!el) { setShouldScrollNew(false); return }
+      // コンテンツが画面に収まりきっていて、そもそもスクロールする余地が無い場合は
+      // 何もしない(scrollIntoView/scrollToを呼ぶと表示が一瞬崩れることがあった)
+      if (el.scrollHeight <= el.clientHeight) { setShouldScrollNew(false); return }
       const firstNewPost = rawPosts[readCountBeforeRefresh]
       if (firstNewPost) {
         const targetEl = document.getElementById(`post-${firstNewPost.postNumber}`)
