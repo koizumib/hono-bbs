@@ -141,3 +141,23 @@ input[type="range"] {
   animation: flash-new 1.2s ease-out;
 }
 
+/* メニューバーのラベル/アコーディオン中身が現れるときの演出。グラデーションのマスクが
+ * 上から下へ抜けていくことで文字が上から降りてくるように見える、ごく短い(一瞬の)アニメーション */
+@keyframes menu-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(-3px);
+    -webkit-mask-image: linear-gradient(to bottom, black 0%, transparent 0%);
+    mask-image: linear-gradient(to bottom, black 0%, transparent 0%);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+    -webkit-mask-image: linear-gradient(to bottom, black 100%, transparent 100%);
+    mask-image: linear-gradient(to bottom, black 100%, transparent 100%);
+  }
+}
+.menu-reveal {
+  animation: menu-reveal 180ms ease-out;
+}
+

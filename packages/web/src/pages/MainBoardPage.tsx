@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState, useEffect, useCallback, Fragment } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import BoardSidebar from '../components/layout/BoardSidebar'
 import ThreadListPanel from '../components/layout/ThreadListPanel'
 import { usePosts } from '../hooks/usePosts'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -727,7 +726,6 @@ export default function MainBoardPage() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-c-base text-slate-700 dark:text-slate-200">
-      <BoardSidebar />
       <ThreadListPanel />
       <ThreadView key={threadId ?? 'none'} replyLayout={replyLayout} />
     </div>

@@ -10,12 +10,6 @@ import Toggle from '../components/ui/Toggle'
 import NgRuleManager from '../components/settings/NgRuleManager'
 import { useTurnstileStore } from '../stores/turnstileStore'
 import { env } from '../config/env'
-
-function appIconInitials(name: string): string {
-  const words = name.trim().split(/\s+/)
-  if (words.length >= 2) return (words[0][0] + words[1][0]).toUpperCase()
-  return name.slice(0, 2).toUpperCase()
-}
 import { getHistory, clearHistory } from '../utils/threadHistory'
 import { getPostHistory, clearPostHistory } from '../utils/postHistory'
 import { getImageHistory, removeImageFromHistory, clearImageHistory } from '../utils/imageHistory'
@@ -191,81 +185,8 @@ export default function SettingsPage() {
 
   return (
     <div className="flex h-full w-full overflow-hidden bg-c-base text-slate-700 dark:text-slate-200">
-      {/* サイドバー（PC のみ） */}
-      {!isMobile && <aside className="w-64 flex-shrink-0 border-r border-c-border bg-c-surface flex flex-col">
-        <div className="p-6 border-b border-c-border">
-          <button
-            className="flex items-center gap-3 hover:opacity-80 transition-opacity"
-            onClick={() => navigate('/')}
-            title="トップへ戻る"
-          >
-            {env.appIcon ? (
-              <img src={env.appIcon} alt={env.appName} className="w-8 h-8 rounded-lg flex-shrink-0 object-contain" />
-            ) : (
-              <div className="w-8 h-8 bg-c-accent rounded-lg flex items-center justify-center font-bold text-[var(--c-accent-text)] text-sm">
-                {appIconInitials(env.appName)}
-              </div>
-            )}
-            <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">{env.appName}</span>
-          </button>
-        </div>
-        <nav className="flex-1 overflow-y-auto custom-scrollbar py-4">
-          <div className="px-4 mb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-            メイン
-          </div>
-          <ul className="space-y-1">
-            <li>
-              <button
-                onClick={() => navigate('/')}
-                className="w-full flex items-center px-5 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <span className="material-symbols-outlined text-xl">house</span>
-                <span className="ml-3 text-sm font-medium">ホーム</span>
-              </button>
-            </li>
-            <li>
-              <button
-                onClick={() => navigate('/')}
-                className="w-full flex items-center px-5 py-3 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              >
-                <span className="material-symbols-outlined text-xl">list</span>
-                <span className="ml-3 text-sm font-medium">板一覧</span>
-              </button>
-            </li>
-            <li>
-              <button className="w-full flex items-center px-5 py-3 active-nav">
-                <span className="material-symbols-outlined text-xl">settings</span>
-                <span className="ml-3 text-sm font-medium">設定</span>
-              </button>
-            </li>
-          </ul>
-        </nav>
-
-        {/* ユーザー情報 */}
-        {isLoggedIn && profile && (
-          <div className="p-4 border-t border-c-border">
-            <div className="flex items-center gap-3 mb-4 px-2">
-              <div className="w-10 h-10 rounded-full bg-c-accent/10 border border-c-accent/20 flex items-center justify-center text-c-accent font-bold flex-shrink-0">
-                {profile.displayName.charAt(0).toUpperCase()}
-              </div>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-semibold text-slate-900 dark:text-white truncate">{profile.displayName}</span>
-                <span className="text-[10px] text-slate-500 font-medium">一般会員</span>
-              </div>
-            </div>
-            <button
-              onClick={() => {
-                clearSession()
-                navigate('/')
-              }}
-              className="w-full py-2 px-3 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
-            >
-              <span className="material-symbols-outlined text-sm">logout</span>
-              ログアウト
-            </button>
-          </div>
-        )}
-      </aside>}
+      {/* PCでの左ナビ(ホーム/設定への導線・ログアウト)は常設のAppShell(トップバー+
+          アイコンレール)が肩代わりするため、このページ独自のサイドバーは持たない */}
 
       {/* メインコンテンツ（タブバー固定 + スクロールエリア） */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

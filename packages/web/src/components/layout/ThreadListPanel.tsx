@@ -8,6 +8,7 @@ import ThreadCard from '../thread/ThreadCard'
 import NgHiddenNotice from '../ui/NgHiddenNotice'
 import { useDragResize } from '../../hooks/useDragResize'
 import { getHistory, forgetThread } from '../../utils/threadHistory'
+import { recordBoardView } from '../../utils/boardHistory'
 import { fuzzyMatch } from '../../utils/fuzzySearch'
 import { cycleSort, type SortState } from '../../utils/sortCycle'
 import { useNewIdsFlash } from '../../hooks/useNewIdsFlash'
@@ -38,6 +39,10 @@ export default function ThreadListPanel() {
   const [isRefreshing, setIsRefreshing] = useState(false)
   const lastClickedIdRef = useRef<string | null>(null)
   const lastRefreshRef = useRef(0)
+
+  useEffect(() => {
+    if (boardId) recordBoardView(boardId)
+  }, [boardId])
 
   const board = data?.data.board
   const rawThreads = data?.data.threads ?? []

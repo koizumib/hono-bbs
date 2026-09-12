@@ -1,4 +1,5 @@
 import type { Board } from '../../api/types'
+import BoardAvatar from '../board/BoardAvatar'
 
 interface BoardListRowProps {
   board: Board
@@ -35,6 +36,7 @@ export default function BoardListRow({ board, isActive, isFavorite, onToggleFavo
           {isFavorite ? 'star' : 'star_outline'}
         </span>
       </button>
+      <BoardAvatar name={board.name} icon={board.icon} colorTheme={board.colorTheme} size={26} />
       <div className="flex-1 min-w-0 text-left">
         <p className="text-sm font-medium truncate">{board.name}</p>
         <p className="text-[10px] text-slate-500 font-mono truncate">{board.id} ・ {board.threadCount}スレッド</p>

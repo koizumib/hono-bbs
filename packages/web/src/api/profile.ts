@@ -22,6 +22,15 @@ export async function updateProfile(input: UpdateProfileInput) {
   })
 }
 
+export async function updatePreferences(preferences: Record<string, unknown>) {
+  return apiFetch<ApiResponse<Profile>>('/profile/preferences', {
+    method: 'PUT',
+    body: preferences,
+    requiresTurnstile: true,
+    requiresSession: true,
+  })
+}
+
 export interface UpdatePasswordInput {
   currentPassword: string
   newPassword: string

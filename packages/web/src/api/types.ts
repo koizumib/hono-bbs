@@ -53,6 +53,7 @@ export interface Profile {
   email: string | null
   isActive: boolean
   primaryRoleId: string | null
+  preferences: Record<string, unknown>
   createdAt: string
   updatedAt: string
 }

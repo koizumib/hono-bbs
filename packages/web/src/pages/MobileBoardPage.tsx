@@ -13,6 +13,7 @@ import { filterThreads } from '../utils/filter'
 import NgHiddenNotice from '../components/ui/NgHiddenNotice'
 import { fuzzyMatch } from '../utils/fuzzySearch'
 import { getHistory, forgetThread } from '../utils/threadHistory'
+import { recordBoardView } from '../utils/boardHistory'
 import { getThreadPosts } from '../api/posts'
 import { reportThread } from '../api/threads'
 import ThreadCard from '../components/thread/ThreadCard'
@@ -66,6 +67,10 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
   // スレッド表示画面で新着レスを取得した際にも自動で再計算されるよう、
   // ローカルstateではなく共有ストアの更新カウンタを使う
   const historyVersion = useThreadHistoryVersionStore((s) => s.version)
+
+  useEffect(() => {
+    if (boardId) recordBoardView(boardId)
+  }, [boardId])
 
   const board = data?.data.board
   const rawThreads = useMemo(() => data?.data.threads ?? [], [data])

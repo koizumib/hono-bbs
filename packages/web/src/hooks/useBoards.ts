@@ -1,11 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
-import { getBoards } from '../api/boards'
+import { getAllBoards } from '../api/boards'
 
 export function useBoards() {
   return useQuery({
     queryKey: ['boards'],
-    // サイドバー/ドロワー/設定ページの板一覧表示で使うため、API上限いっぱいまで取得する
-    // (デフォルトの20件だと板数が多い場合に一部の板が表示されなくなってしまうため)
-    queryFn: () => getBoards({ limit: 100 }),
+    // サイドバー/メニューバー/トップページの板一覧表示で使うため、板数が1ページ(100件)を
+    // 超えても欠けが出ないよう全ページ取得する
+    queryFn: getAllBoards,
   })
 }

@@ -1,68 +1,47 @@
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
 import { useBoards } from './useBoards'
 import { useSettingsStore } from '../stores/settingsStore'
+import { useBoardHistoryVersionStore } from '../stores/boardHistoryVersionStore'
+import { getBoardHistory } from '../utils/boardHistory'
 import type { Board } from '../api/types'
-
-const UNCATEGORIZED = 'その他'
-
-export interface BoardCategoryGroup {
-  category: string
-  boards: Board[]
-}
 
 /**
  * サイドバー(BoardSidebar)・ドロワー(MobileBoardDrawer)で共通して使う、
- * 板一覧の検索・お気に入り・カテゴリ分類のデータ整形だけを担当するフック (JSXは持たない)。
+ * 「お気に入り」「最近見た板」だけの軽量な板一覧データを整形するフック(JSXは持たない)。
+ * 板の検索自体は /boards (BoardSearchPage・useBoardSearch) に一本化した。
  */
 export function useBoardList() {
   const { data, isLoading } = useBoards()
   const hiddenBoardIds = useSettingsStore((s) => s.hiddenBoardIds)
   const favoriteBoardIds = useSettingsStore((s) => s.favoriteBoardIds)
   const toggleFavoriteBoard = useSettingsStore((s) => s.toggleFavoriteBoard)
-  const collapsedCategories = useSettingsStore((s) => s.collapsedCategories)
-  const toggleCategoryCollapsed = useSettingsStore((s) => s.toggleCategoryCollapsed)
+  const boardHistoryVersion = useBoardHistoryVersionStore((s) => s.version)
 
-  const [query, setQuery] = useState('')
-  const [tab, setTab] = useState<'favorites' | 'all'>('all')
-
-  const boards = useMemo(
-    () => (data?.data ?? []).filter((b) => !hiddenBoardIds.includes(b.id)),
-    [data, hiddenBoardIds],
-  )
-
-  const filteredBoards = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return boards
-    return boards.filter((b) => b.name.toLowerCase().includes(q) || b.id.toLowerCase().includes(q))
-  }, [boards, query])
+  const boardsById = useMemo(() => {
+    const map = new Map((data?.data ?? []).map((b) => [b.id, b]))
+    return map
+  }, [data])
 
   const favoriteBoards = useMemo(
-    () => filteredBoards.filter((b) => favoriteBoardIds.includes(b.id)),
-    [filteredBoards, favoriteBoardIds],
+    () => favoriteBoardIds
+      .map((id) => boardsById.get(id))
+      .filter((b): b is Board => b !== undefined && !hiddenBoardIds.includes(b.id)),
+    [favoriteBoardIds, boardsById, hiddenBoardIds],
   )
 
-  const categoryGroups = useMemo<BoardCategoryGroup[]>(() => {
-    const map = new Map<string, Board[]>()
-    for (const board of filteredBoards) {
-      const category = board.category?.trim() || UNCATEGORIZED
-      if (!map.has(category)) map.set(category, [])
-      map.get(category)!.push(board)
-    }
-    return Array.from(map.entries()).map(([category, boards]) => ({ category, boards }))
-  }, [filteredBoards])
+  const recentBoards = useMemo(() => {
+    const history = getBoardHistory()
+    return history
+      .map((e) => boardsById.get(e.boardId))
+      .filter((b): b is Board => b !== undefined && !hiddenBoardIds.includes(b.id))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [boardsById, hiddenBoardIds, boardHistoryVersion])
 
   return {
     isLoading,
-    query,
-    setQuery,
-    tab,
-    setTab,
-    boards,
     favoriteBoards,
-    categoryGroups,
+    recentBoards,
     favoriteBoardIds,
     toggleFavoriteBoard,
-    collapsedCategories,
-    toggleCategoryCollapsed,
   }
 }

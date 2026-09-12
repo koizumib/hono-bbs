@@ -34,17 +34,10 @@ export default function MobileBoardDrawer({
   const [showLogin, setShowLogin] = useState(false)
   const {
     isLoading,
-    query,
-    setQuery,
-    tab,
-    setTab,
-    boards,
     favoriteBoards,
-    categoryGroups,
+    recentBoards,
     favoriteBoardIds,
     toggleFavoriteBoard,
-    collapsedCategories,
-    toggleCategoryCollapsed,
   } = useBoardList()
 
   function handleBoardClick(boardId: string) {
@@ -92,91 +85,62 @@ export default function MobileBoardDrawer({
 
         {/* 板一覧 */}
         <nav className="flex-1 flex flex-col min-h-0">
-          {/* 検索 */}
+          {/* 板を探す導線 (検索・カテゴリ一覧は /boards に一本化) */}
           <div className="p-3 flex-shrink-0">
-            <input
-              type="text"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="板名・キーワード絞り込み..."
-              className="w-full bg-c-surface2 border border-c-border rounded-lg px-3 py-1.5 text-sm text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-c-accent/50"
-            />
-          </div>
-
-          {/* タブ */}
-          <div className="flex border-b border-c-border flex-shrink-0 text-sm">
             <button
-              onClick={() => setTab('favorites')}
-              className={`flex-1 py-2 font-medium border-b-2 transition-colors ${
-                tab === 'favorites'
-                  ? 'border-c-accent text-c-accent'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
+              onClick={() => { navigate('/boards'); onClose() }}
+              className="w-full flex items-center gap-2 bg-c-surface2 border border-c-border rounded-lg px-3 py-1.5 text-sm text-slate-500 dark:text-slate-400 hover:border-c-accent/50 transition-colors"
             >
-              お気に入り ({favoriteBoardIds.length})
-            </button>
-            <button
-              onClick={() => setTab('all')}
-              className={`flex-1 py-2 font-medium border-b-2 transition-colors ${
-                tab === 'all'
-                  ? 'border-c-accent text-c-accent'
-                  : 'border-transparent text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-              }`}
-            >
-              全板一覧 ({boards.length})
+              <span className="material-symbols-outlined text-lg">search</span>
+              板を探す...
             </button>
           </div>
 
           <div className="flex-1 overflow-y-auto custom-scrollbar py-2">
             {isLoading ? (
               <div className="px-5 py-3 text-slate-500 text-sm">読み込み中...</div>
-            ) : tab === 'favorites' ? (
-              favoriteBoards.length === 0 ? (
-                <div className="px-4 py-6 text-center text-slate-500 text-xs">
-                  お気に入りの板はありません
-                </div>
-              ) : (
-                favoriteBoards.map((board) => (
-                  <BoardListRow
-                    key={board.id}
-                    board={board}
-                    isActive={currentBoardId === board.id}
-                    isFavorite
-                    onToggleFavorite={() => toggleFavoriteBoard(board.id)}
-                    onClick={() => handleBoardClick(board.id)}
-                  />
-                ))
-              )
             ) : (
-              categoryGroups.map((group) => {
-                const isCollapsed = collapsedCategories.includes(group.category)
-                return (
-                  <div key={group.category}>
-                    <button
-                      onClick={() => toggleCategoryCollapsed(group.category)}
-                      className="w-full flex items-center justify-between px-4 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
-                    >
-                      <span>{group.category} ({group.boards.length})</span>
-                      <span
-                        className="material-symbols-outlined text-sm transition-transform"
-                        style={{ transform: isCollapsed ? 'rotate(-90deg)' : undefined }}
-                      >
-                        expand_more
-                      </span>
-                    </button>
-                    {!isCollapsed && group.boards.map((board) => (
-                      <BoardListRow
-                        key={board.id}
-                        board={board}
-                        isActive={currentBoardId === board.id}
-                        isFavorite={favoriteBoardIds.includes(board.id)}
-                        onToggleFavorite={() => toggleFavoriteBoard(board.id)}
-                        onClick={() => handleBoardClick(board.id)}
-                      />
-                    ))}
+              <>
+                <p className="px-4 py-1.5 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  お気に入り ({favoriteBoardIds.length})
+                </p>
+                {favoriteBoards.length === 0 ? (
+                  <div className="px-4 py-4 text-center text-slate-500 text-xs">
+                    お気に入りの板はありません
                   </div>
-                )
-              })
+                ) : (
+                  favoriteBoards.map((board) => (
+                    <BoardListRow
+                      key={board.id}
+                      board={board}
+                      isActive={currentBoardId === board.id}
+                      isFavorite
+                      onToggleFavorite={() => toggleFavoriteBoard(board.id)}
+                      onClick={() => handleBoardClick(board.id)}
+                    />
+                  ))
+                )}
+
+                <p className="px-4 py-1.5 mt-2 text-[10px] font-semibold text-slate-500 uppercase tracking-wider">
+                  最近見た板
+                </p>
+                {recentBoards.length === 0 ? (
+                  <div className="px-4 py-4 text-center text-slate-500 text-xs">
+                    まだ板を見ていません
+                  </div>
+                ) : (
+                  recentBoards.map((board) => (
+                    <BoardListRow
+                      key={board.id}
+                      board={board}
+                      isActive={currentBoardId === board.id}
+                      isFavorite={favoriteBoardIds.includes(board.id)}
+                      onToggleFavorite={() => toggleFavoriteBoard(board.id)}
+                      onClick={() => handleBoardClick(board.id)}
+                    />
+                  ))
+                )}
+              </>
             )}
           </div>
         </nav>

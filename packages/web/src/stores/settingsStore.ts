@@ -47,7 +47,6 @@ interface SettingsState {
   threadListRefreshInterval: number
   hiddenBoardIds: string[]
   favoriteBoardIds: string[]
-  collapsedCategories: string[]
   /** スマホのスワイプジェスチャーの感度 (1=鈍い〜5=敏感、既定3) */
   gestureSensitivity: 1 | 2 | 3 | 4 | 5
   setScheme: (scheme: ColorScheme) => void
@@ -68,9 +67,21 @@ interface SettingsState {
   setThreadListRefreshInterval: (n: number) => void
   setHiddenBoardIds: (ids: string[]) => void
   toggleFavoriteBoard: (boardId: string) => void
-  toggleCategoryCollapsed: (category: string) => void
   setGestureSensitivity: (level: 1 | 2 | 3 | 4 | 5) => void
+  /** ログイン時、サーバーに保存済みの設定(あるフィールドだけ)を適用する */
+  hydrateFromServer: (partial: Partial<SyncedSettings>) => void
 }
+
+// アカウントに紐づけてサーバー同期する設定項目。「環境」に関わるものだけが対象で、
+// 端末ローカルの行動記録(板/スレッドの閲覧履歴)は含まない。
+export const SYNCED_SETTINGS_KEYS = [
+  'scheme', 'pattern', 'fontSize', 'safeSearch', 'ngRules', 'notifications',
+  'historyMaxGenerations', 'postHistoryMaxGenerations', 'defaultPosterName', 'defaultSubInfo',
+  'replyLayout', 'threadListAutoRefresh', 'threadListRefreshInterval',
+  'hiddenBoardIds', 'favoriteBoardIds', 'gestureSensitivity',
+] as const satisfies readonly (keyof SettingsState)[]
+
+export type SyncedSettings = Pick<SettingsState, typeof SYNCED_SETTINGS_KEYS[number]>
 
 // 旧形式(1カテゴリ1改行区切りテキスト)を新形式(1レコード1件)に変換する
 function migrateLegacyNgWords(legacy: LegacyNgWords): NgRule[] {
@@ -109,7 +120,6 @@ export const useSettingsStore = create<SettingsState>()(
       threadListRefreshInterval: 30,
       hiddenBoardIds: [],
       favoriteBoardIds: [],
-      collapsedCategories: [],
       gestureSensitivity: 3,
       setScheme: (scheme) => set({ scheme }),
       setPattern: (pattern) => set({ pattern }),
@@ -139,13 +149,8 @@ export const useSettingsStore = create<SettingsState>()(
             ? s.favoriteBoardIds.filter((id) => id !== boardId)
             : [...s.favoriteBoardIds, boardId],
         })),
-      toggleCategoryCollapsed: (category) =>
-        set((s) => ({
-          collapsedCategories: s.collapsedCategories.includes(category)
-            ? s.collapsedCategories.filter((c) => c !== category)
-            : [...s.collapsedCategories, category],
-        })),
       setGestureSensitivity: (gestureSensitivity) => set({ gestureSensitivity }),
+      hydrateFromServer: (partial) => set((s) => ({ ...s, ...partial })),
     }),
     {
       name: 'bbs-settings',
