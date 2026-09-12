@@ -166,8 +166,8 @@ input[type="range"] {
  * bg-c-base/40 のような不透明度修飾子は効かない(rgb()関数の想定形式と合わずrgba(0,0,0,0)に
  * なる)。color-mix() で明示的に半透明化する。 */
 .frosted-glass {
-  backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
   background: color-mix(in srgb, var(--c-base) 40%, transparent);
 }
 
