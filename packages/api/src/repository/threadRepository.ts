@@ -265,3 +265,38 @@ export async function deleteThread(db: DbAdapter, id: string): Promise<boolean> 
   const result = await db.run('DELETE FROM threads WHERE id = ?', [id])
   return result.changes > 0
 }
+
+export type PopularCandidateRow = {
+  thread_id: string
+  board_id: string
+  title: string
+  post_count: number
+  created_at: string
+  thread_acl: string
+  board_name: string
+  board_acl: string
+  op_author_id: string | null
+  op_content: string | null
+  op_is_deleted: number | null
+  op_poster_name: string | null
+  op_poster_option_info: string | null
+}
+
+// ホーム画面向け「全板横断の人気スレッド」集計の候補一覧。dat落ち済みは今後勢いが伸びることが
+// ないため除外する。post_countは非正規化済みで、posts側もidx_posts_thread_post_numberで
+// 引けるため重いクエリではないが、全スレッドを一度に読むので都度のAPIリクエストからは呼ばず、
+// Cron(1時間毎)からのみ呼ぶ想定。1レス目(OP)のID・本文をプレビュー/OP表示用に一緒に取る。
+export async function findActiveThreadsForRanking(db: DbAdapter): Promise<PopularCandidateRow[]> {
+  const result = await db.all<PopularCandidateRow>(
+    `SELECT t.id AS thread_id, t.board_id AS board_id, t.title AS title,
+            t.post_count AS post_count, t.created_at AS created_at, t.acl AS thread_acl,
+            b.name AS board_name, b.acl AS board_acl,
+            p.author_id AS op_author_id, p.content AS op_content, p.is_deleted AS op_is_deleted,
+            p.poster_name AS op_poster_name, p.poster_option_info AS op_poster_option_info
+     FROM threads t
+     JOIN boards b ON b.id = t.board_id
+     LEFT JOIN posts p ON p.thread_id = t.id AND p.post_number = 1
+     WHERE t.is_archived = 0`,
+  )
+  return result.results
+}

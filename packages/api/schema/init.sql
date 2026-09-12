@@ -129,6 +129,8 @@ CREATE TABLE posts (
   FOREIGN KEY (thread_id) REFERENCES threads(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_posts_thread_post_number ON posts(thread_id, post_number);
+
 -- 画像アップロード (旧 imageUploader プラグイン)
 -- S3互換ストレージ(R2/S3/MinIO)への Presigned PUT URL 発行と組み合わせて使う。
 -- Worker はファイルバイトを経由せず、認可・メタデータ管理のみを担当する。

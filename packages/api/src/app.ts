@@ -15,6 +15,7 @@ import profile from './routes/profile'
 import boards from './routes/boards'
 import images from './routes/images'
 import moderation from './routes/moderation'
+import popularThreads from './routes/popularThreads'
 
 // 内部ルーター (ベースパスなし)。
 // boards 以下はチェーンでマウントし、hc<AppType>() のRPC型推論にスキーマが伝播するようにする
@@ -54,6 +55,8 @@ api.route('/profile', profile)
 api.route('/', images)
 // IPBAN・通報キュー管理 (isSysAdmin のみ)
 api.route('/moderation', moderation)
+// トップページ向け、全板横断の人気スレッド (Cronが更新するKVキャッシュを返すだけ)
+api.route('/popular-threads', popularThreads)
 
 // グローバルエラーハンドラー
 api.onError((err, c) => {
