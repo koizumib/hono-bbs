@@ -161,3 +161,13 @@ input[type="range"] {
   animation: menu-reveal 180ms ease-out;
 }
 
+/* ヘッダー/フッターのすりガラス演出(スレッド一覧・スレッド表示画面)。
+ * --c-base 等はテーマトークンが16進数文字列で定義されているため、Tailwindの
+ * bg-c-base/40 のような不透明度修飾子は効かない(rgb()関数の想定形式と合わずrgba(0,0,0,0)に
+ * なる)。color-mix() で明示的に半透明化する。 */
+.frosted-glass {
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  background: color-mix(in srgb, var(--c-base) 40%, transparent);
+}
+

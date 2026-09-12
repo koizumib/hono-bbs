@@ -300,7 +300,7 @@ export default function ReplyForm({
       return (
         <div
           style={{ width: rightWidth }}
-          className="flex-shrink-0 flex h-full items-start bg-c-surface border-l border-c-border shadow-sm"
+          className="flex-shrink-0 flex items-start bg-c-surface border border-c-border rounded-[var(--card-radius)] shadow-sm overflow-hidden m-3"
         >
           {message}
         </div>
@@ -310,7 +310,7 @@ export default function ReplyForm({
       return <div className="px-4 pb-safe">{message}</div>
     }
     return (
-      <footer className="bg-c-surface border-t border-c-border shadow-sm flex-shrink-0">
+      <footer className="bg-c-surface border border-c-border rounded-[var(--card-radius)] shadow-sm overflow-hidden flex-shrink-0 m-3">
         {message}
       </footer>
     )
@@ -320,7 +320,7 @@ export default function ReplyForm({
     return (
       <div
         style={{ width: rightWidth }}
-        className="flex-shrink-0 flex h-full bg-c-surface border-l border-c-border shadow-sm relative"
+        className="flex-shrink-0 flex bg-c-surface border border-c-border rounded-[var(--card-radius)] shadow-sm relative overflow-hidden m-3"
       >
         {/* 左端ドラッグハンドル */}
         <div
@@ -460,7 +460,7 @@ export default function ReplyForm({
   return (
     <footer
       style={{ height: bottomHeight }}
-      className="bg-c-surface border-t border-c-border shadow-sm flex flex-col flex-shrink-0"
+      className="bg-c-surface border border-c-border rounded-[var(--card-radius)] shadow-sm overflow-hidden flex flex-col flex-shrink-0 relative m-3"
     >
       {/* 上端ドラッグハンドル */}
       <div
