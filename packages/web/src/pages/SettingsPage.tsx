@@ -15,7 +15,6 @@ import { getPostHistory, clearPostHistory } from '../utils/postHistory'
 import { getImageHistory, removeImageFromHistory, clearImageHistory } from '../utils/imageHistory'
 import type { ImageHistoryEntry } from '../utils/imageHistory'
 import { deleteImage } from '../api/imageUploader'
-import { useBoards } from '../hooks/useBoards'
 import { formatDistanceToNow } from 'date-fns'
 import { ja } from 'date-fns/locale'
 
@@ -39,16 +38,13 @@ export default function SettingsPage() {
     defaultSubInfo,
     threadListAutoRefresh,
     threadListRefreshInterval,
-    hiddenBoardIds,
     setHistoryMaxGenerations,
     setPostHistoryMaxGenerations,
     setDefaultPosterName,
     setDefaultSubInfo,
     setThreadListAutoRefresh,
     setThreadListRefreshInterval,
-    setHiddenBoardIds,
   } = useSettingsStore()
-  const { data: boardsData } = useBoards()
   const scheme = useSettingsStore((s) => s.scheme)
   const pattern = useSettingsStore((s) => s.pattern)
   const fontSize = useSettingsStore((s) => s.fontSize)
@@ -549,69 +545,6 @@ export default function SettingsPage() {
                   </div>
                 </div>
               </section>
-
-              {/* 板の表示設定 */}
-              {boardsData && boardsData.data.length > 0 && (
-                <section className="space-y-6">
-                  <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-3">
-                    <span className="material-symbols-outlined text-c-accent">dashboard_customize</span>
-                    板の表示設定
-                  </h3>
-                  <div className="bg-c-surface p-6 rounded-2xl border border-c-border space-y-4">
-                    <p className="text-xs text-slate-500">
-                      チェックを外した板はサイドバーの板一覧から非表示になります。
-                    </p>
-                    <div className="flex gap-2 mb-2">
-                      <button
-                        type="button"
-                        onClick={() => setHiddenBoardIds([])}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-c-border text-slate-500 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        すべて表示
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setHiddenBoardIds(boardsData.data.map((b) => b.id))}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-c-border text-slate-500 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-                      >
-                        すべて非表示
-                      </button>
-                    </div>
-                    <div className="space-y-2">
-                      {boardsData.data.map((board) => {
-                        const hidden = hiddenBoardIds.includes(board.id)
-                        return (
-                          <label
-                            key={board.id}
-                            className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={!hidden}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setHiddenBoardIds(hiddenBoardIds.filter((id) => id !== board.id))
-                                } else {
-                                  setHiddenBoardIds([...hiddenBoardIds, board.id])
-                                }
-                              }}
-                              className="w-4 h-4 rounded border-c-border bg-c-surface2 text-c-accent focus:ring-c-accent/50"
-                            />
-                            <div className="flex flex-col min-w-0">
-                              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                                {board.name}
-                              </span>
-                              {board.description && (
-                                <span className="text-xs text-slate-500 truncate">{board.description}</span>
-                              )}
-                            </div>
-                          </label>
-                        )
-                      })}
-                    </div>
-                  </div>
-                </section>
-              )}
 
               {/* NGワード設定 */}
               <section className="space-y-6">

@@ -12,7 +12,6 @@ import type { Board } from '../api/types'
  */
 export function useBoardList() {
   const { data, isLoading } = useBoards()
-  const hiddenBoardIds = useSettingsStore((s) => s.hiddenBoardIds)
   const favoriteBoardIds = useSettingsStore((s) => s.favoriteBoardIds)
   const toggleFavoriteBoard = useSettingsStore((s) => s.toggleFavoriteBoard)
   const boardHistoryVersion = useBoardHistoryVersionStore((s) => s.version)
@@ -25,17 +24,17 @@ export function useBoardList() {
   const favoriteBoards = useMemo(
     () => favoriteBoardIds
       .map((id) => boardsById.get(id))
-      .filter((b): b is Board => b !== undefined && !hiddenBoardIds.includes(b.id)),
-    [favoriteBoardIds, boardsById, hiddenBoardIds],
+      .filter((b): b is Board => b !== undefined),
+    [favoriteBoardIds, boardsById],
   )
 
   const recentBoards = useMemo(() => {
     const history = getBoardHistory()
     return history
       .map((e) => boardsById.get(e.boardId))
-      .filter((b): b is Board => b !== undefined && !hiddenBoardIds.includes(b.id))
+      .filter((b): b is Board => b !== undefined)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [boardsById, hiddenBoardIds, boardHistoryVersion])
+  }, [boardsById, boardHistoryVersion])
 
   return {
     isLoading,
