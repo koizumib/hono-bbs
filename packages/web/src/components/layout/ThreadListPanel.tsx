@@ -94,10 +94,14 @@ export default function ThreadListPanel() {
     return result
   }, [newThreadIdsRaw, dismissedNewIds])
 
-  // F5 / Ctrl+R でスレッド一覧を更新（5秒クールダウン）
+  // F5 / Ctrl+R でスレッド一覧を更新。
+  // 以前は5秒クールダウンを設けていたが、その間の再クリック/再押下は何のフィードバックも
+  // 無いまま黙って無視されていた(「新着スレッドのドットが消えない」不具合の実際の原因は
+  // useNewIdsFlash側ではなくこれで、単に再取得自体が起きていなかった)。連打防止は
+  // isRefreshing中のボタンdisabledで十分なので、時間ベースの間引きは短い値に留める。
   const handleRefresh = useCallback(async () => {
     const now = Date.now()
-    if (now - lastRefreshRef.current < 5000) return
+    if (now - lastRefreshRef.current < 500) return
     lastRefreshRef.current = now
     setIsRefreshing(true)
     try {
