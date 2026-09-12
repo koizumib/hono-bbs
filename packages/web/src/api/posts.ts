@@ -13,14 +13,23 @@ export async function getPosts(boardId: string, threadId: string, params?: { lim
   }))
 }
 
-// スレッド情報と投稿一覧を2リクエストで並列取得し、旧APIと同じ形にまとめる
-// (バックエンドは GET .../threads/:threadId と GET .../threads/:threadId/posts に分離済み)
+// スレッド情報と投稿一覧を取得し、旧APIと同じ形にまとめる
+// (バックエンドは GET .../threads/:threadId と GET .../threads/:threadId/posts に分離済み)。
+// posts側は1ページ最大100件のカーソルページネーションなので、レス数が100を超える
+// スレッドでも全レスを表示できるよう、nextCursorがなくなるまで全ページを取得する
+// (以前は1ページ目だけ取得していたため、100レスを超えた分が画面に出ない不具合があった)。
 export async function getThreadPosts(boardId: string, threadId: string): Promise<ThreadPostsResponse> {
-  const [threadRes, postsRes] = await Promise.all([
-    getThread(boardId, threadId),
-    getPosts(boardId, threadId, { limit: 100 }),
-  ])
-  return { data: { thread: threadRes.data, posts: postsRes.data } }
+  const threadPromise = getThread(boardId, threadId)
+  const posts: Post[] = []
+  let cursor: string | undefined
+  for (;;) {
+    const page = await getPosts(boardId, threadId, { limit: 100, cursor })
+    posts.push(...page.data)
+    if (!page.nextCursor) break
+    cursor = page.nextCursor
+  }
+  const threadRes = await threadPromise
+  return { data: { thread: threadRes.data, posts } }
 }
 
 export type CreatePostInput = InferRequestType<
