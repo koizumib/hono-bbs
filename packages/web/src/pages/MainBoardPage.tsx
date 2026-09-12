@@ -531,13 +531,13 @@ function ThreadView({ replyLayout }: ThreadViewProps) {
                 <div
                   id="unread-divider"
                   className="flex items-center gap-3 py-1 select-none"
-                  style={{ color: 'var(--c-accent)', opacity: 0.6 }}
+                  style={{ color: 'var(--c-accent-self)', opacity: 0.6 }}
                 >
-                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
                   <span className="text-[10px] font-bold tracking-widest whitespace-nowrap">
                     ここから未読
                   </span>
-                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                  <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
                 </div>
               )}
               <PostArticle

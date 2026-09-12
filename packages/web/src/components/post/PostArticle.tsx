@@ -289,9 +289,9 @@ export default function PostArticle({
           <span
             className={`${compact ? 'text-[9px]' : 'text-[10px]'} font-medium px-2 py-0.5`}
             style={{
-              color: 'var(--c-accent)',
-              background: 'var(--chip-bg)',
-              border: '1px solid var(--chip-border-color)',
+              color: 'var(--c-accent-self)',
+              background: 'var(--c-accent-self-wash)',
+              border: '1px solid var(--c-accent-self)',
               borderRadius: 'var(--chip-radius)',
             }}
           >
@@ -312,7 +312,7 @@ export default function PostArticle({
       {/* 本文 */}
       <div
         className={`${
-          isOwnPost ? 'pl-[13px] border-l-[3px] border-c-accent' : 'pl-4 border-l-2 border-c-border'
+          isOwnPost ? 'pl-[13px] border-l-[3px] border-c-accent-self' : 'pl-4 border-l-2 border-c-border'
         } ${hasConnections ? 'cursor-pointer' : ''}`}
         onClick={handleBodyClick}
       >

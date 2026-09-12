@@ -738,10 +738,10 @@ const MobileThreadViewInner = forwardRef<MobileThreadViewInnerHandle, MobileThre
             const content = (
               <>
                 {i === firstNewIndex && (
-                  <div id="unread-divider" className="flex items-center gap-2 py-0.5 select-none" style={{ color: 'var(--c-accent)', opacity: 0.6 }}>
-                    <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                  <div id="unread-divider" className="flex items-center gap-2 py-0.5 select-none" style={{ color: 'var(--c-accent-self)', opacity: 0.6 }}>
+                    <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
                     <span className="text-[9px] font-bold tracking-widest whitespace-nowrap">ここから未読</span>
-                    <div className="flex-1 h-px" style={{ background: 'var(--c-accent)', opacity: 0.4 }} />
+                    <div className="flex-1 h-px" style={{ background: 'var(--c-accent-self)', opacity: 0.4 }} />
                   </div>
                 )}
                 <PostArticle

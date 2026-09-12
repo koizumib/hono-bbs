@@ -19,10 +19,15 @@
  *   --c-text-muted     : 補助・控えめなテキスト
  *   --c-text-emphasis  : 最大限に目立たせたいテキスト(新着/未読スレのタイトル等)。
  *                         ダーク系スキームでは純白、ライト系スキームでは純黒に近い値。
- *   --c-accent         : アクセントカラー
+ *   --c-accent         : アクセントカラー(操作: ボタン・タブ・リンク等)
  *   --c-accent-hover   : アクセントカラー(ホバー)
  *   --c-accent-text    : アクセントカラー背景の上に乗せる文字色
  *   --c-accent-wash    : アクセントカラーを薄く敷いた背景(バッジ等)
+ *   --c-accent-self      : 「自分」用の差し色(未読・自分の投稿・自分へのアンカー)。
+ *                          操作色(c-accent)とは別系統にすることで、「操作可能なもの」と
+ *                          「自分に関係のあるもの」を色で区別する
+ *   --c-accent-self-wash : self色を薄く敷いた背景(バッジ等)
+ *   --c-accent-self-text : self色背景の上に乗せる文字色
  *   --c-link           : 本文中のURL・アンカー(>>1)リンク色
  *   --c-link-image     : 画像URL
  *   --c-link-twitter   : X/TwitterのURL
@@ -51,6 +56,9 @@
   --c-accent-hover: #8f83ea;
   --c-accent-text: #f5f3ff;
   --c-accent-wash: rgba(117, 102, 230, 0.14);
+  --c-accent-self: #e0729a;
+  --c-accent-self-wash: rgba(224, 114, 154, 0.15);
+  --c-accent-self-text: #2b0a17;
   --c-link: #57a6ff;
   --c-link-image: #f2b84b;
   --c-link-twitter: #4fc3f7;
@@ -76,6 +84,9 @@
   --c-accent-hover: #eaad5e;
   --c-accent-text: #2b1804;
   --c-accent-wash: rgba(224, 153, 63, 0.16);
+  --c-accent-self: #7c93e8;
+  --c-accent-self-wash: rgba(124, 147, 232, 0.15);
+  --c-accent-self-text: #0d1430;
   --c-link: #5eb8ff;
   --c-link-image: #e0993f;
   --c-link-twitter: #5eb8ff;
@@ -101,6 +112,9 @@
   --c-accent-hover: #6f5fe0;
   --c-accent-text: #ffffff;
   --c-accent-wash: rgba(91, 75, 214, 0.08);
+  --c-accent-self: #b23d72;
+  --c-accent-self-wash: rgba(178, 61, 114, 0.08);
+  --c-accent-self-text: #ffffff;
   --c-link: #2f6fd6;
   --c-link-image: #c97f1f;
   --c-link-twitter: #0f8fbf;
@@ -126,6 +140,9 @@
   --c-accent-hover: #c97a2c;
   --c-accent-text: #ffffff;
   --c-accent-wash: rgba(181, 105, 31, 0.1);
+  --c-accent-self: #4a5fc9;
+  --c-accent-self-wash: rgba(74, 95, 201, 0.08);
+  --c-accent-self-text: #ffffff;
   --c-link: #1f7fbf;
   --c-link-image: #b5691f;
   --c-link-twitter: #1f7fbf;

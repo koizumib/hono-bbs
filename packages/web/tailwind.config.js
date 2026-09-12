@@ -22,6 +22,9 @@ export default {
         'c-text-emphasis': 'var(--c-text-emphasis)',
         'c-accent': 'var(--c-accent)',
         'c-accent-hover': 'var(--c-accent-hover)',
+        // 「自分」用の差し色(未読・自分の投稿・自分へのアンカー)。操作色(c-accent)とは別系統
+        'c-accent-self': 'var(--c-accent-self)',
+        'c-accent-self-wash': 'var(--c-accent-self-wash)',
         // リンク
         'c-link': 'var(--c-link)',
         'c-link-image': 'var(--c-link-image)',

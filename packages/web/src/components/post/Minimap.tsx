@@ -223,7 +223,7 @@ export default function Minimap({ posts, scrollAreaRef, anchorCountMap, ownPostN
             top: `${m.percent}%`,
             transform: 'translateX(-50%) translateY(-50%) rotate(45deg)',
             background: 'transparent',
-            border: '1.5px solid var(--c-accent)',
+            border: '1.5px solid var(--c-accent-self)',
           }}
           title={`自分への返信: ${m.postNumber}`}
         />
@@ -238,7 +238,7 @@ export default function Minimap({ posts, scrollAreaRef, anchorCountMap, ownPostN
           style={{
             top: `${m.percent}%`,
             transform: 'translateX(-50%) translateY(-50%) rotate(45deg)',
-            background: 'var(--c-accent)',
+            background: 'var(--c-accent-self)',
           }}
           title={`自分のレス: ${m.postNumber}`}
         />

@@ -132,9 +132,9 @@ input[type="range"] {
   text-size-adjust: 100% !important;
 }
 
-/* 一覧更新で新しく取得できた要素を描画時に一瞬光らせる演出 */
+/* 一覧更新で新しく取得できた要素を描画時に一瞬光らせる演出(未読=自分用の差し色) */
 @keyframes flash-new {
-  0% { background-color: color-mix(in srgb, var(--c-accent) 35%, transparent); }
+  0% { background-color: color-mix(in srgb, var(--c-accent-self) 35%, transparent); }
   100% { background-color: transparent; }
 }
 .flash-new {

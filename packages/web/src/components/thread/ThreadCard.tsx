@@ -62,7 +62,7 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
         {isNew && (
           <span
             className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-            style={{ background: 'var(--c-accent)' }}
+            style={{ background: 'var(--c-accent-self)' }}
           />
         )}
         {hasThumbnail && (
@@ -107,7 +107,7 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
         {unreadCount > 0 && (
           <span
             className="flex-shrink-0 font-bold text-[9px] px-1.5 py-0.5 rounded whitespace-nowrap"
-            style={{ background: 'var(--c-accent)', color: 'var(--c-accent-text)' }}
+            style={{ background: 'var(--c-accent-self)', color: 'var(--c-accent-self-text)' }}
           >
             +{unreadCount}
           </span>
