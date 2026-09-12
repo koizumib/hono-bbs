@@ -13,6 +13,9 @@ export type User = {
   email: string | null
   isActive: boolean
   primaryRoleId: string | null
+  // クライアント設定(テーマ・NGワード・お気に入り板等)の同期用。サーバー側は中身を
+  // 解釈・enforceしない(ACLと違って権限に関わらない純粋な表示設定のため)。
+  preferences: Record<string, unknown>
   createdAt: string
   updatedAt: string
 }
@@ -91,6 +94,10 @@ export type Board = {
   defaultPostAcl: ResourceAcl    // 投稿作成時に instantiateAcl() でコピーされるテンプレート
   ngWords: NgWordRule[]
   category: string
+  // 一覧・メニューバー等で使う板アイコン。未設定(null)ならクライアント側が
+  // colorTheme を背景色にして板名の頭文字を描画したアバターを代わりに表示する
+  icon: string | null
+  colorTheme: string | null  // 例: "#7566e6" (アイコン未設定時のアバター背景色)
   threadCount: number
   createdAt: string
   adminMeta: AdminMeta

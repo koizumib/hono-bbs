@@ -2,7 +2,7 @@ import type { Context } from 'hono'
 import { isZodError, zodMessage } from '../utils/zodHelper'
 import type { AppEnv } from '../types'
 import * as boardService from '../services/boardService'
-import { parsePaginationQuery } from '../utils/pagination'
+import { boardListQuerySchema } from '../services/boardService'
 import { adminVisible, stripBoard } from './responseShaping'
 
 // c.req.param('boardId') を string (非optional) として型付けするため、Contextにpathを明示する。
@@ -13,8 +13,8 @@ type RootContext = Context<AppEnv, string, any>
 
 // GET /boards (limit/cursorページネーション)
 export async function getBoardsHandler(c: RootContext) {
-  const pagination = parsePaginationQuery(c.req.query())
-  const page = await boardService.getBoards(c.get('db'), c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'), pagination)
+  const query = boardListQuerySchema.parse(c.req.query())
+  const page = await boardService.getBoards(c.get('db'), c.get('userId'), c.get('userRoleIds'), c.get('isSysAdmin'), query)
   const visible = adminVisible(c)
   return c.json({ data: page.items.map(b => stripBoard(b, visible)), nextCursor: page.nextCursor })
 }

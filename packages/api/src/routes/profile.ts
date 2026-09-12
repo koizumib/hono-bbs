@@ -3,6 +3,7 @@ import type { AppEnv } from '../types'
 import {
   getProfileHandler,
   updateProfileHandler,
+  updatePreferencesHandler,
   deleteProfileHandler,
 } from '../handlers/profileHandler'
 import { requireLogin } from '../middleware/auth'
@@ -12,6 +13,7 @@ const profile = new Hono<AppEnv>()
 
 profile.get('/', requireLogin, getProfileHandler)
 profile.put('/', requireLogin, requireTurnstile, updateProfileHandler)
+profile.put('/preferences', requireLogin, requireTurnstile, updatePreferencesHandler)
 profile.delete('/', requireLogin, requireTurnstile, deleteProfileHandler)
 
 export default profile

@@ -5,9 +5,18 @@ import * as boardRepository from '../repository/boardRepository'
 import type { BoardCursor } from '../repository/boardRepository'
 import { can, buildAcl, isOwnerOrSysAdmin, resourceAclInputSchema } from '../utils/acl'
 import { isRegexPatternSafe } from '../utils/regexSafety'
-import { encodeCursor, decodeCursor, type PaginationQuery, type Page } from '../utils/pagination'
+import { encodeCursor, decodeCursor, paginationQuerySchema, type Page } from '../utils/pagination'
 
 const ID_FORMATS = ['daily_hash', 'daily_hash_or_user', 'api_key_hash', 'api_key_hash_or_user', 'none'] as const
+
+// GET /boards の一覧クエリ。limit/cursorに加えて、板検索ページ用のq(名前・ID部分一致)・
+// category(完全一致)・sort(新着 or 人気=threadCount降順)を受け付ける
+export const boardListQuerySchema = paginationQuerySchema.extend({
+  q: z.string().trim().max(100).optional(),
+  category: z.string().trim().max(128).optional(),
+  sort: z.enum(['newest', 'popular']).default('newest'),
+})
+export type BoardListQuery = z.infer<typeof boardListQuerySchema>
 const NG_WORD_TARGETS = ['title', 'posterName', 'content'] as const
 
 // サーバー側NGワード (板単位)。一致した投稿は拒否される (クライアント側のNGワード機能とは別物)
@@ -42,6 +51,9 @@ export const boardBodySchema = z.object({
   defaultPostAcl: resourceAclInputSchema,
   ngWords: z.array(ngWordRuleSchema).max(200).default([]),
   category: z.string().max(128).optional(),
+  // メニューバー等のアバター表示用。iconはURL、colorThemeはicon未設定時の背景色(#RRGGBB)
+  icon: z.string().trim().max(2000).url('URLの形式が正しくありません').optional().nullable(),
+  colorTheme: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, '#RRGGBB形式で指定してください').optional().nullable(),
 })
 
 // PATCH /boards/:boardId: 既存の板のみ対象、指定したフィールドだけ更新する (upsertしない)
@@ -85,6 +97,8 @@ function buildBoardFromInput(
     defaultPostAcl: buildAcl(input.defaultPostAcl, null),
     ngWords: input.ngWords,
     category: input.category ?? '',
+    icon: input.icon ?? null,
+    colorTheme: input.colorTheme ?? null,
     threadCount: 0, // 新規作成時点では常に0 (insertBoard()はこのフィールドを保存しない)
     createdAt: now,
     adminMeta: { creatorUserId, creatorSessionId, creatorTurnstileSessionId },
@@ -110,10 +124,14 @@ export async function getBoards(
   userId: string | null,
   userRoleIds: string[],
   isSysAdmin: boolean,
-  pagination: PaginationQuery,
+  query: BoardListQuery,
 ): Promise<Page<Board>> {
-  const cursor = pagination.cursor ? decodeCursor<BoardCursor>(pagination.cursor) : null
-  const { items, nextCursorRaw } = await boardRepository.findBoardsPage(db, { limit: pagination.limit, cursor })
+  const cursor = query.cursor ? decodeCursor<BoardCursor>(query.cursor) : null
+  const { items, nextCursorRaw } = await boardRepository.findBoardsPage(db, {
+    limit: query.limit,
+    cursor,
+    filters: { q: query.q, category: query.category, sort: query.sort },
+  })
   const filtered = isSysAdmin ? items : items.filter(b => can(b.acl, { userId, userRoleIds, isSysAdmin }, 'read'))
   return {
     items: filtered,
@@ -186,6 +204,8 @@ export async function putBoard(
     defaultPostAcl: buildAcl(input.defaultPostAcl, null),
     ngWords: input.ngWords,
     category: input.category ?? '',
+    icon: input.icon ?? null,
+    colorTheme: input.colorTheme ?? null,
   })
   return (await boardRepository.findBoardById(db, boardId))!
 }
@@ -229,6 +249,8 @@ export async function patchBoard(
     defaultPostAcl: input.defaultPostAcl !== undefined ? buildAcl(input.defaultPostAcl, null) : undefined,
     ngWords: input.ngWords,
     category: input.category,
+    icon: input.icon,
+    colorTheme: input.colorTheme,
   })
   return (await boardRepository.findBoardById(db, boardId))!
 }

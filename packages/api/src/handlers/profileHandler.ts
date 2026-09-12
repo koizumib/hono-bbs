@@ -31,6 +31,23 @@ export async function updateProfileHandler(c: Context<AppEnv>): Promise<Response
   }
 }
 
+// PUT /profile/preferences - クライアント設定(テーマ・NGワード等)のサーバー同期用。
+// プロフィール本体(displayName/bio/email)とは別のサブリソースにして、頻繁な自動保存が
+// プロフィール更新の他フィールドやパスワード変更ロジックと絡まないようにする。
+export async function updatePreferencesHandler(c: Context<AppEnv>): Promise<Response> {
+  const userId = c.get('userId')!
+  try {
+    const body = await c.req.json()
+    const input = identityService.parseUpdatePreferences(body)
+    const user = await identityService.updatePreferences(c.get('db'), userId, input)
+    if (!user) return c.json({ error: 'USER_NOT_FOUND', message: 'User not found' }, 404)
+    return c.json({ data: user })
+  } catch (e) {
+    if (isZodError(e)) return c.json({ error: 'VALIDATION_ERROR', message: zodMessage(e) }, 400)
+    throw e
+  }
+}
+
 // DELETE /profile - 自分のアカウント削除
 export async function deleteProfileHandler(c: Context<AppEnv>): Promise<Response> {
   const userId = c.get('userId')!

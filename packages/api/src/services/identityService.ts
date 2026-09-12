@@ -40,6 +40,15 @@ const updateProfileSchema = z.object({
   { message: 'currentPassword と newPassword は両方指定してください' },
 )
 
+// PUT /profile/preferences。中身はクライアント側の設定(テーマ・NGワード等)なので
+// サーバー側では解釈・enforceせず、シリアライズ後サイズだけ上限を設ける(ReDoS/ストレージ
+// 濫用対策。ACLのような権限に関わる値ではないので厳密な型スキーマは不要)。
+const PREFERENCES_MAX_BYTES = 32 * 1024
+export const updatePreferencesSchema = z.record(z.string(), z.unknown()).refine(
+  (prefs) => new TextEncoder().encode(JSON.stringify(prefs)).length <= PREFERENCES_MAX_BYTES,
+  { message: `preferences は ${PREFERENCES_MAX_BYTES} バイト以下にしてください` },
+)
+
 export const updateUserAdminSchema = z.object({
   displayName: z.string().max(128).optional(),
   bio: z.string().max(500).optional().nullable(),
@@ -57,6 +66,7 @@ export const roleSchema = z.object({
 
 export type CreateUserInput = z.infer<typeof createUserSchema>
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>
+export type UpdatePreferencesInput = z.infer<typeof updatePreferencesSchema>
 export type UpdateUserAdminInput = z.infer<typeof updateUserAdminSchema>
 export type RoleInput = z.infer<typeof roleSchema>
 
@@ -66,6 +76,10 @@ export function parseCreateUser(data: unknown): CreateUserInput {
 
 export function parseUpdateProfile(data: unknown): UpdateProfileInput {
   return updateProfileSchema.parse(data)
+}
+
+export function parseUpdatePreferences(data: unknown): UpdatePreferencesInput {
+  return updatePreferencesSchema.parse(data)
 }
 
 export function parseUpdateUserAdmin(data: unknown): UpdateUserAdminInput {
@@ -131,6 +145,18 @@ export async function updateProfile(
     bio: input.bio,
     email: input.email,
     updatedAt: now,
+  })
+  return userRepository.findUserById(db, userId)
+}
+
+export async function updatePreferences(
+  db: DbAdapter,
+  userId: string,
+  input: UpdatePreferencesInput,
+): Promise<User | null> {
+  await userRepository.updateUser(db, userId, {
+    preferences: input,
+    updatedAt: new Date().toISOString(),
   })
   return userRepository.findUserById(db, userId)
 }

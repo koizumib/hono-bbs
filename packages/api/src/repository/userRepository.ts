@@ -9,6 +9,7 @@ type UserRow = {
   is_active: number
   password_hash: string
   primary_role_id: string | null
+  preferences: string
   created_at: string
   updated_at: string
 }
@@ -21,6 +22,7 @@ function rowToUser(row: UserRow): User {
     email: row.email,
     isActive: row.is_active === 1,
     primaryRoleId: row.primary_role_id,
+    preferences: JSON.parse(row.preferences) as Record<string, unknown>,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }
@@ -86,6 +88,7 @@ export type UpdateUserFields = {
   email?: string | null
   isActive?: boolean
   passwordHash?: string
+  preferences?: Record<string, unknown>
   updatedAt: string
 }
 
@@ -102,6 +105,7 @@ export async function updateUser(
   if (fields.email !== undefined)       { sets.push('email = ?');        values.push(fields.email) }
   if (fields.isActive !== undefined)    { sets.push('is_active = ?');    values.push(fields.isActive ? 1 : 0) }
   if (fields.passwordHash !== undefined){ sets.push('password_hash = ?');values.push(fields.passwordHash) }
+  if (fields.preferences !== undefined) { sets.push('preferences = ?');  values.push(JSON.stringify(fields.preferences)) }
   sets.push('updated_at = ?')
   values.push(fields.updatedAt)
   values.push(id)

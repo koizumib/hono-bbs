@@ -19,6 +19,8 @@ type BoardRow = {
   default_post_acl: string
   ng_words: string
   category: string
+  icon: string | null
+  color_theme: string | null
   created_at: string
   creator_user_id: string | null
   creator_session_id: string | null
@@ -45,6 +47,8 @@ function rowToBoard(row: BoardRow): Board {
     defaultPostAcl: JSON.parse(row.default_post_acl) as ResourceAcl,
     ngWords: JSON.parse(row.ng_words) as NgWordRule[],
     category: row.category,
+    icon: row.icon,
+    colorTheme: row.color_theme,
     threadCount: row.thread_count,
     createdAt: row.created_at,
     adminMeta: {
@@ -57,7 +61,8 @@ function rowToBoard(row: BoardRow): Board {
 
 // 板ごとのスレ数は保存カラムではなく都度この相関サブクエリで数える (更新のたびに
 // カウンタを持ち直す必要がなく、一覧・詳細どちらでも常に正確な値になる)
-const THREAD_COUNT_SUBQUERY = '(SELECT COUNT(*) FROM threads t WHERE t.board_id = b.id) AS thread_count'
+const THREAD_COUNT_SUBQUERY_EXPR = 'SELECT COUNT(*) FROM threads t WHERE t.board_id = b.id'
+const THREAD_COUNT_SUBQUERY = `(${THREAD_COUNT_SUBQUERY_EXPR}) AS thread_count`
 
 export async function findBoardById(db: DbAdapter, id: string): Promise<Board | null> {
   const row = await db.first<BoardRow>(
@@ -67,21 +72,50 @@ export async function findBoardById(db: DbAdapter, id: string): Promise<Board | 
   return row ? rowToBoard(row) : null
 }
 
-export type BoardCursor = { createdAt: string; id: string }
+export type BoardCursor = { createdAt: string; id: string; threadCount?: number }
+export type BoardListFilters = { q?: string; category?: string; sort?: 'newest' | 'popular' }
+
+// LIKE検索でユーザー入力中の %/_/\ をワイルドカードとして解釈させないためのエスケープ
+function escapeLikePattern(input: string): string {
+  return input.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+}
 
 // limit/cursorページネーション。created_at DESC, id DESC の複合キーでキーセットページングする。
 // limit+1件取得して次ページの有無を判定する (COUNTクエリ不要)。
 export async function findBoardsPage(
   db: DbAdapter,
-  opts: { limit: number; cursor: BoardCursor | null },
+  opts: { limit: number; cursor: BoardCursor | null; filters?: BoardListFilters },
 ): Promise<{ items: Board[]; nextCursorRaw: BoardCursor | null }> {
+  const sort = opts.filters?.sort ?? 'newest'
   const params: unknown[] = []
-  let sql = `SELECT b.*, ${THREAD_COUNT_SUBQUERY} FROM boards b`
-  if (opts.cursor) {
-    sql += ' WHERE (b.created_at < ? OR (b.created_at = ? AND b.id < ?))'
-    params.push(opts.cursor.createdAt, opts.cursor.createdAt, opts.cursor.id)
+  const whereParts: string[] = []
+
+  if (opts.filters?.q) {
+    whereParts.push("(b.name LIKE ? ESCAPE '\\' OR b.id LIKE ? ESCAPE '\\')")
+    const likeParam = `%${escapeLikePattern(opts.filters.q)}%`
+    params.push(likeParam, likeParam)
   }
-  sql += ' ORDER BY b.created_at DESC, b.id DESC LIMIT ?'
+  if (opts.filters?.category) {
+    whereParts.push('b.category = ?')
+    params.push(opts.filters.category)
+  }
+
+  if (opts.cursor) {
+    if (sort === 'popular' && opts.cursor.threadCount !== undefined) {
+      // thread_countはSELECT句のエイリアスなのでWHERE句では使えず、同じ相関サブクエリを繰り返す
+      whereParts.push(
+        `((${THREAD_COUNT_SUBQUERY_EXPR}) < ? OR ((${THREAD_COUNT_SUBQUERY_EXPR}) = ? AND b.id < ?))`,
+      )
+      params.push(opts.cursor.threadCount, opts.cursor.threadCount, opts.cursor.id)
+    } else if (sort !== 'popular') {
+      whereParts.push('(b.created_at < ? OR (b.created_at = ? AND b.id < ?))')
+      params.push(opts.cursor.createdAt, opts.cursor.createdAt, opts.cursor.id)
+    }
+  }
+
+  let sql = `SELECT b.*, ${THREAD_COUNT_SUBQUERY} FROM boards b`
+  if (whereParts.length > 0) sql += ' WHERE ' + whereParts.join(' AND ')
+  sql += sort === 'popular' ? ' ORDER BY thread_count DESC, b.id DESC LIMIT ?' : ' ORDER BY b.created_at DESC, b.id DESC LIMIT ?'
   params.push(opts.limit + 1)
 
   const result = await db.all<BoardRow>(sql, params)
@@ -90,7 +124,9 @@ export async function findBoardsPage(
   const last = pageRows[pageRows.length - 1]
   return {
     items: pageRows.map(rowToBoard),
-    nextCursorRaw: hasMore && last ? { createdAt: last.created_at, id: last.id } : null,
+    nextCursorRaw: hasMore && last
+      ? { createdAt: last.created_at, id: last.id, threadCount: last.thread_count }
+      : null,
   }
 }
 
@@ -111,6 +147,8 @@ export type BoardWriteFields = {
   defaultPostAcl?: ResourceAcl
   ngWords?: NgWordRule[]
   category?: string
+  icon?: string | null
+  colorTheme?: string | null
 }
 
 export async function insertBoard(db: DbAdapter, board: Board): Promise<void> {
@@ -122,8 +160,8 @@ export async function insertBoard(db: DbAdapter, board: Board): Promise<void> {
       default_max_poster_name_length, default_max_poster_option_length,
       default_poster_name, default_id_format,
       default_thread_acl, default_post_acl, ng_words,
-      category, created_at, creator_user_id, creator_session_id, creator_turnstile_session_id
-    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      category, icon, color_theme, created_at, creator_user_id, creator_session_id, creator_turnstile_session_id
+    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       board.id, JSON.stringify(board.acl), board.name, board.description,
       board.maxThreads, board.maxThreadTitleLength,
@@ -131,7 +169,7 @@ export async function insertBoard(db: DbAdapter, board: Board): Promise<void> {
       board.defaultMaxPosterNameLength, board.defaultMaxPosterOptionLength,
       board.defaultPosterName, board.defaultIdFormat,
       JSON.stringify(board.defaultThreadAcl), JSON.stringify(board.defaultPostAcl), JSON.stringify(board.ngWords),
-      board.category, board.createdAt,
+      board.category, board.icon, board.colorTheme, board.createdAt,
       board.adminMeta.creatorUserId, board.adminMeta.creatorSessionId, board.adminMeta.creatorTurnstileSessionId,
     ],
   )
@@ -157,6 +195,8 @@ export async function updateBoard(db: DbAdapter, id: string, f: BoardWriteFields
   if (f.defaultPostAcl !== undefined)            { fields.push('default_post_acl = ?');             values.push(JSON.stringify(f.defaultPostAcl)) }
   if (f.ngWords !== undefined)                  { fields.push('ng_words = ?');                     values.push(JSON.stringify(f.ngWords)) }
   if (f.category !== undefined)                 { fields.push('category = ?');                     values.push(f.category) }
+  if (f.icon !== undefined)                     { fields.push('icon = ?');                         values.push(f.icon) }
+  if (f.colorTheme !== undefined)                { fields.push('color_theme = ?');                  values.push(f.colorTheme) }
 
   if (fields.length === 0) return true
   values.push(id)

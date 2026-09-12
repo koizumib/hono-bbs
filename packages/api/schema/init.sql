@@ -39,6 +39,7 @@ CREATE TABLE users (
   is_active INTEGER NOT NULL DEFAULT 1,         -- アカウント有効フラグ (0=無効)
   password_hash TEXT NOT NULL,
   primary_role_id TEXT,
+  preferences TEXT NOT NULL DEFAULT '{}',       -- クライアント設定の同期用 (JSON、サーバー側は中身を解釈しない)
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (primary_role_id) REFERENCES roles(id)
@@ -73,6 +74,8 @@ CREATE TABLE boards (
   -- 一致した投稿は拒否される (client側のNGワード機能とは別物で、こちらは実際に投稿をブロックする)
   ng_words TEXT NOT NULL DEFAULT '[]',
   category TEXT NOT NULL DEFAULT '',
+  icon TEXT,          -- 板アイコン画像のURL (未設定ならNULL、クライアント側でcolor_themeのアバターにフォールバック)
+  color_theme TEXT,   -- 例: '#7566e6' (アイコン未設定時のアバター背景色)
   created_at TEXT NOT NULL,
   creator_user_id TEXT,
   creator_session_id TEXT,
