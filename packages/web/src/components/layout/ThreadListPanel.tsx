@@ -11,7 +11,7 @@ import { getHistory, forgetThread } from '../../utils/threadHistory'
 import { fuzzyMatch } from '../../utils/fuzzySearch'
 import { cycleSort, type SortState } from '../../utils/sortCycle'
 import { useNewIdsFlash } from '../../hooks/useNewIdsFlash'
-import { calculateMomentum } from '../../utils/momentum'
+import { calculateMomentum, rankMomentum } from '../../utils/momentum'
 import { useThreadHistoryVersionStore } from '../../stores/threadHistoryVersionStore'
 import { useWheelPullRefresh } from '../../hooks/useWheelPullRefresh'
 import PullSpinner from '../ui/PullSpinner'
@@ -42,6 +42,9 @@ export default function ThreadListPanel() {
   const board = data?.data.board
   const rawThreads = data?.data.threads ?? []
   const baseThreads = filterThreads(rawThreads, ngRules)
+  // 勢いは板ごとの相対順位で色付けする(過疎板でも一番勢いがあるスレは赤くなるように)。
+  // NGワードで隠されている分は除いた、この板で実際に見えるスレッド全体を母集団にする
+  const momentumRankMap = useMemo(() => rankMomentum(baseThreads), [baseThreads])
 
   const history = useMemo(() => getHistory(), [historyVersion])
   const readMap = useMemo(() => new Map(history.map(e => [e.threadId, e.lastReadCount])), [history])
@@ -336,6 +339,7 @@ export default function ThreadListPanel() {
               isSelected={selectedIds.has(thread.id)}
               isNew={newThreadIds.has(thread.id)}
               flash={flashingNow.has(thread.id)}
+              momentumRank={momentumRankMap.get(thread.id) ?? 0}
               onClick={(e) => handleThreadClick(thread.id, e)}
             />
           ))}

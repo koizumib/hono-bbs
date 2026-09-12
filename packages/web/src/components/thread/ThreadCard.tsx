@@ -14,14 +14,19 @@ interface ThreadCardProps {
   isNew?: boolean
   /** 新たに現れた直後だけ一瞬光らせる(flash-newアニメーション)。isNewと違い数秒で消える */
   flash?: boolean
+  /** 板の中での勢いの相対順位(0=最下位〜1=最上位)。utils/momentum.tsのrankMomentum参照。
+   *  未指定(単体プレビュー等)の場合は0(無色)扱いにする */
+  momentumRank?: number
 }
 
-export default function ThreadCard({ thread, isActive, isSelected, onClick, compact = false, isNew = false, flash = false }: ThreadCardProps) {
+export default function ThreadCard({ thread, isActive, isSelected, onClick, compact = false, isNew = false, flash = false, momentumRank = 0 }: ThreadCardProps) {
   const momentum = calculateMomentum(thread)
 
   // 勢いレベル: 0=muted → 1=heat-warm → 2=heat-hot(fill) → 3=heat-very-hot(fill)
+  // 固定の勢い値ではなく、板の中での相対順位(momentumRank)で決める。過疎板でも
+  // 一番勢いがあるスレは必ず赤くなり、逆にどんな大手板でも一番勢いが無いスレは無色になる。
   const momentumLevel: 0 | 1 | 2 | 3 =
-    momentum > 50 ? 3 : momentum > 10 ? 2 : momentum > 1 ? 1 : 0
+    momentumRank >= 0.9 ? 3 : momentumRank >= 0.6 ? 2 : momentumRank >= 0.3 ? 1 : 0
   const momentumColorClass =
     momentumLevel === 3 ? 'text-c-heat-very-hot'
     : momentumLevel === 2 ? 'text-c-heat-hot'

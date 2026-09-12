@@ -5,7 +5,7 @@ import { useThreads } from '../hooks/useThreads'
 import { useThreadView } from '../hooks/useThreadView'
 import { useSwipeGesture } from '../hooks/useSwipeGesture'
 import { useNewIdsFlash } from '../hooks/useNewIdsFlash'
-import { calculateMomentum } from '../utils/momentum'
+import { calculateMomentum, rankMomentum } from '../utils/momentum'
 import { useThreadHistoryVersionStore } from '../stores/threadHistoryVersionStore'
 import { cycleSort, type SortState } from '../utils/sortCycle'
 import { useSettingsStore } from '../stores/settingsStore'
@@ -70,6 +70,8 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
   const board = data?.data.board
   const rawThreads = useMemo(() => data?.data.threads ?? [], [data])
   const baseThreads = useMemo(() => filterThreads(rawThreads, ngRules), [rawThreads, ngRules])
+  // 勢いは板ごとの相対順位で色付けする(過疎板でも一番勢いがあるスレは赤くなるように)
+  const momentumRankMap = useMemo(() => rankMomentum(baseThreads), [baseThreads])
 
   const history = useMemo(() => getHistory(), [historyVersion])
 
@@ -295,6 +297,7 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
                 compact
                 isNew={newThreadIds.has(thread.id)}
                 flash={flashingNow.has(thread.id)}
+                momentumRank={momentumRankMap.get(thread.id) ?? 0}
                 onClick={() => onSelectThread(thread.id)}
               />
             ))}
