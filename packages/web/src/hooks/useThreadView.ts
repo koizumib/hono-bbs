@@ -289,11 +289,9 @@ export function useThreadView(
           scrollTopRef.current = el.scrollTop
         }
         setPositioned(true)
-        if (hasNewPosts) {
-          setTimeout(() => setNewPostsVisible(true), 400)
-        } else {
-          setNewPostsVisible(true)
-        }
+        // スクロール位置決定と同時に新着レスも見せる(以前は400ms遅らせていたが、
+        // 開いてから新着が表示されるまでの体感の遅延をなくすため即時にした)
+        setNewPostsVisible(true)
       }, 150)
     }
 
