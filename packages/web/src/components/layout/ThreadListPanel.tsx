@@ -5,6 +5,8 @@ import { useThreads } from '../../hooks/useThreads'
 import { useSettingsStore } from '../../stores/settingsStore'
 import { filterThreads } from '../../utils/filter'
 import ThreadCard from '../thread/ThreadCard'
+import HomeThreadCard from '../home/HomeThreadCard'
+import { mapThreadToHomeCardData } from '../../utils/threadCardData'
 import NgHiddenNotice from '../ui/NgHiddenNotice'
 import { useDragResize } from '../../hooks/useDragResize'
 import { getHistory, forgetThread } from '../../utils/threadHistory'
@@ -28,6 +30,8 @@ export default function ThreadListPanel() {
   const ngRules = useSettingsStore((s) => s.ngRules)
   const threadListAutoRefresh = useSettingsStore((s) => s.threadListAutoRefresh)
   const threadListRefreshInterval = useSettingsStore((s) => s.threadListRefreshInterval)
+  const threadListLayout = useSettingsStore((s) => s.threadListLayout)
+  const setThreadListLayout = useSettingsStore((s) => s.setThreadListLayout)
 
   const [sortState, setSortState] = useState<SortState<SortMode> | null>(null)
   const [unreadOnly, setUnreadOnly] = useState(false)
@@ -224,146 +228,184 @@ export default function ThreadListPanel() {
     >
       {/* 右端ドラッグハンドル */}
       <div
-        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-c-accent/30 transition-colors z-10"
+        className="absolute right-0 top-0 bottom-0 w-2 cursor-col-resize hover:bg-c-accent/30 transition-colors z-20"
         onMouseDown={onMouseDown}
       />
 
-      <div className="p-4 border-b border-c-border space-y-4">
-        <div className="flex flex-col gap-2">
-          <h2 className="font-bold text-slate-900 dark:text-white text-lg">
-            {board ? board.name : boardId ? '読み込み中...' : '板を選択'}
-          </h2>
-          {boardId && (
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="スレッド検索..."
-                className="flex-1 bg-c-surface2 border border-c-border rounded-lg px-2 py-1 text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-c-accent/50 min-w-0"
-              />
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={isRefreshing}
-                className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors rounded-lg flex-shrink-0"
-                title="スレッド一覧を更新"
-              >
-                <span className={`material-symbols-outlined text-lg${isRefreshing ? ' animate-spin' : ''}`}>refresh</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center gap-4 px-4 border-b border-c-border bg-c-surface/50 text-sm font-medium">
-        <button
-          type="button"
-          onClick={() => setUnreadOnly(!unreadOnly)}
-          className={`relative py-2.5 transition-colors ${unreadOnly ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
-        >
-          未読
-          {unreadOnly && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />}
-        </button>
-        {([
-          { mode: 'momentum' as const, label: '勢い順' },
-          { mode: 'newest' as const, label: '新しい順' },
-        ]).map(({ mode, label }) => {
-          const active = sortState?.mode === mode
-          return (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => setSortState((s) => cycleSort(s, mode))}
-              className={`relative py-2.5 flex items-center gap-0.5 transition-colors ${active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
-            >
-              {label}
-              <span className={`material-symbols-outlined text-sm leading-none ${active ? '' : 'invisible'}`}>
-                {active && sortState.dir === 'desc' ? 'arrow_downward' : 'arrow_upward'}
-              </span>
-              {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />}
-            </button>
-          )
-        })}
-      </div>
-
-      <NgHiddenNotice count={rawThreads.length - baseThreads.length} />
-
-      {selectedIds.size > 0 && (
-        <div className="flex items-center gap-2 px-3 py-1.5 bg-c-accent/10 border-b border-c-accent/20 flex-shrink-0">
-          <span className="text-[10px] text-c-accent font-bold flex-1">{selectedIds.size}件選択中</span>
-          <button
-            type="button"
-            onClick={() => {
-              if (boardId) selectedIds.forEach(id => forgetThread(queryClient, boardId, id))
-              const wasViewingSelected = threadId != null && selectedIds.has(threadId)
-              setSelectedIds(new Set())
-              if (wasViewingSelected && boardId) navigate(`/${boardId}`)
-            }}
-            className="text-[10px] text-red-400 hover:text-red-300 font-bold flex items-center gap-0.5"
-          >
-            <span className="material-symbols-outlined text-sm">delete</span>
-            履歴削除
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedIds(new Set())}
-            className="text-[10px] text-slate-400 hover:text-slate-300"
-          >
-            <span className="material-symbols-outlined text-sm">close</span>
-          </button>
-        </div>
-      )}
-
       <div className="flex-1 relative overflow-hidden">
         <div
-          className="absolute left-0 right-0 top-0 flex justify-center pointer-events-none z-10"
+          className="absolute left-0 right-0 top-0 flex justify-center pointer-events-none z-20"
           style={{ opacity: 0, transform: `translateY(${PULL_HIDDEN_Y}px)` }}
           ref={listPullIndicatorRef}
         >
           <PullSpinner iconRef={listPullIconRef} />
         </div>
-      <div className="h-full overflow-y-auto custom-scrollbar" onWheel={handleWheelRefresh}>
-        {!boardId ? (
-          <div className="p-8 text-center text-slate-500 text-sm">
-            左のサイドバーから板を選択してください
-          </div>
-        ) : isError ? (
-          <div className="p-8 text-center text-slate-500 text-sm">データが取得できませんでした</div>
-        ) : isLoading ? (
-          <div className="p-8 text-center text-slate-500 text-sm">読み込み中...</div>
-        ) : threads.length === 0 ? (
-          <div className="p-8 text-center text-slate-500 text-sm">スレッドがありません</div>
-        ) : (
-          <div className="p-2 flex flex-col gap-1.5">
-          {threads.map((thread) => (
-            <ThreadCard
-              key={thread.id}
-              thread={thread}
-              isActive={threadId === thread.id}
-              isSelected={selectedIds.has(thread.id)}
-              isNew={newThreadIds.has(thread.id)}
-              flash={flashingNow.has(thread.id)}
-              momentumRank={momentumRankMap.get(thread.id) ?? 0}
-              onClick={(e) => handleThreadClick(thread.id, e)}
-            />
-          ))}
-          </div>
-        )}
-      </div>
-      </div>
 
-      {boardId && (
-        <div className="p-3 border-t border-c-border flex-shrink-0">
-          <button
-            onClick={() => navigate(`/new-thread/${boardId}`)}
-            className="w-full bg-c-accent hover:opacity-90 text-[var(--c-accent-text)] font-medium py-2 px-4 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
-          >
-            <span className="material-symbols-outlined text-sm">add_comment</span>
-            新規スレッド作成
-          </button>
+        {/* ヘッダー/フッターをスクロール領域の先頭・末尾に sticky で配置することで、
+            すりガラス(半透明+ぼかし)越しにスレッドカードがうっすら透けて見えるようにする */}
+        <div className="h-full overflow-y-auto custom-scrollbar flex flex-col" onWheel={handleWheelRefresh}>
+          <div className="sticky top-0 z-10 frosted-glass flex-shrink-0">
+            <div className="p-4 border-b border-c-border space-y-4">
+              <div className="flex flex-col gap-2">
+                <h2 className="font-bold text-slate-900 dark:text-white text-lg">
+                  {board ? board.name : boardId ? '読み込み中...' : '板を選択'}
+                </h2>
+                {boardId && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="スレッド検索..."
+                      className="flex-1 bg-c-surface2 border border-c-border rounded-lg px-2 py-1 text-xs text-slate-700 dark:text-slate-200 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-c-accent/50 min-w-0"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setThreadListLayout(threadListLayout === 'compact' ? 'feed' : 'compact')}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors rounded-lg flex-shrink-0"
+                      title={threadListLayout === 'compact' ? 'カード表示に切り替え' : '一覧表示に切り替え'}
+                    >
+                      <span className="material-symbols-outlined text-lg">
+                        {threadListLayout === 'compact' ? 'view_agenda' : 'view_list'}
+                      </span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRefresh}
+                      disabled={isRefreshing}
+                      className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors rounded-lg flex-shrink-0"
+                      title="スレッド一覧を更新"
+                    >
+                      <span className={`material-symbols-outlined text-lg${isRefreshing ? ' animate-spin' : ''}`}>refresh</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-4 px-4 border-b border-c-border text-sm font-medium">
+              <button
+                type="button"
+                onClick={() => setUnreadOnly(!unreadOnly)}
+                className={`relative py-2.5 transition-colors ${unreadOnly ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+              >
+                未読
+                {unreadOnly && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />}
+              </button>
+              {([
+                { mode: 'momentum' as const, label: '勢い順' },
+                { mode: 'newest' as const, label: '新しい順' },
+              ]).map(({ mode, label }) => {
+                const active = sortState?.mode === mode
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => setSortState((s) => cycleSort(s, mode))}
+                    className={`relative py-2.5 flex items-center gap-0.5 transition-colors ${active ? 'text-c-accent' : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'}`}
+                  >
+                    {label}
+                    <span className={`material-symbols-outlined text-sm leading-none ${active ? '' : 'invisible'}`}>
+                      {active && sortState.dir === 'desc' ? 'arrow_downward' : 'arrow_upward'}
+                    </span>
+                    {active && <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-c-accent rounded-full" />}
+                  </button>
+                )
+              })}
+            </div>
+
+            <NgHiddenNotice count={rawThreads.length - baseThreads.length} />
+
+            {selectedIds.size > 0 && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-c-accent/10 border-b border-c-accent/20">
+                <span className="text-[10px] text-c-accent font-bold flex-1">{selectedIds.size}件選択中</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (boardId) selectedIds.forEach(id => forgetThread(queryClient, boardId, id))
+                    const wasViewingSelected = threadId != null && selectedIds.has(threadId)
+                    setSelectedIds(new Set())
+                    if (wasViewingSelected && boardId) navigate(`/${boardId}`)
+                  }}
+                  className="text-[10px] text-red-400 hover:text-red-300 font-bold flex items-center gap-0.5"
+                >
+                  <span className="material-symbols-outlined text-sm">delete</span>
+                  履歴削除
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="text-[10px] text-slate-400 hover:text-slate-300"
+                >
+                  <span className="material-symbols-outlined text-sm">close</span>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="flex-1">
+            {!boardId ? (
+              <div className="p-8 text-center text-slate-500 text-sm">
+                左のサイドバーから板を選択してください
+              </div>
+            ) : isError ? (
+              <div className="p-8 text-center text-slate-500 text-sm">データが取得できませんでした</div>
+            ) : isLoading ? (
+              <div className="p-8 text-center text-slate-500 text-sm">読み込み中...</div>
+            ) : threads.length === 0 ? (
+              <div className="p-8 text-center text-slate-500 text-sm">スレッドがありません</div>
+            ) : threadListLayout === 'feed' ? (
+              <div className="p-2 flex flex-col gap-2">
+              {threads.map((thread) => {
+                const readCount = readMap.get(thread.id)
+                const unreadCount = readCount !== undefined && readCount < thread.postCount
+                  ? thread.postCount - readCount
+                  : undefined
+                return (
+                  <HomeThreadCard
+                    key={thread.id}
+                    data={mapThreadToHomeCardData(thread, board)}
+                    momentumRank={momentumRankMap.get(thread.id) ?? 0}
+                    unreadCount={unreadCount}
+                    isActive={threadId === thread.id}
+                    isNew={newThreadIds.has(thread.id)}
+                    flash={flashingNow.has(thread.id)}
+                    onClick={(e) => handleThreadClick(thread.id, e)}
+                  />
+                )
+              })}
+              </div>
+            ) : (
+              <div className="p-2 flex flex-col gap-1.5">
+              {threads.map((thread) => (
+                <ThreadCard
+                  key={thread.id}
+                  thread={thread}
+                  isActive={threadId === thread.id}
+                  isSelected={selectedIds.has(thread.id)}
+                  isNew={newThreadIds.has(thread.id)}
+                  flash={flashingNow.has(thread.id)}
+                  momentumRank={momentumRankMap.get(thread.id) ?? 0}
+                  onClick={(e) => handleThreadClick(thread.id, e)}
+                />
+              ))}
+              </div>
+            )}
+          </div>
+
+          {boardId && (
+            <div className="sticky bottom-0 z-10 frosted-glass border-t border-c-border p-3 flex-shrink-0">
+              <button
+                onClick={() => navigate(`/new-thread/${boardId}`)}
+                className="w-full bg-c-accent hover:opacity-90 text-[var(--c-accent-text)] font-medium py-2 px-4 rounded-lg transition-all shadow-lg shadow-blue-900/20 flex items-center justify-center gap-2"
+              >
+                <span className="material-symbols-outlined text-sm">add_comment</span>
+                新規スレッド作成
+              </button>
+            </div>
+          )}
         </div>
-      )}
+      </div>
     </section>
   )
 }

@@ -43,9 +43,10 @@ interface SettingsState {
   defaultPosterName: string
   defaultSubInfo: string
   replyLayout: 'bottom' | 'right'
+  /** スレッド一覧の表示形式。compact=既存の一覧行、feed=ホーム画面と同じカードUI */
+  threadListLayout: 'compact' | 'feed'
   threadListAutoRefresh: boolean
   threadListRefreshInterval: number
-  hiddenBoardIds: string[]
   favoriteBoardIds: string[]
   /** スマホのスワイプジェスチャーの感度 (1=鈍い〜5=敏感、既定3) */
   gestureSensitivity: 1 | 2 | 3 | 4 | 5
@@ -63,9 +64,9 @@ interface SettingsState {
   setDefaultPosterName: (s: string) => void
   setDefaultSubInfo: (s: string) => void
   setReplyLayout: (l: 'bottom' | 'right') => void
+  setThreadListLayout: (l: 'compact' | 'feed') => void
   setThreadListAutoRefresh: (v: boolean) => void
   setThreadListRefreshInterval: (n: number) => void
-  setHiddenBoardIds: (ids: string[]) => void
   toggleFavoriteBoard: (boardId: string) => void
   setGestureSensitivity: (level: 1 | 2 | 3 | 4 | 5) => void
   /** ログイン時、サーバーに保存済みの設定(あるフィールドだけ)を適用する */
@@ -77,8 +78,8 @@ interface SettingsState {
 export const SYNCED_SETTINGS_KEYS = [
   'scheme', 'pattern', 'fontSize', 'safeSearch', 'ngRules', 'notifications',
   'historyMaxGenerations', 'postHistoryMaxGenerations', 'defaultPosterName', 'defaultSubInfo',
-  'replyLayout', 'threadListAutoRefresh', 'threadListRefreshInterval',
-  'hiddenBoardIds', 'favoriteBoardIds', 'gestureSensitivity',
+  'replyLayout', 'threadListLayout', 'threadListAutoRefresh', 'threadListRefreshInterval',
+  'favoriteBoardIds', 'gestureSensitivity',
 ] as const satisfies readonly (keyof SettingsState)[]
 
 export type SyncedSettings = Pick<SettingsState, typeof SYNCED_SETTINGS_KEYS[number]>
@@ -116,9 +117,9 @@ export const useSettingsStore = create<SettingsState>()(
       defaultPosterName: '',
       defaultSubInfo: '',
       replyLayout: 'bottom',
+      threadListLayout: 'compact',
       threadListAutoRefresh: false,
       threadListRefreshInterval: 30,
-      hiddenBoardIds: [],
       favoriteBoardIds: [],
       gestureSensitivity: 3,
       setScheme: (scheme) => set({ scheme }),
@@ -140,9 +141,9 @@ export const useSettingsStore = create<SettingsState>()(
       setDefaultPosterName: (defaultPosterName) => set({ defaultPosterName }),
       setDefaultSubInfo: (defaultSubInfo) => set({ defaultSubInfo }),
       setReplyLayout: (replyLayout) => set({ replyLayout }),
+      setThreadListLayout: (threadListLayout) => set({ threadListLayout }),
       setThreadListAutoRefresh: (threadListAutoRefresh) => set({ threadListAutoRefresh }),
       setThreadListRefreshInterval: (threadListRefreshInterval) => set({ threadListRefreshInterval }),
-      setHiddenBoardIds: (hiddenBoardIds) => set({ hiddenBoardIds }),
       toggleFavoriteBoard: (boardId) =>
         set((s) => ({
           favoriteBoardIds: s.favoriteBoardIds.includes(boardId)

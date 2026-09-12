@@ -17,6 +17,8 @@ import { recordBoardView } from '../utils/boardHistory'
 import { getThreadPosts } from '../api/posts'
 import { reportThread } from '../api/threads'
 import ThreadCard from '../components/thread/ThreadCard'
+import HomeThreadCard from '../components/home/HomeThreadCard'
+import { mapThreadToHomeCardData } from '../utils/threadCardData'
 import PostArticle from '../components/post/PostArticle'
 import PostPopup from '../components/post/PostPopup'
 import Minimap from '../components/post/Minimap'
@@ -57,6 +59,8 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
   const navigate = useNavigate()
   const { data, isLoading, isError, refetch, dataUpdatedAt } = useThreads(boardId)
   const ngRules = useSettingsStore((s) => s.ngRules)
+  const threadListLayout = useSettingsStore((s) => s.threadListLayout)
+  const setThreadListLayout = useSettingsStore((s) => s.setThreadListLayout)
   const lastRefreshRef = useRef(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
 
@@ -233,6 +237,15 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
             <div className="flex items-center gap-0.5">
               <button
                 className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors"
+                onClick={() => setThreadListLayout(threadListLayout === 'compact' ? 'feed' : 'compact')}
+                title={threadListLayout === 'compact' ? 'カード表示に切り替え' : '一覧表示に切り替え'}
+              >
+                <span className="material-symbols-outlined text-xl">
+                  {threadListLayout === 'compact' ? 'view_agenda' : 'view_list'}
+                </span>
+              </button>
+              <button
+                className="p-2 rounded text-slate-400 active:bg-c-accent/10 dark:active:bg-c-accent/20 transition-colors"
                 onClick={() => navigate(`/new-thread/${boardId}`)}
               >
                 <span className="material-symbols-outlined text-xl">edit_square</span>
@@ -289,6 +302,26 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
             <div className="p-6 text-center text-slate-500 text-sm">読み込み中...</div>
           ) : threads.length === 0 ? (
             <div className="p-6 text-center text-slate-500 text-sm">スレッドがありません</div>
+          ) : threadListLayout === 'feed' ? (
+            <div className="p-1.5 flex flex-col gap-2">
+            {threads.map((thread) => {
+              const entry = history.find((e) => e.boardId === boardId && e.threadId === thread.id)
+              const unreadCount = entry && entry.lastReadCount < thread.postCount
+                ? thread.postCount - entry.lastReadCount
+                : undefined
+              return (
+                <HomeThreadCard
+                  key={thread.id}
+                  data={mapThreadToHomeCardData(thread, board)}
+                  momentumRank={momentumRankMap.get(thread.id) ?? 0}
+                  unreadCount={unreadCount}
+                  isNew={newThreadIds.has(thread.id)}
+                  flash={flashingNow.has(thread.id)}
+                  onClick={() => onSelectThread(thread.id)}
+                />
+              )
+            })}
+            </div>
           ) : (
             <div className="p-1.5 flex flex-col gap-1.5">
             {threads.map((thread) => (
@@ -769,6 +802,9 @@ const MobileThreadViewInner = forwardRef<MobileThreadViewInnerHandle, MobileThre
                   // 不可視なので、見える(newPostsVisible=true)タイミングに合わせて
                   // flash-newアニメーションを発火させる
                   isNew={newPostsVisible && newPostIds.has(post.id)}
+                  boardId={boardId}
+                  threadId={threadId}
+                  threadTitle={thread?.title}
                 />
               </>
             )
