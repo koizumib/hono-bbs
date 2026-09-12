@@ -35,6 +35,7 @@ export default function ThreadListPanel() {
   // ローカルstateではなく共有ストアの更新カウンタを使う
   const historyVersion = useThreadHistoryVersionStore((s) => s.version)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [isRefreshing, setIsRefreshing] = useState(false)
   const lastClickedIdRef = useRef<string | null>(null)
   const lastRefreshRef = useRef(0)
 
@@ -77,14 +78,33 @@ export default function ThreadListPanel() {
   // enabled: !isLoadingを渡さないと、ローディング中の一時的な空配列を「初回の基準」として
   // 記録した直後に本物のデータが届き、全件が新着と誤検知されてしまう
   // (ブラウザリロード時に全スレッドが光る不具合の原因だった)。
-  const { newSinceLastLoad: newThreadIds, flashingNow } = useNewIdsFlash(rawThreads.map((t) => t.id), dataUpdatedAt, boardId, undefined, !isLoading)
+  const { newSinceLastLoad: newThreadIdsRaw, flashingNow } = useNewIdsFlash(rawThreads.map((t) => t.id), dataUpdatedAt, boardId, undefined, !isLoading)
+
+  // 新着スレッドをクリックして開いたら、そのスレッドの新着ドットは消す
+  // (次に一覧を再取得するまで待たせる必要はない)
+  const [dismissedNewIds, setDismissedNewIds] = useState<Set<string>>(new Set())
+  useEffect(() => {
+    if (!threadId || !newThreadIdsRaw.has(threadId) || dismissedNewIds.has(threadId)) return
+    setDismissedNewIds((prev) => new Set(prev).add(threadId))
+  }, [threadId, newThreadIdsRaw, dismissedNewIds])
+  const newThreadIds = useMemo(() => {
+    if (dismissedNewIds.size === 0) return newThreadIdsRaw
+    const result = new Set(newThreadIdsRaw)
+    for (const id of dismissedNewIds) result.delete(id)
+    return result
+  }, [newThreadIdsRaw, dismissedNewIds])
 
   // F5 / Ctrl+R でスレッド一覧を更新（5秒クールダウン）
   const handleRefresh = useCallback(async () => {
     const now = Date.now()
     if (now - lastRefreshRef.current < 5000) return
     lastRefreshRef.current = now
-    await refetch()
+    setIsRefreshing(true)
+    try {
+      await refetch()
+    } finally {
+      setIsRefreshing(false)
+    }
   }, [refetch])
 
   // PC版: マウスホイールでの引っ張り更新（スマホのタッチ版と同じ丸矢印アニメーション）。
@@ -167,7 +187,13 @@ export default function ThreadListPanel() {
       // 通常クリック: 選択解除してスレッド表示
       setSelectedIds(new Set())
       lastClickedIdRef.current = id
-      navigate(`/${boardId}/${id}`)
+      if (id === threadId) {
+        // 既に表示中のスレッドを再度クリックした場合はnavigateが実質no-opになるため、
+        // 代わりにそのスレッドの投稿一覧を明示的に再取得して新着レスを反映する
+        void queryClient.refetchQueries({ queryKey: ['posts', boardId, id] })
+      } else {
+        navigate(`/${boardId}/${id}`)
+      }
     }
   }
 
@@ -207,10 +233,11 @@ export default function ThreadListPanel() {
               <button
                 type="button"
                 onClick={handleRefresh}
+                disabled={isRefreshing}
                 className="p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-white transition-colors rounded-lg flex-shrink-0"
                 title="スレッド一覧を更新"
               >
-                <span className="material-symbols-outlined text-lg">refresh</span>
+                <span className={`material-symbols-outlined text-lg${isRefreshing ? ' animate-spin' : ''}`}>refresh</span>
               </button>
             </div>
           )}
