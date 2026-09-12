@@ -18,6 +18,8 @@ function boardToFormState(board: Board): CreateBoardInput {
     name: board.name,
     description: board.description ?? '',
     category: board.category ?? '',
+    icon: board.icon ?? null,
+    colorTheme: board.colorTheme ?? null,
     maxThreads: board.maxThreads,
     maxThreadTitleLength: board.maxThreadTitleLength,
     defaultMaxPosts: board.defaultMaxPosts,
@@ -48,6 +50,8 @@ const NEW_BOARD_DEFAULT: CreateBoardInput = {
   name: '',
   description: '',
   category: '',
+  icon: null,
+  colorTheme: null,
   maxThreads: 1000,
   maxThreadTitleLength: 200,
   defaultMaxPosts: 1000,
@@ -155,6 +159,36 @@ export default function BoardFormPage() {
           onChange={(e) => setField('category', e.target.value)}
           className="mt-1 w-full rounded border border-border-dark bg-surface-dark-2 px-2 py-1.5"
         />
+      </label>
+
+      <label className="text-sm">
+        アイコンURL(未設定ならカラーテーマ背景+頭文字のアバターになります)
+        <input
+          type="text"
+          value={form.icon ?? ''}
+          onChange={(e) => setField('icon', e.target.value || null)}
+          placeholder="https://..."
+          className="mt-1 w-full rounded border border-border-dark bg-surface-dark-2 px-2 py-1.5"
+        />
+      </label>
+
+      <label className="text-sm">
+        カラーテーマ(アイコン未設定時のアバター背景色)
+        <div className="mt-1 flex items-center gap-2">
+          <input
+            type="color"
+            value={form.colorTheme ?? '#7566e6'}
+            onChange={(e) => setField('colorTheme', e.target.value)}
+            className="h-9 w-12 rounded border border-border-dark bg-surface-dark-2"
+          />
+          <input
+            type="text"
+            value={form.colorTheme ?? ''}
+            onChange={(e) => setField('colorTheme', e.target.value || null)}
+            placeholder="#7566e6"
+            className="w-full rounded border border-border-dark bg-surface-dark-2 px-2 py-1.5"
+          />
+        </div>
       </label>
 
       <label className="text-sm">
