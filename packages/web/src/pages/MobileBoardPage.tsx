@@ -39,7 +39,6 @@ type SortMode = 'momentum' | 'newest'
 
 interface MobileThreadListPanelProps {
   boardId: string | undefined
-  currentThreadId: string | undefined
   onMenuClick: () => void
   onSelectThread: (threadId: string) => void
 }
@@ -51,7 +50,6 @@ export interface MobileThreadListPanelHandle {
 
 const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, MobileThreadListPanelProps>(function MobileThreadListPanel({
   boardId,
-  currentThreadId,
   onMenuClick,
   onSelectThread,
 }, ref) {
@@ -287,7 +285,9 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
               <ThreadCard
                 key={thread.id}
                 thread={thread}
-                isActive={currentThreadId === thread.id}
+                // モバイルは単一パネル遷移(PCの分割表示と違い、一覧に戻った時点でどのスレッドも
+                // 「表示中」ではない)なので、直前まで開いていたスレッドをハイライトし続けない
+                isActive={false}
                 isSelected={false}
                 compact
                 isNew={newThreadIds.has(thread.id)}
@@ -1136,7 +1136,6 @@ export default function MobileBoardPage() {
         <MobileThreadListPanel
           ref={threadListPanelRef}
           boardId={boardId}
-          currentThreadId={threadId}
           onMenuClick={handleMenuClick}
           onSelectThread={handleSelectThread}
         />
