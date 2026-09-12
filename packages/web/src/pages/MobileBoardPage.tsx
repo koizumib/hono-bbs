@@ -54,7 +54,7 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
   onSelectThread,
 }, ref) {
   const navigate = useNavigate()
-  const { data, isLoading, isError, refetch } = useThreads(boardId)
+  const { data, isLoading, isError, refetch, dataUpdatedAt } = useThreads(boardId)
   const ngRules = useSettingsStore((s) => s.ngRules)
   const lastRefreshRef = useRef(0)
   const [isRefreshing, setIsRefreshing] = useState(false)
@@ -109,7 +109,10 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
   // 「表示から一時的に消えていただけ」のスレッドまで新着扱いされてしまう
   // (再表示のたびにほぼ全件が誤って光るバグの原因だった)。サーバーから
   // 取得した生データ(rawThreads)を渡し、UI操作では変化しない基準にする。
-  const newThreadIds = useNewIdsFlash(useMemo(() => rawThreads.map((t) => t.id), [rawThreads]), boardId)
+  // enabled: !isLoadingを渡さないと、ローディング中の一時的な空配列を「初回の基準」として
+  // 記録した直後に本物のデータが届き、全件が新着と誤検知されてしまう
+  // (ブラウザリロード時に全スレッドが光る不具合の原因だった)。
+  const { newSinceLastLoad: newThreadIds, flashingNow } = useNewIdsFlash(useMemo(() => rawThreads.map((t) => t.id), [rawThreads]), dataUpdatedAt, boardId, undefined, !isLoading)
 
   // プルリフレッシュ側が実際の完了タイミングを待てるように、refetchのPromiseを返す
   const handleRefresh = useCallback(async () => {
@@ -291,6 +294,7 @@ const MobileThreadListPanel = memo(forwardRef<MobileThreadListPanelHandle, Mobil
                 isSelected={false}
                 compact
                 isNew={newThreadIds.has(thread.id)}
+                flash={flashingNow.has(thread.id)}
                 onClick={() => onSelectThread(thread.id)}
               />
             ))}

@@ -23,7 +23,7 @@ export default function ThreadListPanel() {
   const { boardId, threadId } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { data, isLoading, isError, refetch } = useThreads(boardId)
+  const { data, isLoading, isError, refetch, dataUpdatedAt } = useThreads(boardId)
   const ngRules = useSettingsStore((s) => s.ngRules)
   const threadListAutoRefresh = useSettingsStore((s) => s.threadListAutoRefresh)
   const threadListRefreshInterval = useSettingsStore((s) => s.threadListRefreshInterval)
@@ -74,7 +74,10 @@ export default function ThreadListPanel() {
   // (再表示のたびにほぼ全件が誤って光るバグの原因だった)。サーバーから
   // 取得した生データ(rawThreads)を渡し、UI操作では変化しない基準にする。
   // (useNewIdsFlash内部でids配列をjoinして安定した依存値にしているので、ここではメモ化不要)
-  const newThreadIds = useNewIdsFlash(rawThreads.map((t) => t.id), boardId)
+  // enabled: !isLoadingを渡さないと、ローディング中の一時的な空配列を「初回の基準」として
+  // 記録した直後に本物のデータが届き、全件が新着と誤検知されてしまう
+  // (ブラウザリロード時に全スレッドが光る不具合の原因だった)。
+  const { newSinceLastLoad: newThreadIds, flashingNow } = useNewIdsFlash(rawThreads.map((t) => t.id), dataUpdatedAt, boardId, undefined, !isLoading)
 
   // F5 / Ctrl+R でスレッド一覧を更新（5秒クールダウン）
   const handleRefresh = useCallback(async () => {
@@ -301,6 +304,7 @@ export default function ThreadListPanel() {
               isActive={threadId === thread.id}
               isSelected={selectedIds.has(thread.id)}
               isNew={newThreadIds.has(thread.id)}
+              flash={flashingNow.has(thread.id)}
               onClick={(e) => handleThreadClick(thread.id, e)}
             />
           ))}

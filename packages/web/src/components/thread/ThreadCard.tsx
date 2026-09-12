@@ -10,11 +10,13 @@ interface ThreadCardProps {
   isSelected: boolean
   onClick: (e: React.MouseEvent) => void
   compact?: boolean
-  /** 更新で新しく取得できたスレッドの場合、描画時に一瞬光らせる */
+  /** 前回の一覧取得時から新たに現れたスレッド。次に一覧を再取得するまでドット表示が消えない */
   isNew?: boolean
+  /** 新たに現れた直後だけ一瞬光らせる(flash-newアニメーション)。isNewと違い数秒で消える */
+  flash?: boolean
 }
 
-export default function ThreadCard({ thread, isActive, isSelected, onClick, compact = false, isNew = false }: ThreadCardProps) {
+export default function ThreadCard({ thread, isActive, isSelected, onClick, compact = false, isNew = false, flash = false }: ThreadCardProps) {
   const momentum = calculateMomentum(thread)
 
   // 勢いレベル: 0=muted → 1=heat-warm → 2=heat-hot(fill) → 3=heat-very-hot(fill)
@@ -51,7 +53,7 @@ export default function ThreadCard({ thread, isActive, isSelected, onClick, comp
   return (
     <div
       onClick={onClick}
-      className={`${compact ? 'px-3 py-2' : 'px-4 py-3'} cursor-pointer transition-colors relative border rounded-[var(--card-radius)] ${isNew ? 'flash-new' : ''} ${
+      className={`${compact ? 'px-3 py-2' : 'px-4 py-3'} cursor-pointer transition-colors relative border rounded-[var(--card-radius)] ${flash ? 'flash-new' : ''} ${
         selected
           ? 'bg-[var(--card-selected-bg)] border-[var(--card-selected-border-color)]'
           : 'bg-[var(--card-bg)] border-[var(--card-border-color)] hover:bg-c-surface2'
