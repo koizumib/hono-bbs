@@ -204,9 +204,9 @@ export type AppEnv = {
     IMAGE_TTL_DAYS?: string             // 画像保持日数 (0=無期限)
     ADMIN_API_KEY?: string              // 画像管理エンドポイント用
     // ── レート制限 (スレッド/投稿作成) ────────────────────────────
-    THREAD_CREATE_RATE_LIMIT?: string   // ウィンドウ内の最大スレッド作成数 (未設定時は既定5件。明示的に"0"で無制限)
+    THREAD_CREATE_RATE_LIMIT?: string   // ウィンドウ内の最大スレッド作成数 (未設定時は既定30件。明示的に"0"で無制限)
     THREAD_CREATE_RATE_WINDOW?: string  // ウィンドウ幅 (分, デフォルト: 60)
-    POST_CREATE_RATE_LIMIT?: string     // ウィンドウ内の最大投稿数 (未設定時は既定20件。明示的に"0"で無制限)
+    POST_CREATE_RATE_LIMIT?: string     // ウィンドウ内の最大投稿数 (未設定時は既定120件。明示的に"0"で無制限)
     POST_CREATE_RATE_WINDOW?: string    // ウィンドウ幅 (分, デフォルト: 60)
     TURNSTILE_VERIFY_RATE_LIMIT?: string   // ウィンドウ内の最大Turnstile検証試行数 (0=無制限)
     TURNSTILE_VERIFY_RATE_WINDOW?: string  // ウィンドウ幅 (分, デフォルト: 60)

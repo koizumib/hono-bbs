@@ -25,7 +25,7 @@ const threadCreateRateLimit = rateLimit({
   windowEnvKey: 'THREAD_CREATE_RATE_WINDOW',
   // THREAD_CREATE_RATE_LIMIT が未設定のときの既定値 (1時間あたり)。
   // 明示的に "0" を設定した運用者だけが無制限を選べる。
-  defaultLimit: 5,
+  defaultLimit: 30,
 })
 
 // /boards/:boardId/threads にマウントされる

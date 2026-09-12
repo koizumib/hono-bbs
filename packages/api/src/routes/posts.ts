@@ -25,7 +25,7 @@ const postCreateRateLimit = rateLimit({
   windowEnvKey: 'POST_CREATE_RATE_WINDOW',
   // POST_CREATE_RATE_LIMIT が未設定のときの既定値 (1時間あたり)。
   // 明示的に "0" を設定した運用者だけが無制限を選べる。
-  defaultLimit: 20,
+  defaultLimit: 120,
 })
 
 // /boards/:boardId/threads/:threadId/posts にマウントされる
