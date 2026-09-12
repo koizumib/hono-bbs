@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState, useEffect, useCallback } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { usePosts } from './usePosts'
 import { useSettingsStore } from '../stores/settingsStore'
 import { filterPosts } from '../utils/filter'
@@ -26,6 +27,8 @@ export function useThreadView(
   options?: UseThreadViewOptions,
 ) {
   const { data, isLoading, isFetching, isError, refetch } = usePosts(boardId, threadId)
+  const location = useLocation()
+  const navigate = useNavigate()
   const ngRules = useSettingsStore((s) => s.ngRules)
   const historyMaxGenerations = useSettingsStore((s) => s.historyMaxGenerations)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
@@ -267,6 +270,21 @@ export function useThreadView(
       setTimeout(() => {
         const el = scrollAreaRef.current
         if (el) {
+          // URLに#post-N(画像ポップアップの本文クリック等からの「そのレスへジャンプ」)が
+          // 付いている場合は、通常の続き読み復元より優先してそこへスクロールする。
+          // 一度使ったら消して、再読み込みや戻る操作で毎回ジャンプし直さないようにする。
+          const hashMatch = window.location.hash.match(/^#post-(\d+)$/)
+          if (hashMatch) {
+            const targetEl = document.getElementById(`post-${hashMatch[1]}`)
+            if (targetEl) {
+              targetEl.scrollIntoView({ behavior: 'instant', block: 'start' })
+              scrollTopRef.current = el.scrollTop
+              navigate(location.pathname + location.search, { replace: true })
+              setPositioned(true)
+              setNewPostsVisible(true)
+              return
+            }
+          }
           // 前回、保存済みスクロール位置がない(=短いスレッドで最後まで表示されていた)
           // か、ほぼ最下部まで読んでいた場合は「読み終えていた」とみなす。
           const wasCaughtUp =
@@ -307,6 +325,24 @@ export function useThreadView(
     return () => clearTimeout(safety)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFetching, rawPosts])
+
+  // 上の初回位置決めエフェクトは(didInitialScrollRefで)マウントにつき一度しか走らない。
+  // 画像ポップアップの本文リンク等から「今まさに表示中のスレッド」自身に#post-Nを
+  // 付けて遷移してきた場合(threadIdが変わらないためThreadViewは再マウントされない)は
+  // 上のエフェクトが再実行されないため、ここで独立してハッシュの変化を監視し、
+  // 初回位置決めが既に完了している(=スレッドは表示済み、ちらつきの心配は無い)場合に限り
+  // その都度スクロールする。
+  useEffect(() => {
+    if (!didInitialScrollRef.current) return
+    const hashMatch = location.hash.match(/^#post-(\d+)$/)
+    if (!hashMatch) return
+    const targetEl = document.getElementById(`post-${hashMatch[1]}`)
+    if (!targetEl) return
+    targetEl.scrollIntoView({ behavior: 'instant', block: 'start' })
+    const el = scrollAreaRef.current
+    if (el) scrollTopRef.current = el.scrollTop
+    navigate(location.pathname + location.search, { replace: true })
+  }, [location.hash, location.pathname, location.search, navigate])
 
   // スクロール位置を ref で追跡（onScroll ハンドラを返して消費側で直接アタッチ）
   const handleScroll = useCallback(() => {

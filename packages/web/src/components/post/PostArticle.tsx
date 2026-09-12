@@ -1,14 +1,15 @@
 import { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import type { Post } from '../../api/types'
 import { fullDateTime } from '../../utils/formatDate'
-import { tokenizeContent, parseAnchorsFromContent } from '../../utils/anchorParse'
+import { parseAnchorsFromContent } from '../../utils/anchorParse'
 import { extractMedia, getYouTubeVideoId } from '../../utils/urlExtract'
 import { heatClass } from '../../utils/heatColor'
 import { env } from '../../config/env'
 import { canDo } from '../../utils/permissions'
 import { useAuthStore } from '../../stores/authStore'
-import { downloadImageUrl } from '../../utils/downloadImage'
 import { useBackGestureClose } from '../../hooks/useBackGestureClose'
+import { renderPostContentParts } from '../../utils/postContentRender'
+import ImageLightbox from '../ui/ImageLightbox'
 import AACanvas from './AACanvas'
 
 export interface PostHandlers {
@@ -35,19 +36,11 @@ interface PostArticleProps {
   showTopDivider?: boolean
   /** 更新で新しく取得できたレスの場合、描画時に一瞬光らせる */
   isNew?: boolean
-}
-
-const LINK_COLORS = {
-  // 画像URLの色はMinimapの画像マーカーと同じ--c-text-mutedに合わせる(マーカー側が基準)
-  image:   'text-c-text-muted hover:opacity-80',
-  twitter: 'text-c-link-twitter hover:opacity-80',
-  youtube: 'text-c-link-youtube hover:opacity-80',
-  url:     'text-c-link hover:opacity-80',
-} as const
-
-// 長すぎるURLはレス本文内で邪魔になるので、表示だけ省略する（hrefは元のURLのまま）
-function truncateUrlForDisplay(url: string, maxLength = 50): string {
-  return url.length > maxLength ? `${url.slice(0, maxLength)}…` : url
+  /** 画像ライトボックスの右パネル(PC版のみ)にスレタイ・レス番号への
+   *  リンクを出すために必要。未指定ならパネル無しの画像表示のみになる */
+  boardId?: string
+  threadId?: string
+  threadTitle?: string
 }
 
 function filenameFromUrl(url: string, fallback: string): string {
@@ -73,51 +66,14 @@ export default function PostArticle({
   compact = false,
   showTopDivider = false,
   isNew = false,
+  boardId,
+  threadId,
+  threadTitle,
 }: PostArticleProps) {
   const userId = useAuthStore((s) => s.userId)
-  const [lightboxImages, setLightboxImages] = useState<string[]>([])
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null)
-  const lbTouchStartXRef = useRef<number | null>(null)
-  const lightboxOverlayRef = useRef<HTMLDivElement>(null)
   const [aaLightboxOpen, setAaLightboxOpen] = useState(false)
   const aaLightboxOverlayRef = useRef<HTMLDivElement>(null)
-
-  const lbNext = () =>
-    setLightboxIndex((prev) =>
-      prev !== null ? (prev + 1) % lightboxImages.length : 0,
-    )
-  const lbPrev = () =>
-    setLightboxIndex((prev) =>
-      prev !== null ? (prev - 1 + lightboxImages.length) % lightboxImages.length : 0,
-    )
-
-  useEffect(() => {
-    if (lightboxIndex === null) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight') lbNext()
-      else if (e.key === 'ArrowLeft') lbPrev()
-      else if (e.key === 'Escape') setLightboxIndex(null)
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lightboxIndex, lightboxImages.length])
-
-  // スレッド表示画面のスワイプナビゲーション(戻る/書き込む)は、Panel Bの実DOMノードに
-  // addEventListenerで直接張ったネイティブのtouchmoveリスナーで実装されている。
-  // ネイティブのバブリングは、そのリスナーがReactの合成イベント(ルートに委譲され、
-  // ネイティブのバブリングが完了してから発火する)より先に届いてしまうため、
-  // ライトボックス側でReactのonTouchMoveにstopPropagationを書いても間に合わない。
-  // ライトボックス自身のDOMノードにネイティブリスナーを張って、Panel Bへ届く前に
-  // 止める必要がある。
-  useEffect(() => {
-    if (lightboxIndex === null) return
-    const el = lightboxOverlayRef.current
-    if (!el) return
-    const stop = (e: TouchEvent) => e.stopPropagation()
-    el.addEventListener('touchmove', stop, { passive: true })
-    return () => el.removeEventListener('touchmove', stop)
-  }, [lightboxIndex])
 
   useEffect(() => {
     if (!aaLightboxOpen) return
@@ -128,9 +84,9 @@ export default function PostArticle({
     return () => el.removeEventListener('touchmove', stop)
   }, [aaLightboxOpen])
 
-  // 画像/AAを直感的に「戻るジェスチャー」で閉じようとすると、モーダルだけでなく
+  // AAを直感的に「戻るジェスチャー」で閉じようとすると、モーダルだけでなく
   // スレッドそのものから抜けてしまう問題への対策（開いている間だけhistoryを1つ消費する）
-  useBackGestureClose(lightboxIndex !== null, () => setLightboxIndex(null))
+  // (画像ライトボックス側のuseBackGestureCloseはImageLightbox内で処理する)
   useBackGestureClose(aaLightboxOpen, () => setAaLightboxOpen(false))
 
   // 半角スペース・タブ・全角スペースが5文字以上連続していればAAと判定
@@ -194,50 +150,8 @@ export default function PostArticle({
     handlers.onAnchorClick(numbers, (e.currentTarget as HTMLElement).getBoundingClientRect().top)
   }
 
-  const parts = tokenizeContent(displayContent)
   const bodyTextClass = !isDeleted && anchorCount >= 3 ? numHeat : isDeleted ? 'text-c-text-muted italic' : 'text-c-text-body'
-
-  const renderedContent = parts.map((part, i) => {
-    if (part.type === 'anchor') {
-      return (
-        <button
-          key={i}
-          type="button"
-          className="text-c-link hover:opacity-80 hover:underline text-sm"
-          onClick={(e) => handleAnchorClick(part.numbers, e)}
-        >
-          {part.raw}
-        </button>
-      )
-    }
-    if (part.type === 'url') {
-      return (
-        <a
-          key={i}
-          href={part.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={`text-sm break-all hover:underline ${LINK_COLORS[part.linkType]}`}
-          onClick={(e) => e.stopPropagation()}
-          title={part.url}
-        >
-          {truncateUrlForDisplay(part.url)}
-        </a>
-      )
-    }
-    if (part.type === 'emoji') {
-      return (
-        <span key={i} className="emoji">
-          {part.text}
-        </span>
-      )
-    }
-    return (
-      <span key={i} className={bodyTextClass}>
-        {part.text}
-      </span>
-    )
-  })
+  const renderedContent = renderPostContentParts(displayContent, { bodyTextClass, onAnchorClick: handleAnchorClick })
 
   return (
     <article
@@ -343,7 +257,6 @@ export default function PostArticle({
                 className="w-20 h-20 bg-slate-900 border border-slate-700 rounded overflow-hidden flex-shrink-0 flex items-center justify-center hover:border-slate-500 transition-colors"
                 onClick={(e) => {
                   e.stopPropagation()
-                  setLightboxImages(imageUrls)
                   setLightboxIndex(i)
                 }}
               >
@@ -428,68 +341,25 @@ export default function PostArticle({
         )}
       </div>
 
-      {/* ライトボックス */}
-      {lightboxIndex !== null && lightboxImages.length > 0 && (
-        <div
-          ref={lightboxOverlayRef}
-          className="fixed inset-0 bg-black/90 z-[100] flex items-center justify-center"
-          onClick={() => setLightboxIndex(null)}
-          onTouchStart={(e) => {
-            e.stopPropagation()
-            lbTouchStartXRef.current = e.touches[0].clientX
-          }}
-          onTouchEnd={(e) => {
-            e.stopPropagation()
-            e.preventDefault()
-            if (lbTouchStartXRef.current === null) return
-            const dx = e.changedTouches[0].clientX - lbTouchStartXRef.current
-            lbTouchStartXRef.current = null
-            if (Math.abs(dx) < 20) {
-              setLightboxIndex(null)
-              return
-            }
-            if (dx > 0) lbPrev()
-            else lbNext()
-          }}
-          onWheel={(e) => {
-            if (lightboxImages.length <= 1) return
-            e.deltaY > 0 ? lbNext() : lbPrev()
-          }}
-        >
-          <button
-            type="button"
-            className="absolute top-4 right-16 text-white hover:text-slate-300 z-10"
-            onClick={(e) => {
-              e.stopPropagation()
-              void downloadImageUrl(
-                lightboxImages[lightboxIndex],
-                filenameFromUrl(lightboxImages[lightboxIndex], `image-${post.postNumber}.jpg`),
-              )
-            }}
-            title="画像をダウンロード"
-          >
-            <span className="material-symbols-outlined text-3xl">download</span>
-          </button>
-          <button
-            type="button"
-            className="absolute top-4 right-4 text-white hover:text-slate-300 z-10"
-            onClick={() => setLightboxIndex(null)}
-          >
-            <span className="material-symbols-outlined text-3xl">close</span>
-          </button>
-
-          {/* 画像コンテナ（左右ボタンなし・スワイプ/スクロールのみ） */}
-          <div
-            className="relative inline-flex items-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <img
-              src={lightboxImages[lightboxIndex]}
-              alt="expanded"
-              className="max-w-[100vw] max-h-[100vh] object-contain block"
-            />
-          </div>
-        </div>
+      {/* ライトボックス(ホーム画面と共通のUI) */}
+      {imageUrls.length > 0 && (
+        <ImageLightbox
+          images={imageUrls}
+          index={lightboxIndex ?? 0}
+          isOpen={lightboxIndex !== null}
+          onClose={() => setLightboxIndex(null)}
+          onIndexChange={setLightboxIndex}
+          getDownloadFilename={(url) => filenameFromUrl(url, `image-${post.postNumber}.jpg`)}
+          boardId={boardId}
+          threadId={threadId}
+          threadTitle={threadTitle}
+          postNumber={post.postNumber}
+          opContent={displayContent}
+          opAuthorId={displayAuthorId}
+          opPosterName={displayName}
+          opPosterOptionInfo={post.posterOptionInfo}
+          createdAt={post.createdAt}
+        />
       )}
 
       {/* AA拡大表示（Canvasに自前描画して端末依存のフォントズレを避ける） */}
